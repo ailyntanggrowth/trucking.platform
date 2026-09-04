@@ -83,7 +83,7 @@ export default function Home() {
 					</div>
 					<div className="userRow">
 						<div className="avatar">AJ</div>
-						<div><strong>Alex Johnson</strong><span>Administrador</span></div>
+						<div><strong>Adianez Tang Johnson</strong><span>Administrador</span></div>
 						<span className="more">•••</span>
 					</div>
 				</div>
@@ -101,7 +101,7 @@ export default function Home() {
 				<div className="pageIntro">
 					<div>
 						<p className="eyebrow">CENTRO DE CONTROL · {activeItem.toUpperCase()}</p>
-						<h1>Buenos días, Alex <span>✦</span></h1>
+						<h1>Buenos días, Adianez Tang <span>✦</span></h1>
 						<p className="subtitle">Aquí tienes el pulso de tu operación para hoy.</p>
 					</div>
 					<button className="primaryButton" onClick={addTrip}><span>+</span> Nuevo viaje</button>
@@ -150,7 +150,7 @@ export default function Home() {
 
 				<section className="bottomGrid">
 					<div className="panel chartPanel"><div className="panelHeader"><div><h2>Ingresos</h2><p>Rendimiento de los últimos 6 meses</p></div><button className="selectButton">Últimos 6 meses⌄</button></div><div className="chart"><div className="chartLabels"><span>$300k</span><span>$200k</span><span>$100k</span><span>$0</span></div><div className="chartArea"><div className="gridLine line1" /><div className="gridLine line2" /><div className="gridLine line3" /><svg viewBox="0 0 640 150" preserveAspectRatio="none" aria-label="Gráfica de ingresos"><path d="M0,116 C50,106 65,82 120,92 S190,114 240,69 S310,73 360,57 S430,74 480,35 S550,66 640,14" fill="none" stroke="#ef6c47" strokeWidth="3" /><path d="M0,116 C50,106 65,82 120,92 S190,114 240,69 S310,73 360,57 S430,74 480,35 S550,66 640,14 V150 H0 Z" fill="url(#chartFill)" opacity=".18" /><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#ef6c47" /><stop offset="1" stopColor="#fff5ef" /></linearGradient></defs></svg><div className="monthLabels"><span>Abr</span><span>May</span><span>Jun</span><span>Jul</span><span>Ago</span><span>Sep</span></div></div></div></div>
-					<div className="panel activityPanel"><div className="panelHeader"><div><h2>Actividad reciente</h2><p>Últimas actualizaciones</p></div><button className="textButton">Ver historial <span>→</span></button></div><div className="activityList"><div><span className="activityDot green" /><p><strong>Viaje TR-2084</strong> llegó a Flagstaff, AZ<span>Hace 8 minutos · Sistema</span></p></div><div><span className="activityDot orange" /><p><strong>Nuevo mantenimiento</strong> programado para MK-104<span>Hace 34 minutos · Alex Johnson</span></p></div><div><span className="activityDot blue" /><p><strong>Factura #INV-4818</strong> marcada como pagada<span>Hace 1 hora · Finanzas</span></p></div></div></div>
+					<div className="panel activityPanel"><div className="panelHeader"><div><h2>Actividad reciente</h2><p>Últimas actualizaciones</p></div><button className="textButton">Ver historial <span>→</span></button></div><div className="activityList"><div><span className="activityDot green" /><p><strong>Viaje TR-2084</strong> llegó a Flagstaff, AZ<span>Hace 8 minutos · Sistema</span></p></div><div><span className="activityDot orange" /><p><strong>Nuevo mantenimiento</strong> programado para MK-104<span>Hace 34 minutos · Adianez Tang Johnson</span></p></div><div><span className="activityDot blue" /><p><strong>Factura #INV-4818</strong> marcada como pagada<span>Hace 1 hora · Finanzas</span></p></div></div></div>
 				</section>
 			</section>
 
