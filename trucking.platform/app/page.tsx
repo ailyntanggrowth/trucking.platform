@@ -132,8 +132,10 @@ export default function Home() {
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="topbar"><div className="breadcrumb"><span>trucking.platform</span><b>/</b><strong>{moduleNames[activeModule]}</strong></div><button className="textButton" onClick={()=>go('alertas')}>Alertas {fleetReady?`(${alerts.length})`:''}</button></header>
       {activeModule==='dashboard' ? <>
-      <div className="pageIntro"><span className="pageIntroTag">TRUCK SERVICE</span></div>
-      <div className={`sourceNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?'Vista de ejemplo · No son datos de tu compañía':fleet.ready?'Flota conectada':'Cargando registros de flota'}</strong><p>{demo?'Los ejemplos no se guardan ni permiten aprobar cargas reales.':'Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.'}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
+      <div className="pageIntro">
+        <span className="pageIntroTag">TRUCK SERVICE</span>
+        <div className={`sourceNotice pageIntroNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?'Vista de ejemplo · No son datos de tu compañía':fleet.ready?'Flota conectada':'Cargando registros de flota'}</strong><p>{demo?'Los ejemplos no se guardan ni permiten aprobar cargas reales.':'Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.'}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
+      </div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">TU APROBACIÓN ES NECESARIA</span><h2>Cargas por revisar</h2><p>La IA prepara. Tú revisas y confirmas antes de que sean oficiales.</p></div><div className="reviewNumber">{value(summary.review.length)}<span>Revisar cargas →</span></div></button>
       <div className="metricsGrid">{metricCards.map(card=>{
         const shown = card.label==='Choferes activos' ? (fleetReady?card.amount:null) : (data.connected?card.amount:null);
@@ -257,11 +259,13 @@ export default function Home() {
                   button:hover, button:active { transform:none !important; }
                 }
 
-                .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:200px; margin:24px 0; padding:32px; border-radius:16px; background:#24171D; }
-                .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/driver-night.png') center 38% / cover no-repeat; }
-                .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(20,10,14,.92) 0%,rgba(24,12,16,.78) 42%,rgba(24,12,16,.35) 75%,rgba(24,12,16,.15) 100%); }
-                .pageIntroTag { position:absolute; top:20px; right:24px; color:#F1CDD5; font-size:12px; font-weight:700; letter-spacing:1.2px; background:rgba(0,0,0,.28); padding:7px 14px; border-radius:20px; }
-                @media(max-width:760px) { .pageIntro { min-height:220px; padding:24px; justify-content:flex-start; }.pageIntro::before { background-position:70% 38%; }.pageIntro::after { background:linear-gradient(180deg,rgba(20,10,14,.94) 0%,rgba(24,12,16,.75) 45%,rgba(24,12,16,.2) 75%,rgba(24,12,16,.08) 100%); }.pageIntroTag { top:16px; right:16px; font-size:11px; padding:6px 12px; } }
+                .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:420px; margin:24px 0; padding:32px; border-radius:16px; background:#24171D; }
+                .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/driver-night.png') center 42% / cover no-repeat; }
+                .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(20,10,14,.05) 0%,rgba(20,10,14,.1) 70%,rgba(20,10,14,.55) 100%); }
+                .pageIntroTag { position:absolute; top:20px; right:24px; color:#F1CDD5; font-size:12px; font-weight:700; letter-spacing:1.2px; background:rgba(0,0,0,.35); padding:7px 14px; border-radius:20px; }
+                .pageIntroNotice { position:absolute; left:24px; right:24px; bottom:24px; margin-bottom:0; background:rgba(20,10,14,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); border-color:rgba(255,255,255,.22); }
+                .pageIntroNotice strong { color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.5); }.pageIntroNotice p { color:#F1CDD5; text-shadow:0 1px 3px rgba(0,0,0,.5); }.pageIntroNotice.exampleNotice { background:rgba(94,63,12,.35); border-color:rgba(215,182,118,.5); }
+                @media(max-width:760px) { .pageIntro { min-height:280px; padding:24px; justify-content:flex-start; }.pageIntro::before { background-position:70% 30%; }.pageIntroTag { top:16px; right:16px; font-size:11px; padding:6px 12px; }.pageIntroNotice { left:16px; right:16px; bottom:16px; } }
 
                 .pageIntro h1 { font-size:clamp(32px,4vw,52px); font-weight:800; letter-spacing:1px; line-height:1.08; }
                 @media(max-width:760px) { .pageIntro h1 { font-size:34px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; } }
