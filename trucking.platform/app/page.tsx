@@ -228,14 +228,13 @@ export default function Home() {
 
                 @keyframes enterPanel { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
                 @keyframes revealDetail { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-                @keyframes barGlow {
-                  0%, 20%, 100% { box-shadow:0 1px 3px rgba(74,20,32,.02); border-color:#E3DADD; }
-                  2%, 16% { box-shadow:0 0 0 3px #A85C6A33, 0 10px 24px #4A142020; border-color:#A85C6A; }
-                }
-                .pageIntro, .sourceNotice, .reviewBanner, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
+                @keyframes explodePop { 0% { transform:scale(1); } 40% { transform:scale(1.12); } 65% { transform:scale(.96); } 100% { transform:scale(1.05); } }
+                @keyframes explodeRing { 0% { opacity:.65; transform:scale(1); } 100% { opacity:0; transform:scale(1.7); } }
+                .pageIntro, .sourceNotice, .reviewBanner, .metricCard, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
                 .sourceNotice { animation-delay:40ms; }.reviewBanner { animation-delay:80ms; }
-                .metricCard { animation-name:enterPanel, barGlow; animation-duration:420ms, 4.8s; animation-timing-function:ease-out, ease-in-out; animation-fill-mode:backwards, none; animation-iteration-count:1, infinite; }
-                .metricCard:nth-child(1) { animation-delay:120ms, 0s; }.metricCard:nth-child(2) { animation-delay:170ms, 1.2s; }.metricCard:nth-child(3) { animation-delay:220ms, 2.4s; }.metricCard:nth-child(4) { animation-delay:270ms, 3.6s; }
+                .metricCard:nth-child(1) { animation-delay:120ms; }.metricCard:nth-child(2) { animation-delay:170ms; }.metricCard:nth-child(3) { animation-delay:220ms; }.metricCard:nth-child(4) { animation-delay:270ms; }
+                .metricCard { position:relative; }
+                .metricCard::before, .metricCard::after { content:""; position:absolute; inset:0; border-radius:12px; border:2px solid #A85C6A; opacity:0; pointer-events:none; }
                 button, .loadRow summary { transition:background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
                 .loadList { animation:enterPanel 240ms ease-out; }
                 .loadRow[open] .loadDetails { animation:revealDetail 240ms ease-out; }
@@ -244,8 +243,10 @@ export default function Home() {
                 .loadRow[open] summary { background:#F5EBED; }
                 button:active { transform:scale(.985); }
                 @media(hover:hover) and (pointer:fine) {
-                  .metricCard:hover, .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#A85C6A; box-shadow:0 10px 24px #4A142018; z-index:1; }
-                  .metricCard:hover { animation-play-state:running, paused; }
+                  .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#A85C6A; box-shadow:0 10px 24px #4A142018; z-index:1; }
+                  .metricCard:hover { animation:explodePop 420ms cubic-bezier(.34,1.56,.64,1) forwards; border-color:#A85C6A; box-shadow:0 16px 32px #4A142024; z-index:2; }
+                  .metricCard:hover::before { animation:explodeRing 550ms ease-out; }
+                  .metricCard:hover::after { animation:explodeRing 650ms 90ms ease-out; border-color:#6B1F2B; }
                   .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .loadRow summary:hover { background:#F7F5F3; }
                   .heroCta:hover { background:#fff; transform:scale(1.04); }
