@@ -257,15 +257,13 @@ export default function Home() {
                   button:hover, button:active { transform:none !important; }
                 }
 
-                .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:280px; margin:24px 0; padding:32px; border-radius:16px; background:#24171D; }
-                .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/truck-dusk.png') center 59% / cover no-repeat; }
-                .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(32,13,22,.94) 0%,rgba(40,15,24,.82) 38%,rgba(40,15,24,.18) 70%,rgba(40,15,24,.05) 100%); }
-                .pageIntro>div { max-width:52%; }.pageIntro h1 { color:#fff; }.pageIntro h1 span { color:#E5B7C2; }.pageIntro .eyebrow { color:#F1CDD5; }.pageIntro .subtitle { color:#F4E9ED; }
-                @media(max-width:1000px) and (min-width:761px) { .pageIntro>div { max-width:65%; } }
-                @media(max-width:760px) { .pageIntro { min-height:360px; padding:24px; justify-content:flex-start; }.pageIntro>div { max-width:100%; }.pageIntro::before { background-position:76% 64%; }.pageIntro::after { background:linear-gradient(180deg,rgba(32,13,22,.96) 0%,rgba(32,13,22,.83) 38%,rgba(32,13,22,.18) 67%,rgba(32,13,22,.08) 100%); }.pageIntro h1 { font-size:27px; }.pageIntro .subtitle { max-width:300px; } }
+                .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:170px; margin:24px 0; padding:32px; border-radius:16px; background:linear-gradient(135deg,#6B1F2B 0%,#4A1420 60%,#24171D 100%); }
+                .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 2px, transparent 2px 46px); }
+                .pageIntro>div { max-width:100%; }.pageIntro h1 { color:#fff; }.pageIntro h1 span { color:#E5B7C2; }.pageIntro .eyebrow { color:#F1CDD5; }
+                @media(max-width:760px) { .pageIntro { min-height:150px; padding:24px; justify-content:flex-start; }.pageIntro h1 { font-size:27px; } }
 
-                .pageIntro h1 { font-size:clamp(36px,4.5vw,64px); font-weight:800; letter-spacing:1px; line-height:1.08; }.heroGreeting { color:white; font-size:18px; margin:16px 0 0; }.pageIntro .subtitle { font-size:15px; margin-top:6px; }
-                @media(max-width:760px) { .pageIntro h1 { font-size:38px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; }.heroGreeting { margin-top:12px; } }
+                .pageIntro h1 { font-size:clamp(32px,4vw,52px); font-weight:800; letter-spacing:1px; line-height:1.08; }
+                @media(max-width:760px) { .pageIntro h1 { font-size:34px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; } }
 
                 /* Pantalla de bienvenida a pantalla completa (antes de elegir un módulo) */
                 .landingHero { position:relative; isolation:isolate; min-height:100dvh; display:flex; align-items:center; padding:0 clamp(24px,6vw,72px); }
