@@ -11,6 +11,19 @@ type Editor={type:'entity'|'assignment'|'document'|'end'|'review';kind:EntityKin
 const dateTime=(s:string)=>new Intl.DateTimeFormat('es',{dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
 const today=()=>new Date().toLocaleDateString('en-CA');
 function download(document:FleetDocument){const url=URL.createObjectURL(document.file);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function exportBackup(state:FleetController['state']){
+  const payload={schema:state.schema,revision:state.revision,warningDays:state.warningDays,drivers:state.drivers,trucks:state.trucks,trailers:state.trailers,assignments:state.assignments,documents:state.documents.map(({file,...meta})=>meta),events:state.events};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=window.document.createElement('a');
+  a.href=url;a.download=`fleet-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  state.documents.forEach((d,i)=>setTimeout(()=>{
+    const fileUrl=URL.createObjectURL(d.file);const a2=window.document.createElement('a');
+    a2.href=fileUrl;a2.download=`${d.id}__${d.filename}`;a2.click();
+    setTimeout(()=>URL.revokeObjectURL(fileUrl),1000);
+  },i*300));
+}
 export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetController;loads:Load[];onOpenLoads:()=>void}) {
   const {state,ready}=fleet;
   const [tab,setTab]=useState<Tab>('drivers'),[query,setQuery]=useState(''),[filter,setFilter]=useState('Todos');
@@ -47,7 +60,7 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
   const currentForForm=state.assignments.find(a=>!a.endedAt&&a.driverId===chosenDriver);
   const editorTitle=editor?.type==='entity'?`${editor.id?'Editar':'Agregar'} ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='assignment'?'Asignar o cambiar equipo':editor?.type==='document'?'Agregar documento':editor?.type==='review'?'Revisar documento':'Finalizar asignación';
   return <div className={styles.fleet}>
-    <div className={styles.localNotice}><strong>Guardado local · M&A KING</strong><p>Los datos y archivos se conservan en este navegador y en esta dirección. No se sincronizan con otros dispositivos. Borrar los datos del navegador elimina esta copia. Usuarios y permisos compartidos están pendientes.</p></div>
+    <div className={styles.localNotice}><strong>Guardado local · M&A KING</strong><p>Los datos y archivos se conservan en este navegador y en esta dirección. No se sincronizan con otros dispositivos. Borrar los datos del navegador elimina esta copia. Usuarios y permisos compartidos están pendientes.</p><button disabled={!ready} onClick={()=>exportBackup(state)}>Exportar respaldo (JSON + archivos)</button></div>
     {fleet.error&&<div role="alert" className={styles.error}>{fleet.error} <button onClick={()=>void fleet.refresh()}>Reintentar</button></div>}
     {!ready&&!fleet.error&&<p role="status">Abriendo los registros de flota…</p>}
     <div className={styles.metrics}>
