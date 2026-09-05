@@ -19,6 +19,14 @@ export type Snapshot = {
 export const emptySnapshot: Snapshot = { connected: false, loads: [], drivers: [], ledger: [], payments: [], alerts: [], activity: [] };
 export const isOfficial = (load: Load) => load.approval === 'Aprobada' && Boolean(load.approvedBy?.trim()) && Boolean(load.approvedAt && !Number.isNaN(Date.parse(load.approvedAt)));
 export const isActive = (load: Load) => isOfficial(load) && ['Programado', 'Cargando', 'En tránsito'].includes(load.status);
+// NOTA DE ARQUITECTURA (documentación, no ejecutar todavía): esta función mezcla el
+// dominio de tres módulos futuros — Cargas y Operaciones (official/review/active/gross),
+// Combustible y Gastos (fuel/nonFuel), y Contabilidad/Liquidaciones
+// (salaries/profit/receivable/payable) — porque hoy ninguno de esos módulos tiene
+// tablas reales en Supabase. Cuando las tengan, cada uno debe exponer su propia
+// función de cálculo (lib/loads.ts, lib/fuel.ts, lib/settlements.ts) y este archivo
+// (o el futuro Módulo 6 - Reportes) debe limitarse a combinar esos resultados,
+// no calcularlos él mismo.
 export function summarize(data: Snapshot, start: string, end: string) {
   const official = data.loads.filter(isOfficial);
   const review = data.loads.filter(l => l.approval !== 'Rechazada' && !isOfficial(l));

@@ -1,7 +1,12 @@
 export type EntityKind = 'drivers' | 'trucks' | 'trailers';
 export type Availability = 'Disponible' | 'En servicio' | 'Descanso';
+export const AVAILABILITY_VALUES: Availability[] = ['Disponible','En servicio','Descanso'];
+export const DRIVER_STATUS_VALUES: (Availability|'Inactivo')[] = [...AVAILABILITY_VALUES,'Inactivo'];
 export type EquipmentStatus = 'Disponible' | 'En mantenimiento' | 'Fuera de servicio' | 'Inactivo';
 export type Driver = { id:string; name:string; phone:string; email:string; group:string; active:boolean; availability:Availability; notes:string };
+// Un chofer inactivo se muestra como 'Inactivo' sin importar su disponibilidad guardada.
+// Antes esta regla se repetía en app/page.tsx y app/fleet-module.tsx por separado.
+export const driverStatus = (driver:Driver):Availability|'Inactivo' => driver.active ? driver.availability : 'Inactivo';
 export type Equipment = { id:string; unit:string; vin:string; plate:string; plateState:string; year:string; make:string; model:string; type:string; status:EquipmentStatus; notes:string };
 export type Assignment = { id:string; driverId:string; truckId:string; trailerId:string; startedAt:string; endedAt?:string; reason:string; endReason?:string };
 export type FleetDocument = { id:string; ownerKind:EntityKind; ownerId:string; type:string; issued:string; expires:string; reviewed:boolean; notes:string; filename:string; file:Blob; sizeBytes?:number; uploadedAt:string; reviewedAt?:string };
@@ -28,7 +33,7 @@ export function applyFleetAction(original:FleetState, action:FleetAction, now:st
   if(action.type==='driver') {
     const record={...action.record}; Object.keys(record).forEach(key=>{const k=key as keyof Driver;if(typeof record[k]==='string') (record as unknown as Record<string,unknown>)[k]=(record[k] as string).trim();});
     requireValue(record.id && record.name,'Escribe el nombre del chofer.');
-    requireValue(['Disponible','En servicio','Descanso'].includes(record.availability),'Disponibilidad inválida.');
+    requireValue(AVAILABILITY_VALUES.includes(record.availability),'Disponibilidad inválida.');
     requireValue(!record.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email),'Revisa el correo electrónico.');
     requireValue(!state.drivers.some(d=>d.id!==record.id&&clean(d.name)===clean(record.name)),'Ya existe un chofer con ese nombre. Revisa su perfil antes de duplicarlo.');
     requireValue(!state.drivers.some(d=>d.id!==record.id&&record.email&&clean(d.email)===clean(record.email)),'Ese correo ya pertenece a otro chofer.');

@@ -3,14 +3,14 @@ import {useState,type FormEvent} from 'react';
 import {assignmentFor,documentStatus,entityName,fleetAlerts,type EntityKind,type Driver,type Equipment,type FleetAction,type FleetDocument} from '../lib/fleet';
 import type {FleetController} from '../lib/use-fleet';
 import {getFleetDocumentUrl} from '../lib/fleet-actions';
+import {dateLabel as dateTime, today} from '../lib/format';
 import type {Load} from '../lib/dashboard';
 import styles from './fleet.module.css';
 
 const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignments:'Asignaciones'};
 type Tab=keyof typeof titles;
 type Editor={type:'entity'|'assignment'|'document'|'end'|'review'|'deleteEntity'|'deleteDocument';kind:EntityKind;id:string;revision:number};
-const dateTime=(s:string)=>new Intl.DateTimeFormat('es',{dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
-const today=()=>new Date().toLocaleDateString('en-CA');
+const kindLabel=(kind:EntityKind)=>kind==='drivers'?'chofer':kind==='trucks'?'camión':'trailer';
 async function download(document:FleetDocument){const url=await getFleetDocumentUrl(document.id);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();}
 function exportBackup(state:FleetController['state']){
   const payload={schema:state.schema,revision:state.revision,warningDays:state.warningDays,drivers:state.drivers,trucks:state.trucks,trailers:state.trailers,assignments:state.assignments,documents:state.documents.map(({file,...meta})=>meta),events:state.events};
@@ -61,7 +61,7 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
   const selectedAssignment=selected?assignmentFor(state,selected.kind,selected.id):undefined;
   const relevantAssignments=selected?state.assignments.filter(a=>selected.kind==='drivers'?a.driverId===selected.id:selected.kind==='trucks'?a.truckId===selected.id:a.trailerId===selected.id):[];
   const currentForForm=state.assignments.find(a=>!a.endedAt&&a.driverId===chosenDriver);
-  const editorTitle=editor?.type==='entity'?`${editor.id?'Editar':'Agregar'} ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='assignment'?'Asignar o cambiar equipo':editor?.type==='document'?'Agregar documento':editor?.type==='review'?'Revisar documento':editor?.type==='deleteEntity'?`Eliminar ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='deleteDocument'?'Eliminar documento':'Finalizar asignación';
+  const editorTitle=editor?.type==='entity'?`${editor.id?'Editar':'Agregar'} ${kindLabel(editor.kind)}`:editor?.type==='assignment'?'Asignar o cambiar equipo':editor?.type==='document'?'Agregar documento':editor?.type==='review'?'Revisar documento':editor?.type==='deleteEntity'?`Eliminar ${kindLabel(editor.kind)}`:editor?.type==='deleteDocument'?'Eliminar documento':'Finalizar asignación';
   return <div className={styles.fleet}>
     <div className={styles.localNotice}><strong>M&A KING</strong><p>Los datos y archivos se guardan en Supabase y se sincronizan entre dispositivos. Usuarios y permisos compartidos están pendientes.</p><button disabled={!ready} onClick={()=>exportBackup(state)}>Exportar respaldo (JSON + archivos)</button></div>
     {fleet.error&&<div role="alert" className={styles.error}>{fleet.error} <button onClick={()=>void fleet.refresh()}>Reintentar</button></div>}
@@ -74,7 +74,7 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
     </div>
     <nav className={styles.tabs} aria-label="Secciones de flota">{(Object.keys(titles) as Tab[]).map(t=><button key={t} aria-pressed={tab===t} onClick={()=>changeTab(t)}>{titles[t]} <span>{t==='assignments'?activeAssignments.length:state[t].length}</span></button>)}</nav>
     {notice&&<p role="status" className={styles.success}>{notice}</p>}
-    <div className={styles.toolbar}><h2>{titles[tab]}</h2><button className={styles.primary} disabled={!ready||busy} onClick={()=>open(tab==='assignments'?'assignment':'entity',tab==='assignments'?'drivers':tab)}>{tab==='assignments'?'+ Nueva asignación':`+ Agregar ${tab==='drivers'?'chofer':tab==='trucks'?'camión':'trailer'}`}</button></div>
+    <div className={styles.toolbar}><h2>{titles[tab]}</h2><button className={styles.primary} disabled={!ready||busy} onClick={()=>open(tab==='assignments'?'assignment':'entity',tab==='assignments'?'drivers':tab)}>{tab==='assignments'?'+ Nueva asignación':`+ Agregar ${kindLabel(tab as EntityKind)}`}</button></div>
     {editor&&<form id="fleet-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.kind}-${editor.id}`}>
       <h3>{editorTitle}</h3>
       {editor.type==='entity'&&<div className={styles.fields}>
@@ -124,7 +124,7 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
       {ready&&!records.length&&<p className={styles.empty}>{query||filter!=='Todos'?'No hay resultados con estos filtros.':`Todavía no hay ${titles[tab].toLowerCase()}. Usa el botón Agregar para comenzar.`}</p>}
     </>:<><p>Asignaciones activas: {activeAssignments.length}. Las finalizadas se conservan abajo.</p><div className={styles.cards}>{[...state.assignments].reverse().map(a=><article className={styles.card} key={a.id}><span className={styles.badge}>{a.endedAt?'Finalizada':'Activa'}</span><strong>{entityName(state,'drivers',a.driverId)}</strong><p>Camión {entityName(state,'trucks',a.truckId)} · Trailer {a.trailerId?entityName(state,'trailers',a.trailerId):'Sin trailer'}</p><small>Inicio: {dateTime(a.startedAt)}</small>{a.endedAt&&<small>Fin: {dateTime(a.endedAt)}</small>}<p>{a.reason}{a.endReason&&` · Finalización: ${a.endReason}`}</p>{!a.endedAt&&<div className={styles.actions}><button onClick={()=>open('assignment','drivers',a.driverId)}>Cambiar equipo</button><button onClick={()=>open('end','drivers',a.id)}>Finalizar</button></div>}</article>)}</div>{!state.assignments.length&&<p className={styles.empty}>Agrega un chofer y un camión para crear tu primera asignación.</p>}</>}
     {selected&&record&&tab!=='assignments'&&<section className={styles.profile}>
-      <div className={styles.toolbar}><h2>Ficha: {entityName(state,selected.kind,selected.id)}</h2><button onClick={()=>open('entity',selected.kind,selected.id)}>Editar ficha</button><button onClick={()=>{if(window.confirm('¿Eliminar este registro por completo? No se puede deshacer.'))open('deleteEntity',selected.kind,selected.id);}}>Eliminar {selected.kind==='drivers'?'chofer':selected.kind==='trucks'?'camión':'trailer'}</button></div>
+      <div className={styles.toolbar}><h2>Ficha: {entityName(state,selected.kind,selected.id)}</h2><button onClick={()=>open('entity',selected.kind,selected.id)}>Editar ficha</button><button onClick={()=>{if(window.confirm('¿Eliminar este registro por completo? No se puede deshacer.'))open('deleteEntity',selected.kind,selected.id);}}>Eliminar {kindLabel(selected.kind)}</button></div>
       <dl className={styles.fields}>
         {(selected.kind==='drivers'?[['Nombre',(record as Driver).name],['Teléfono',(record as Driver).phone],['Correo',(record as Driver).email],['Grupo',(record as Driver).group],['Estado',(record as Driver).active?'Activo':'Inactivo'],['Disponibilidad',(record as Driver).availability]]:[['Unidad',(record as Equipment).unit],['VIN',(record as Equipment).vin],['Placa',(record as Equipment).plate],['Estado de registro',(record as Equipment).plateState],['Año',(record as Equipment).year],['Marca',(record as Equipment).make],['Modelo',(record as Equipment).model],['Tipo',(record as Equipment).type],['Estado',statusOf(selected.kind,record.id)]]).map(([label,v])=><div key={label}><dt>{label}</dt><dd>{v||'Pendiente de completar'}</dd></div>)}
       </dl><p><b>Notas:</b> {record.notes||'Sin notas'}</p>
@@ -134,6 +134,11 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
       {state.documents.filter(d=>d.ownerKind===selected.kind&&d.ownerId===selected.id).map(d=><div key={d.id} className={styles.document}><div><strong>{d.type} · {documentStatus(d,today())}</strong><p>{d.filename} · {Math.ceil((d.sizeBytes??0)/1024)} KB</p><small>Recibido: {dateTime(d.uploadedAt)}{d.issued&&` · Emisión: ${d.issued}`}{d.expires?` · Vence: ${d.expires}`:' · Sin vencimiento indicado'}</small>{d.reviewedAt&&<small>Revisado: {dateTime(d.reviewedAt)}</small>}<p>{d.notes}</p></div><div className={styles.actions}><button onClick={()=>void download(d)}>Descargar</button><button onClick={()=>open('review',selected.kind,d.id)}>Revisar</button><button onClick={()=>{if(window.confirm('¿Eliminar este documento por completo? No se puede deshacer.'))open('deleteDocument',selected.kind,d.id);}}>Eliminar</button></div></div>)}
       {!state.documents.some(d=>d.ownerId===selected.id)&&<p className={styles.empty}>No se han recibido documentos para este perfil.</p>}
       <h3>Historial de asignaciones</h3>{relevantAssignments.length?<ul>{[...relevantAssignments].reverse().map(a=><li key={a.id}>{dateTime(a.startedAt)} — {entityName(state,'drivers',a.driverId)} / {entityName(state,'trucks',a.truckId)} / {a.trailerId?entityName(state,'trailers',a.trailerId):'Sin trailer'} · {a.endedAt?`Finalizada ${dateTime(a.endedAt)}`:'Activa'} · {a.reason}{a.endReason&&` · ${a.endReason}`}</li>)}</ul>:<p>Sin asignaciones anteriores.</p>}
+      {/* NOTA DE ARQUITECTURA (documentación, no ejecutar todavía): este filtrado de cargas
+          por chofer es dominio de Módulo 2 (Cargas y Operaciones), no de Flota. Hoy vive aquí
+          porque `loads` siempre llega vacío (emptySnapshot.loads desde app/page.tsx). Cuando
+          Módulo 2 tenga datos reales, esto debe volverse un link a Cargas y Operaciones
+          filtrado por chofer, no lógica de filtrado propia dentro de este módulo. */}
       {selected.kind==='drivers'&&<><h3>Cargas y actividad relacionada</h3>{loads.filter(l=>l.driverId===selected.id).map(l=><p key={l.id}>{l.id} · {l.route} · {l.approval==='Aprobada'?l.status:'Pendiente de aprobación'}</p>)}<p>La gestión de cargas, combustible, pagos y liquidaciones está pendiente de conexión. No se copian cifras de ejemplo a este perfil.</p><button onClick={onOpenLoads}>Abrir Cargas y Operaciones →</button></>}
       <h3>Historial de cambios</h3>{state.events.filter(e=>e.entityIds.includes(selected.id)).map(e=><details key={e.id} className={styles.history}><summary>{e.detail}<small>{dateTime(e.at)} · {e.actor}</small></summary><div className={styles.fields}><div><b>Anterior</b><pre>{JSON.stringify(e.before,null,2)}</pre></div><div><b>Nuevo</b><pre>{JSON.stringify(e.after,null,2)}</pre></div></div></details>)}
     </section>}
