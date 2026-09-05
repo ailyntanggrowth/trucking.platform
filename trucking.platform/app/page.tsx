@@ -51,6 +51,13 @@ export default function Home() {
     ...summary.official.filter(l=>['Cancelada','Reemplazada'].includes(l.status)).map(l=>({id:`cancel-${l.id}`,title:`Carga ${l.status.toLowerCase()}`,detail:`${l.id}${l.replacedBy ? ` · Relacionada con ${l.replacedBy}` : ''}`})),
     ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`}))];
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
+  const metricCards = [
+    {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
+    {label:'En tránsito',amount:summary.official.filter(l=>l.status==='En tránsito').length,hint:'Parte de las cargas activas',action:()=>viewLoads('En tránsito')},
+    {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
+    {label:'Choferes activos',amount:data.drivers.filter(d=>d.status!=='Inactivo').length,hint:'Incluye servicio, descanso y disponibles',action:()=>go('choferes')},
+  ];
+  const maxMetric = Math.max(1,...metricCards.map(c=>c.amount));
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
   // (mouse o dedo, vía Pointer Events) o tocando el botón. Antes era un sidebar
@@ -128,12 +135,16 @@ export default function Home() {
       <div className="pageIntro"><div><p className="eyebrow">TRUCK SERVICE · PANEL PRINCIPAL</p><h1>M&amp;A KING</h1><p className="heroGreeting">Hola, Adianez Tang</p><p className="subtitle">Tus cargas, tu equipo y tus números en un solo lugar.</p></div></div>
       <div className={`sourceNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?'Vista de ejemplo · No son datos de tu compañía':fleet.ready?'Flota conectada':'Cargando registros de flota'}</strong><p>{demo?'Los ejemplos no se guardan ni permiten aprobar cargas reales.':'Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.'}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">TU APROBACIÓN ES NECESARIA</span><h2>Cargas por revisar</h2><p>La IA prepara. Tú revisas y confirmas antes de que sean oficiales.</p></div><div className="reviewNumber">{value(summary.review.length)}<span>Revisar cargas →</span></div></button>
-      <div className="metricsGrid">{[
-        {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
-        {label:'En tránsito',amount:summary.official.filter(l=>l.status==='En tránsito').length,hint:'Parte de las cargas activas',action:()=>viewLoads('En tránsito')},
-        {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
-        {label:'Choferes activos',amount:data.drivers.filter(d=>d.status!=='Inactivo').length,hint:'Incluye servicio, descanso y disponibles',action:()=>go('choferes')},
-      ].map(card=><button className="metricCard" key={card.label} onClick={card.action}><div className="metricTop">{card.label}<span aria-hidden="true">↗</span></div><strong>{card.label==='Choferes activos'?(fleetReady?card.amount:'—'):value(card.amount)}</strong><div className="metricDelta"><em>{card.hint}</em></div></button>)}</div>
+      <div className="metricsGrid">{metricCards.map(card=>{
+        const shown = card.label==='Choferes activos' ? (fleetReady?card.amount:null) : (data.connected?card.amount:null);
+        const pct = shown===null ? 30 : Math.max(12,Math.round((card.amount/maxMetric)*100));
+        return <button className="metricCard" key={card.label} onClick={card.action}>
+          <div className="metricTop">{card.label}<span aria-hidden="true">↗</span></div>
+          <strong>{shown===null?'—':shown}</strong>
+          <div className="metricBarTrack"><div className="metricBarFill" style={{height:`${pct}%`}}/></div>
+          <div className="metricDelta"><em>{card.hint}</em></div>
+        </button>;
+      })}</div>
       <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
         <div className="panelHeader"><div><h2>Resumen de cargas</h2><p>Estado actual · Las pendientes están separadas de las oficiales.</p></div><label className="filterLabel">Mostrar<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s}>{s}</option>)}</select></label></div>
         <div className="statusGrid">{statuses.map(status=><button key={status} aria-pressed={filter===status} onClick={()=>setFilter(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?'Próximas a recoger':status}</span></button>)}</div>
@@ -193,6 +204,7 @@ export default function Home() {
                 .topbar { min-height: 80px; border-bottom: 1px solid #E3DADD; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-left:56px; }.breadcrumb { color: #6D6064; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }.breadcrumb b { font-weight: 400; }.breadcrumb strong { color: #4A1420; }
                 .pageIntro { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 32px 0 24px; }.eyebrow { color: #6B1F2B; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; margin: 0 0 10px; }.pageIntro h1 { margin: 0; font-size: clamp(26px, 2.3vw, 36px); line-height: 1.2; letter-spacing: -.8px; color: #4A1420; }.pageIntro h1 span { color: #8F4F5B; }.subtitle { color: #6D6064; font-size: 16px; margin: 10px 0 0; }
                 .metricsGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }.metricCard { background: white; padding: 20px; border: 1px solid #E3DADD; border-top: 3px solid #6B1F2B; border-radius: 12px; min-width: 0; text-align:left; }.metricTop { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #6D6064; font-size: 14px; font-weight: 700; }.metricCard > strong { display: block; margin: 12px 0 8px; color: #4A1420; font-size: 32px; line-height: 1.2; letter-spacing: -.6px; }.metricDelta { font-size: 14px; font-weight: 700; color: #6B1F2B; }.metricDelta em { display: inline-block; font-style: normal; font-weight: 400; color: #6D6064; }
+                .metricBarTrack { height:56px; width:100%; background:#F7F5F3; border-radius:8px; display:flex; align-items:flex-end; overflow:hidden; margin:2px 0 12px; }.metricBarFill { width:100%; min-height:6px; border-radius:8px 8px 0 0; background:linear-gradient(180deg,#A85C6A,#6B1F2B); transition:height 500ms ease; }
                 .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #4A142004; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #4A1420; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #6D6064; font-size: 14px; }.textButton { border: 0; background: transparent; color: #6B1F2B; font-size: 14px; font-weight: 700; padding: 8px; }.textButton:hover { background: #F5EBED; border-radius: 8px; }.cellMuted { display: block; color: #6D6064; font-size: 13px; margin-top: 5px; }.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; border-radius: 8px; padding: 5px 8px; }.statusTransit { color: #6B1F2B; background: #F5EBED; }
                 .alertCount { background: #F5EBED; color: #6B1F2B; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
                 .bottomGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }.selectButton { border: 1px solid #D6C6CB; color: #554A4E; background: white; border-radius: 8px; font-size: 14px; padding: 8px 12px; }
@@ -216,9 +228,14 @@ export default function Home() {
 
                 @keyframes enterPanel { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
                 @keyframes revealDetail { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-                .pageIntro, .sourceNotice, .reviewBanner, .metricCard, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
+                @keyframes barGlow {
+                  0%, 20%, 100% { box-shadow:0 1px 3px rgba(74,20,32,.02); border-color:#E3DADD; }
+                  2%, 16% { box-shadow:0 0 0 3px #A85C6A33, 0 10px 24px #4A142020; border-color:#A85C6A; }
+                }
+                .pageIntro, .sourceNotice, .reviewBanner, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
                 .sourceNotice { animation-delay:40ms; }.reviewBanner { animation-delay:80ms; }
-                .metricCard:nth-child(1) { animation-delay:120ms; }.metricCard:nth-child(2) { animation-delay:170ms; }.metricCard:nth-child(3) { animation-delay:220ms; }.metricCard:nth-child(4) { animation-delay:270ms; }
+                .metricCard { animation-name:enterPanel, barGlow; animation-duration:420ms, 4.8s; animation-timing-function:ease-out, ease-in-out; animation-fill-mode:backwards, none; animation-iteration-count:1, infinite; }
+                .metricCard:nth-child(1) { animation-delay:120ms, 0s; }.metricCard:nth-child(2) { animation-delay:170ms, 1.2s; }.metricCard:nth-child(3) { animation-delay:220ms, 2.4s; }.metricCard:nth-child(4) { animation-delay:270ms, 3.6s; }
                 button, .loadRow summary { transition:background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
                 .loadList { animation:enterPanel 240ms ease-out; }
                 .loadRow[open] .loadDetails { animation:revealDetail 240ms ease-out; }
@@ -227,11 +244,15 @@ export default function Home() {
                 .loadRow[open] summary { background:#F5EBED; }
                 button:active { transform:scale(.985); }
                 @media(hover:hover) and (pointer:fine) {
-                  .metricCard:hover, .quickGrid button:hover { transform:translateY(-3px); border-color:#A85C6A; box-shadow:0 8px 20px #4A142012; }
-                  .reviewBanner:hover { transform:translateY(-2px); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
+                  .metricCard:hover, .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#A85C6A; box-shadow:0 10px 24px #4A142018; z-index:1; }
+                  .metricCard:hover { animation-play-state:running, paused; }
+                  .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .loadRow summary:hover { background:#F7F5F3; }
-                  .heroCta:hover { background:#fff; }
-                  .drawerTab:hover { background:#4A1420; }
+                  .heroCta:hover { background:#fff; transform:scale(1.04); }
+                  .drawerTab:hover { background:#4A1420; transform:scale(1.08); }
+                  .navItem:hover { transform:scale(1.03); }
+                  .statusGrid button:hover { transform:scale(1.05); border-color:#A85C6A; box-shadow:0 6px 16px #4A142014; z-index:1; }
+                  .selectButton:hover { transform:scale(1.05); border-color:#A85C6A; box-shadow:0 6px 14px #4A142012; }
                 }
                 @media(prefers-reduced-motion:reduce) {
                   *, *::before, *::after { animation:none !important; transition:none !important; }
