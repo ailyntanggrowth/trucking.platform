@@ -208,10 +208,10 @@ export default function Home() {
                 .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #4A142004; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #4A1420; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #6D6064; font-size: 14px; }.textButton { border: 0; background: transparent; color: #6B1F2B; font-size: 14px; font-weight: 700; padding: 8px; }.textButton:hover { background: #F5EBED; border-radius: 8px; }.cellMuted { display: block; color: #6D6064; font-size: 13px; margin-top: 5px; }.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; border-radius: 8px; padding: 5px 8px; }.statusTransit { color: #6B1F2B; background: #F5EBED; }
                 .alertCount { background: #F5EBED; color: #6B1F2B; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
                 .bottomGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }.selectButton { border: 1px solid #D6C6CB; color: #554A4E; background: white; border-radius: 8px; font-size: 14px; padding: 8px 12px; }
-                @media (max-width: 1200px) { .metricsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.bottomGrid { grid-template-columns: 1fr; } }
+                @media (max-width: 1200px) { .bottomGrid { grid-template-columns: 1fr; } }
                 @media (max-width: 1000px) { .pageIntro { flex-wrap: wrap; } }
-                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.metricsGrid { gap: 12px; }.metricCard { padding: 16px; }.metricCard > strong { font-size: 30px; }.metricDelta em { display: block; }.panelHeader { padding: 18px 16px; } }
-                @media (max-width: 380px) { .metricsGrid { grid-template-columns: 1fr; }.metricDelta em { display: inline; margin-left: 4px; } }
+                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.metricsGrid { gap: 8px; }.metricCard { padding: 10px; }.metricCard > strong { font-size: 20px; margin:6px 0 4px; }.metricTop { font-size:11px; }.metricDelta { font-size:11px; }.metricDelta em { display: block; }.metricBarTrack { height:32px; margin:4px 0 6px; }.panelHeader { padding: 18px 16px; } }
+                @media (max-width: 380px) { .metricCard { padding: 8px; }.metricTop span { display:none; } }
 
                 .metricCard { text-align:left; }.sectionSpace { margin-top:24px; scroll-margin-top:20px; }
                 h2 { color:#4A1420; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#6D6064; }.sourceNotice button { flex-shrink:0; }.exampleNotice { background:#fff7e8; border-color:#D7B676; }
@@ -228,13 +228,12 @@ export default function Home() {
 
                 @keyframes enterPanel { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
                 @keyframes revealDetail { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-                @keyframes explodePop { 0% { transform:scale(1); } 40% { transform:scale(1.12); } 65% { transform:scale(.96); } 100% { transform:scale(1.05); } }
-                @keyframes explodeRing { 0% { opacity:.65; transform:scale(1); } 100% { opacity:0; transform:scale(1.7); } }
+                @keyframes flipCard { 0% { transform:rotateY(0deg); } 100% { transform:rotateY(360deg); } }
                 .pageIntro, .sourceNotice, .reviewBanner, .metricCard, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
                 .sourceNotice { animation-delay:40ms; }.reviewBanner { animation-delay:80ms; }
                 .metricCard:nth-child(1) { animation-delay:120ms; }.metricCard:nth-child(2) { animation-delay:170ms; }.metricCard:nth-child(3) { animation-delay:220ms; }.metricCard:nth-child(4) { animation-delay:270ms; }
+                .metricsGrid { perspective:900px; }
                 .metricCard { position:relative; }
-                .metricCard::before, .metricCard::after { content:""; position:absolute; inset:0; border-radius:12px; border:2px solid #A85C6A; opacity:0; pointer-events:none; }
                 button, .loadRow summary { transition:background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
                 .loadList { animation:enterPanel 240ms ease-out; }
                 .loadRow[open] .loadDetails { animation:revealDetail 240ms ease-out; }
@@ -244,9 +243,7 @@ export default function Home() {
                 button:active { transform:scale(.985); }
                 @media(hover:hover) and (pointer:fine) {
                   .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#A85C6A; box-shadow:0 10px 24px #4A142018; z-index:1; }
-                  .metricCard:hover { animation:explodePop 420ms cubic-bezier(.34,1.56,.64,1) forwards; border-color:#A85C6A; box-shadow:0 16px 32px #4A142024; z-index:2; }
-                  .metricCard:hover::before { animation:explodeRing 550ms ease-out; }
-                  .metricCard:hover::after { animation:explodeRing 650ms 90ms ease-out; border-color:#6B1F2B; }
+                  .metricCard:hover { animation:flipCard 650ms ease-in-out; border-color:#A85C6A; box-shadow:0 16px 32px #4A142024; z-index:2; }
                   .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .loadRow summary:hover { background:#F7F5F3; }
                   .heroCta:hover { background:#fff; transform:scale(1.04); }
