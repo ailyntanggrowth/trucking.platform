@@ -1,167 +1,125 @@
 "use client";
 
 import { useState } from "react";
+import { emptySnapshot, summarize, type LoadStatus } from "../lib/dashboard";
+import { demoSnapshot } from "../lib/dashboard-demo";
+import { useFleet } from "../lib/use-fleet";
+import { fleetAlerts } from "../lib/fleet";
+import FleetModule from "./fleet-module";
 
-type Trip = {
-	id: string;
-	route: string;
-	driver: string;
-	truck: string;
-	status: "En tránsito" | "Cargando" | "Programado";
-	eta: string;
-};
-
-const navItems = [
-	{ label: "Resumen", icon: "▦" },
-	{ label: "Despacho", icon: "↗" },
-	{ label: "Flota", icon: "▰" },
-	{ label: "Mantenimiento", icon: "⌁" },
-	{ label: "Finanzas", icon: "$" },
+const money = (value: number) => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(value);
+const statuses: LoadStatus[] = ['Programado','Cargando','En tránsito','Entregada','Cancelada','Reemplazada'];
+const nav = [
+  {name:'Dashboard',id:'dashboard',icon:'01'},
+  {name:'Cargas y Operaciones',id:'cargas',icon:'02'},
+  {name:'Choferes y Flota',id:'choferes',icon:'03'},
+  {name:'Combustible y Gastos',id:'combustible',icon:'04'},
+  {name:'Contabilidad y Pagos',id:'finanzas',icon:'05'},
+  {name:'Reportes',id:'reportes',icon:'06'},
+  {name:'Comunicación',id:'comunicacion',icon:'07'},
+  {name:'Usuarios y Permisos',id:'usuarios',icon:'08'},
 ];
-
-const initialTrips: Trip[] = [
-	{ id: "TR-2084", route: "Dallas, TX → Phoenix, AZ", driver: "Marcus Johnson", truck: "MK-104 · Volvo VNL", status: "En tránsito", eta: "Hoy, 16:40" },
-	{ id: "TR-2083", route: "Houston, TX → Atlanta, GA", driver: "Sarah Williams", truck: "MK-118 · Freightliner", status: "Cargando", eta: "Hoy, 18:15" },
-	{ id: "TR-2082", route: "El Paso, TX → Denver, CO", driver: "James Carter", truck: "MK-096 · Kenworth", status: "Programado", eta: "Mañana, 07:30" },
-	{ id: "TR-2081", route: "Austin, TX → San Antonio, TX", driver: "Robert Davis", truck: "MK-121 · Peterbilt", status: "En tránsito", eta: "Hoy, 14:05" },
-];
-
-const statusStyles = {
-	"En tránsito": "statusTransit",
-	Cargando: "statusLoading",
-	Programado: "statusScheduled",
-};
+function currentWeek() {
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const part = (type: string) => parts.find(p => p.type === type)!.value;
+  const date = new Date(`${part('year')}-${part('month')}-${part('day')}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - (date.getUTCDay()+6)%7);
+  return date.toISOString().slice(0,10);
+}
+function weekEnd(start: string) { const date = new Date(`${start}T12:00:00Z`); date.setUTCDate(date.getUTCDate()+7); return date.toISOString().slice(0,10); }
+const dateLabel = (date: string) => new Intl.DateTimeFormat('es',{timeZone:'America/Chicago',dateStyle:'medium',timeStyle:'short'}).format(new Date(date));
 
 export default function Home() {
-	const [menuOpen, setMenuOpen] = useState(false);
-	const [activeItem, setActiveItem] = useState("Resumen");
-	const [trips, setTrips] = useState(initialTrips);
+  const [menuOpen,setMenuOpen] = useState(false);
+  const [activeModule,setActiveModule] = useState('dashboard');
+  const [demo,setDemo] = useState(false);
+  const [week,setWeek] = useState('');
+  const [filter,setFilter] = useState('Activas');
+  const fleet = useFleet();
+  const fleetReady = demo || fleet.ready;
+  const data = demo ? demoSnapshot : {
+    ...emptySnapshot,
+    drivers: fleet.state.drivers.map(d=>({id:d.id,name:d.name,status:d.active?d.availability:'Inactivo' as const})),
+    alerts: fleet.ready ? fleetAlerts(fleet.state,new Date().toLocaleDateString('en-CA')) : [],
+    activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
+  };
+  const start = week || (demo ? '2026-08-31' : currentWeek());
+  const summary = summarize(data,start,weekEnd(start));
+  const value = (n:number, currency=false) => data.connected ? currency ? money(n) : n : '—';
+  const shownLoads = filter === 'Por revisar' ? summary.review : filter === 'Activas' ? summary.active : filter === 'Todas' ? data.loads : summary.official.filter(l=>l.status===filter);
+  const alerts = [...data.alerts,
+    ...summary.review.map(l=>({id:`review-${l.id}`,title:'Carga por revisar',detail:`${l.id} · ${l.source} · Requiere aprobación humana`})),
+    ...summary.official.filter(l=>l.missingPod).map(l=>({id:`pod-${l.id}`,title:'Falta POD',detail:`${l.id} · Documento de entrega pendiente`})),
+    ...summary.official.filter(l=>['Cancelada','Reemplazada'].includes(l.status)).map(l=>({id:`cancel-${l.id}`,title:`Carga ${l.status.toLowerCase()}`,detail:`${l.id}${l.replacedBy ? ` · Relacionada con ${l.replacedBy}` : ''}`})),
+    ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`}))];
+  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
+  function go(id:string) {
+    const target = id==='pagos'?'finanzas':['alertas','actividad'].includes(id)?'dashboard':id;
+    setActiveModule(target); setMenuOpen(false);
+    requestAnimationFrame(()=>{
+      const element = document.getElementById(['alertas','actividad'].includes(id)?id:'dashboard');
+      element?.scrollIntoView({behavior:'instant',block:'start'});
+      element?.focus({preventScroll:true});
+    });
+  }
+  function viewLoads(next:string) {setFilter(next); go('cargas');}
+  const unavailable = 'Pendiente de conexión. Aquí aparecerá la información del módulo correspondiente.';
+  return <main className="shell">
+    <a className="skipLink" href="#dashboard">Saltar al contenido</a>
+    <aside className="sidebar">
+      <div className="brand"><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></div>
+      <button className="menuToggle" aria-expanded={menuOpen} aria-controls="main-navigation" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?'✕ Cerrar menú':'☰ Menú'}</button>
+      <div className="workspaceLabel">OPERACIONES</div>
+      <nav id="main-navigation" className={`navList ${menuOpen?'isOpen':''}`} aria-label="Navegación principal">{nav.map(item=><button key={item.id} className={`navItem ${activeModule===item.id?'active':''}`} aria-current={activeModule===item.id?'page':undefined} onClick={()=>go(item.id)}><span className="navIcon" aria-hidden="true">{item.icon}</span>{item.name}</button>)}</nav>
+      <div className="sidebarBottom"><div className="userRow"><div className="avatar">AT</div><div><strong>Adianez Tang</strong><span>Panel principal</span></div></div></div>
+    </aside>
+    <section className="content" id="dashboard" tabIndex={-1}>
+      <header className="topbar"><div className="breadcrumb"><span>trucking.platform</span><b>/</b><strong>{moduleNames[activeModule]}</strong></div><button className="textButton" onClick={()=>go('alertas')}>Alertas {fleetReady?`(${alerts.length})`:''}</button></header>
+      {activeModule==='dashboard' ? <>
+      <div className="pageIntro"><div><p className="eyebrow">TRUCK SERVICE · PANEL PRINCIPAL</p><h1>M&amp;A KING</h1><p className="heroGreeting">Hola, Adianez Tang</p><p className="subtitle">Tus cargas, tu equipo y tus números en un solo lugar.</p></div></div>
+      <div className={`sourceNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?'Vista de ejemplo · No son datos de tu compañía':fleet.ready?'Flota local conectada':'Cargando registros de flota'}</strong><p>{demo?'Los ejemplos no se guardan ni permiten aprobar cargas reales.':'Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.'}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
+      <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">TU APROBACIÓN ES NECESARIA</span><h2>Cargas por revisar</h2><p>La IA prepara. Tú revisas y confirmas antes de que sean oficiales.</p></div><div className="reviewNumber">{value(summary.review.length)}<span>Revisar cargas →</span></div></button>
+      <div className="metricsGrid">{[
+        {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
+        {label:'En tránsito',amount:summary.official.filter(l=>l.status==='En tránsito').length,hint:'Parte de las cargas activas',action:()=>viewLoads('En tránsito')},
+        {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
+        {label:'Choferes activos',amount:data.drivers.filter(d=>d.status!=='Inactivo').length,hint:'Incluye servicio, descanso y disponibles',action:()=>go('choferes')},
+      ].map(card=><button className="metricCard" key={card.label} onClick={card.action}><div className="metricTop">{card.label}<span aria-hidden="true">↗</span></div><strong>{card.label==='Choferes activos'?(fleetReady?card.amount:'—'):value(card.amount)}</strong><div className="metricDelta"><em>{card.hint}</em></div></button>)}</div>
+      <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
+        <div className="panelHeader"><div><h2>Resumen de cargas</h2><p>Estado actual · Las pendientes están separadas de las oficiales.</p></div><label className="filterLabel">Mostrar<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s}>{s}</option>)}</select></label></div>
+        <div className="statusGrid">{statuses.map(status=><button key={status} aria-pressed={filter===status} onClick={()=>setFilter(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?'Próximas a recoger':status}</span></button>)}</div>
+        {shownLoads.length ? <div className="loadList" key={`${demo}-${filter}`}>{shownLoads.map(load=><details key={load.id} className="loadRow"><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?'Por revisar':load.status}</span><span className="detailToggle"><span className="closedLabel">Ver detalle</span><span className="openLabel">Cerrar detalle</span> <span className="detailArrow" aria-hidden="true">↓</span></span></summary><div className="loadDetails"><p><b>Chofer:</b> {data.drivers.find(d=>d.id===load.driverId)?.name||'Sin asignar'}</p><p><b>Unidad:</b> {load.truck}</p><p><b>Fecha prevista:</b> {dateLabel(load.eta)}</p><p><b>Broker:</b> {load.broker||'Pendiente de completar'}</p><p><b>Precio:</b> {load.amount===undefined?'Pendiente de completar':money(load.amount)}</p><p><b>Preparada por:</b> {load.source}</p><p><b>Aprobación:</b> {load.approvedBy?`${load.approvedBy} · ${dateLabel(load.approvedAt!)}`:'Pendiente de aprobación humana'}</p>{load.replacedBy&&<p><b>Carga relacionada:</b> {load.replacedBy}</p>}<p className="detailNote">{demo?'Registro de ejemplo. ':''}Aprobar, corregir o rechazar corresponde a Cargas y Operaciones, pendiente de integración. Este panel no confirma cargas.</p></div></details>)}</div>:<p className="emptyState">{data.connected?'No hay cargas en este estado.':unavailable}</p>}
+      </section>
+      <div className="bottomGrid">
+        <section className="panel" id="choferes" tabIndex={-1}><div className="panelHeader"><div><h2>Estado de choferes</h2><p>Activo no significa disponible para una carga.</p></div></div><div className="driverSummary">{['En servicio','Disponible','Descanso','Inactivo'].map(s=><div key={s}><strong>{fleetReady?data.drivers.filter(d=>d.status===s).length:'—'}</strong><span>{s}</span></div>)}</div>{data.drivers.length?<ul className="plainList">{data.drivers.map(d=><li key={d.id}><strong>{d.name}</strong><span>{d.status}</span></li>)}</ul>:<p className="emptyState">{fleetReady?'Todavía no hay choferes registrados.':unavailable}</p>}</section>
+        <section className="panel" id="alertas" tabIndex={-1}><div className="panelHeader"><div><h2>Requiere atención</h2><p>Revisión, documentos, pagos y operación.</p></div><span className="alertCount">{fleetReady?alerts.length:'—'}</span></div>{alerts.length?<ul className="plainList">{alerts.map(a=><li key={a.id} className="alertLine"><strong>{a.title}</strong><span>{a.detail}</span></li>)}</ul>:<p className="emptyState">{fleetReady?'No hay alertas de flota. Las demás fuentes están pendientes.':unavailable}</p>}</section>
+      </div>
+      <section className="panel sectionSpace" id="finanzas" tabIndex={-1}><div className="panelHeader"><div><h2>Resumen financiero</h2><p>Semana desde {start} · USD · Zona horaria de Chicago</p></div><label className="filterLabel">Semana desde<input type="date" value={start} onChange={e=>setWeek(e.target.value)}/></label></div><div className="financeGrid">{[['Total bruto',summary.gross],['Fuel',summary.fuel],['Non-Fuel',summary.nonFuel],['Salarios',summary.salaries]].map(([label,n])=><div key={label}><span>{label}</span><strong>{value(Number(n),true)}</strong></div>)}<div><span>Otros gastos y ajustes</span><strong>—</strong></div><div className="profit"><span>Ganancia estimada</span><strong>—</strong><small>Pendiente de reglas contables completas</small></div></div><p className="detailNote financeNote">El bruto no equivale a dinero cobrado. Los seguros, el 6%, descuentos y ajustes se integrarán desde contabilidad antes de mostrar una ganancia. Las cargas pendientes no generan ingresos oficiales.</p></section>
+      <section className="panel sectionSpace" id="pagos" tabIndex={-1}><div className="panelHeader"><div><h2>Pagos pendientes</h2><p>Saldos abiertos de todos los períodos, después de pagos parciales.</p></div></div><div className="driverSummary"><div><span>Por cobrar</span><strong>{value(summary.receivable,true)}</strong></div><div><span>Por pagar</span><strong>{value(summary.payable,true)}</strong></div></div>{summary.payments.length?<ul className="plainList">{summary.payments.map(p=><li key={p.id}><strong>{p.id} · {p.direction}</strong><span>{money(p.amount-p.paid)} · Vence {p.due}</span></li>)}</ul>:<p className="emptyState">{data.connected?'No hay pagos pendientes.':unavailable}</p>}</section>
+      <section className="panel sectionSpace" id="actividad" tabIndex={-1}><div className="panelHeader"><div><h2>Actividad reciente</h2><p>Quién hizo cada cambio y cuándo.</p></div></div>{data.activity.length?<ol className="plainList">{[...data.activity].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,10).map(a=><li key={a.id} className="alertLine"><strong>{a.detail}</strong><span>{dateLabel(a.at)} · {a.actor}</span></li>)}</ol>:<p className="emptyState">{fleetReady?'Todavía no hay actividad de flota.':unavailable}</p>}</section>
+      <section className="sectionSpace" id="accesos" tabIndex={-1}><h2>Accesos rápidos</h2><div className="quickGrid">{[{label:'Revisar cargas',id:'cargas',filter:'Por revisar'},{label:'Cargas activas',id:'cargas',filter:'Activas'},{label:'Choferes',id:'choferes'},{label:'Pagos pendientes',id:'pagos'},{label:'Resumen financiero',id:'finanzas'},{label:'Alertas e historial',id:'actividad'}].map(a=><button className="selectButton" key={a.label} onClick={()=>a.filter?viewLoads(a.filter):go(a.id)}>{a.label} →</button>)}</div><p className="emptyState integrationNote">Mensajería, combustible, contabilidad completa y gestión de cargas: pendientes de integración. Los accesos abren cada módulo en el panel derecho.</p></section>
+      </> : <div className="moduleView" key={activeModule}>
+        <p className="eyebrow">MÓDULO {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
+        <h1>{moduleNames[activeModule]}</h1>
+        {activeModule==='cargas' ? <>
+          <p>Revisión y seguimiento de las cargas de la compañía.</p>
+          <div className="sourceNotice"><div><strong>{demo?'Vista de ejemplo':'Módulo en preparación'}</strong><p>La gestión y aprobación de cargas todavía no están conectadas. La IA prepara; la aprobación final es humana.</p></div><button className="selectButton" onClick={()=>setDemo(!demo)}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
+          <label className="filterLabel">Mostrar cargas<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s}>{s}</option>)}</select></label>
+          <section className="panel sectionSpace"><div className="panelHeader"><h2>{filter==='Por revisar'?'Cargas por revisar':'Listado de cargas'}</h2><span>{data.connected?shownLoads.length:'—'}</span></div>
+          {shownLoads.length?shownLoads.map(load=><details className="loadRow" key={load.id}><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?'Por revisar':load.status}</span></summary><div className="loadDetails"><p><b>Chofer:</b> {data.drivers.find(d=>d.id===load.driverId)?.name||'Sin asignar'}</p><p><b>Unidad:</b> {load.truck}</p><p><b>Broker:</b> {load.broker||'Pendiente'}</p><p><b>Precio:</b> {load.amount===undefined?'Pendiente':money(load.amount)}</p><p><b>Fecha prevista:</b> {dateLabel(load.eta)}</p><p><b>Aprobación:</b> {load.approval}</p>{load.replacedBy&&<p><b>Reemplazo:</b> {load.replacedBy}</p>}</div></details>):<p className="emptyState">{data.connected?'No hay cargas en este estado.':'Aquí aparecerán tus cargas cuando se conecte el registro operativo.'}</p>}</section>
+        </> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={emptySnapshot.loads} onOpenLoads={()=>go('cargas')}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>Espacio del módulo</h2><p>La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.</p></div></div><p className="emptyState">{({choferes:'Aquí se organizarán los choferes, camiones, trailers y asignaciones.',combustible:'Aquí se registrarán Fuel, Non-Fuel y gastos operativos.',finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule]}</p></section>}
+        <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>← Volver al Dashboard</button>
+      </div>}
+    </section>
 
-	function addTrip() {
-		setTrips((currentTrips) => [
-			{
-				id: "TR-2085",
-				route: "Laredo, TX → Nashville, TN",
-				driver: "Sin asignar",
-				truck: "Pendiente de asignación",
-				status: "Programado",
-				eta: "Mañana, 10:00",
-			},
-			...currentTrips,
-		]);
-	}
-
-	return (
-		<main className="shell">
-			<a className="skipLink" href="#dashboard">Saltar al contenido</a>
-            <aside className="sidebar">
-                <button className="menuToggle" aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}><span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span> {menuOpen ? "Cerrar menú" : "Menú"}</button>
-				<div className="brand">
-					<div className="brandMark">M&A</div>
-					<div>
-						<strong>M&A King</strong>
-						<span>TRUCK SERVICE</span>
-					</div>
-				</div>
-
-				<div className="workspaceLabel">OPERACIONES</div>
-				<nav id="main-navigation" className={`navList ${menuOpen ? "isOpen" : ""}`} aria-label="Navegación principal">
-					{navItems.map((item) => (
-						<button
-							className={`navItem ${activeItem === item.label ? "active" : ""}`}
-							key={item.label}
-							aria-current={activeItem === item.label ? "page" : undefined}
-							onClick={() => { setActiveItem(item.label); setMenuOpen(false); }}
-						>
-							<span className="navIcon">{item.icon}</span>
-							{item.label}
-							{item.label === "Mantenimiento" && <span className="navBadge">3</span>}
-						</button>
-					))}
-				</nav>
-
-				<div className="sidebarBottom">
-					<div className="supportCard">
-						<span className="supportIcon">?</span>
-						<div><strong>¿Necesitas ayuda?</strong><span>Habla con soporte</span></div>
-					</div>
-					<div className="userRow">
-						<div className="avatar">AJ</div>
-						<div><strong>Adianez Tang Johnson</strong><span>Administrador</span></div>
-						<span className="more">•••</span>
-					</div>
-				</div>
-			</aside>
-
-			<section className="content" id="dashboard" tabIndex={-1}>
-				<header className="topbar">
-					<div className="breadcrumb"><span>Workspace</span><b>/</b><strong>{activeItem}</strong></div>
-					<div className="topActions">
-						<button className="iconButton" aria-label="Notificaciones">♢<span className="notificationDot" /></button>
-						<div className="dateLabel">Viernes, 04 de septiembre de 2026</div>
-					</div>
-				</header>
-
-				<div className="pageIntro">
-					<div>
-						<p className="eyebrow">CENTRO DE CONTROL · {activeItem.toUpperCase()}</p>
-						<h1>Buenos días, Adianez Tang <span>✦</span></h1>
-						<p className="subtitle">Aquí tienes el pulso de tu operación para hoy.</p>
-					</div>
-					<button className="primaryButton" onClick={addTrip}><span>+</span> Nuevo viaje</button>
-				</div>
-
-				<div className="metricsGrid">
-					<article className="metricCard accentBlue">
-						<div className="metricTop"><span>VIAJES ACTIVOS</span><span className="metricIcon">↗</span></div>
-						<strong>24</strong><div className="metricDelta positive">↑ 12.5% <em>vs. mes anterior</em></div>
-					</article>
-					<article className="metricCard accentOrange">
-						<div className="metricTop"><span>EN TRÁNSITO</span><span className="metricIcon">◉</span></div>
-						<strong>18</strong><div className="metricDelta positive">↑ 8.2% <em>vs. mes anterior</em></div>
-					</article>
-					<article className="metricCard accentTeal">
-						<div className="metricTop"><span>FLOTA DISPONIBLE</span><span className="metricIcon">▰</span></div>
-						<strong>86<span className="smallMetric">/ 94</span></strong><div className="metricDelta neutral">91.5% <em>disponibilidad</em></div>
-					</article>
-					<article className="metricCard accentRose">
-						<div className="metricTop"><span>INGRESOS DEL MES</span><span className="metricIcon">$</span></div>
-						<strong>$284.6k</strong><div className="metricDelta positive">↑ 15.8% <em>vs. mes anterior</em></div>
-					</article>
-				</div>
-
-				<div className="mainGrid">
-					<section className="panel tripsPanel">
-						<div className="panelHeader"><div><h2>Viajes en curso</h2><p>Seguimiento de la operación en tiempo real</p></div><button className="textButton">Ver todos <span>→</span></button></div>
-						<div className="tableWrap">
-							<table>
-								<thead><tr><th>ID VIAJE</th><th>RUTA</th><th>CONDUCTOR / UNIDAD</th><th>ESTADO</th><th>LLEGADA ESTIMADA</th></tr></thead>
-								<tbody>{trips.map((trip) => <tr key={trip.id}><td data-label="ID viaje" className="tripId">{trip.id}</td><td data-label="Ruta"><strong>{trip.route}</strong><span className="cellMuted">Carga completa · 34,200 lb</span></td><td data-label="Conductor / unidad"><strong>{trip.driver}</strong><span className="cellMuted">{trip.truck}</span></td><td data-label="Estado"><span className={`status ${statusStyles[trip.status]}`}><i />{trip.status}</span></td><td data-label="Llegada estimada" className="eta">{trip.eta}</td></tr>)}</tbody>
-							</table>
-						</div>
-					</section>
-
-					<aside className="panel alertPanel">
-						<div className="panelHeader"><div><h2>Requiere atención</h2><p>Alertas importantes de tu flota</p></div><span className="alertCount">3</span></div>
-						<div className="alerts">
-							<div className="alertItem"><span className="alertIcon red">!</span><div><strong>Servicio próximo</strong><p>MK-104 · Cambio de aceite en 320 mi</p><span>Hace 12 min</span></div></div>
-							<div className="alertItem"><span className="alertIcon amber">◷</span><div><strong>Documento por vencer</strong><p>Licencia · Robert Davis</p><span>Vence en 4 días</span></div></div>
-							<div className="alertItem"><span className="alertIcon blue">$</span><div><strong>Pago pendiente</strong><p>Factura #INV-4821 · $8,450</p><span>Vence mañana</span></div></div>
-						</div>
-						<button className="outlineButton">Revisar alertas <span>→</span></button>
-					</aside>
-				</div>
-
-				<section className="bottomGrid">
-					<div className="panel chartPanel"><div className="panelHeader"><div><h2>Ingresos</h2><p>Rendimiento de los últimos 6 meses</p></div><button className="selectButton">Últimos 6 meses⌄</button></div><div className="chart"><div className="chartLabels"><span>$300k</span><span>$200k</span><span>$100k</span><span>$0</span></div><div className="chartArea"><div className="gridLine line1" /><div className="gridLine line2" /><div className="gridLine line3" /><svg viewBox="0 0 640 150" preserveAspectRatio="none" aria-label="Gráfica de ingresos"><path d="M0,116 C50,106 65,82 120,92 S190,114 240,69 S310,73 360,57 S430,74 480,35 S550,66 640,14" fill="none" stroke="#6B1F2B" strokeWidth="3" /><path d="M0,116 C50,106 65,82 120,92 S190,114 240,69 S310,73 360,57 S430,74 480,35 S550,66 640,14 V150 H0 Z" fill="url(#chartFill)" opacity=".18" /><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#6B1F2B" /><stop offset="1" stopColor="#F5EBED" /></linearGradient></defs></svg><div className="monthLabels"><span>Abr</span><span>May</span><span>Jun</span><span>Jul</span><span>Ago</span><span>Sep</span></div></div></div></div>
-					<div className="panel activityPanel"><div className="panelHeader"><div><h2>Actividad reciente</h2><p>Últimas actualizaciones</p></div><button className="textButton">Ver historial <span>→</span></button></div><div className="activityList"><div><span className="activityDot green" /><p><strong>Viaje TR-2084</strong> llegó a Flagstaff, AZ<span>Hace 8 minutos · Sistema</span></p></div><div><span className="activityDot orange" /><p><strong>Nuevo mantenimiento</strong> programado para MK-104<span>Hace 34 minutos · Adianez Tang Johnson</span></p></div><div><span className="activityDot blue" /><p><strong>Factura #INV-4818</strong> marcada como pagada<span>Hace 1 hora · Finanzas</span></p></div></div></div>
-				</section>
-			</section>
-
-			<style jsx>{`
+<style jsx>{`
 
                 :global(*) { box-sizing: border-box; }
                 :global(html) { color-scheme: light; }
+                .sidebar { position:sticky; top:0; height:100vh; overflow-y:auto; align-self:flex-start; }
+                .navIcon { font-size:13px !important; flex-shrink:0; }.navItem { white-space:normal; }
+                .moduleView { padding-top:28px; animation:enterPanel 260ms ease-out; }.moduleView>h1 { color:#4A1420; font-size:30px; margin:8px 0 12px; }.moduleView>.filterLabel { max-width:360px; }
+                @media(max-width:760px) { .sidebar { position:relative; height:auto; overflow:visible; align-self:stretch; } }
                 :global(body) { margin: 0; background: #F7F5F3; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
                 button { font: inherit; cursor: pointer; min-height: 44px; transition: background .15s; }
                 button:focus-visible, .skipLink:focus-visible { outline: 3px solid #A85C6A; outline-offset: 4px; }
@@ -188,7 +146,51 @@ export default function Home() {
                 @media (max-width: 760px) { .shell { flex-direction: column; }.sidebar { flex: none; width: 100%; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 12px; }.brand { grid-row: 1; grid-column: 1; padding: 0; gap: 10px; }.brand strong { font-size: 18px; }.brand span { font-size: 10px; letter-spacing: 1px; }.brandMark { flex-basis: 40px; height: 40px; }.menuToggle { display: flex; align-items: center; justify-content: center; gap: 8px; grid-row: 1; grid-column: 2; border: 1px solid #A85C6A; background: #6B1F2B; color: white; border-radius: 8px; padding: 8px 12px; font-size: 14px; }.workspaceLabel, .sidebarBottom { display: none; }.navList { display: none; grid-column: 1 / -1; padding-top: 16px; }.navList.isOpen { display: grid; }.navItem { font-size: 16px; min-height: 48px; }.content { width: 100%; padding: 0 16px 28px; }.topbar { min-height: 64px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.primaryButton { width: 100%; }.metricsGrid { gap: 12px; }.metricCard { padding: 16px; }.metricTop { letter-spacing: 0; }.metricCard > strong { font-size: 30px; }.metricDelta em { display: block; }.mainGrid { margin-top: 20px; }.panelHeader { padding: 18px 16px; }.alerts { padding: 0 16px; }.outlineButton { margin: 8px 16px 18px; width: calc(100% - 32px); }.chart { padding-left: 16px; padding-right: 16px; }.activityList { padding-left: 16px; padding-right: 16px; }tr { padding: 18px 16px; }.cellMuted { font-size: 14px; }.status { font-size: 14px; } }
                 @media (max-width: 380px) { .metricsGrid { grid-template-columns: 1fr; }.metricDelta em { display: inline; margin-left: 4px; }.brandMark { display: none; }tr { grid-template-columns: 1fr; }.menuToggle { padding: 8px; } }
 
-			`}</style>
-		</main>
-	);
+
+                .metricCard { text-align:left; }.metricTop { font-size:14px; text-transform:none; letter-spacing:0; }.sectionSpace { margin-top:24px; scroll-margin-top:20px; }
+                h2 { color:#4A1420; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#6D6064; }.sourceNotice button { flex-shrink:0; }.exampleNotice { background:#fff7e8; border-color:#D7B676; }
+                .reviewBanner { display:flex; width:100%; align-items:center; justify-content:space-between; gap:24px; padding:26px; background:#6B1F2B; color:white; border:0; border-radius:14px; text-align:left; margin-bottom:24px; }.reviewBanner h2 { color:white; margin:8px 0; font-size:26px; }.reviewBanner p { margin:0; color:#F0DEE3; }.reviewBanner .eyebrow { color:#F0DEE3; }.reviewNumber { font-size:48px; font-weight:700; min-width:140px; }.reviewNumber span { display:block; font-size:15px; }
+                .filterLabel { display:grid; gap:5px; font-size:14px; color:#554A4E; }select,input { font:inherit; min-height:44px; max-width:100%; padding:8px 12px; border:1px solid #D6C6CB; border-radius:8px; background:white; color:#4A1420; }select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #A85C6A; outline-offset:3px; }
+                .statusGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; padding:0 22px 22px; }.statusGrid button { border:1px solid #E3DADD; border-radius:10px; padding:12px; background:#F7F5F3; color:#4A1420; }.statusGrid button[aria-pressed=true] { background:#F5EBED; border-color:#6B1F2B; }.statusGrid strong { display:block; font-size:26px; }.statusGrid span { font-size:14px; }
+                .emptyState { color:#6D6064; padding:0 22px 22px; margin:8px 0 0; font-size:15px; }.loadRow { border-top:1px solid #E3DADD; }.loadRow summary { cursor:pointer; padding:20px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:64px; }.loadRow summary>span:first-child { flex:1; }.loadDetails { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 20px; padding:0 22px 20px; overflow-wrap:anywhere; }.loadDetails p { margin:8px 0; }.detailNote { grid-column:1/-1; font-size:14px; color:#6D6064; background:#F7F5F3; padding:14px; border-radius:8px; }.financeNote { margin:0 22px 22px; }
+                .driverSummary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; padding:0 22px 22px; }.driverSummary div { padding:14px; border-radius:10px; background:#F7F5F3; }.driverSummary strong,.driverSummary span { display:block; }.driverSummary strong { font-size:24px; color:#4A1420; overflow-wrap:anywhere; }.driverSummary span { font-size:14px; color:#6D6064; }.plainList { list-style:none; padding:0 22px 16px; margin:0; }.plainList li { border-top:1px solid #E3DADD; display:flex; justify-content:space-between; gap:12px; padding:16px 0; font-size:15px; }.plainList span { color:#6D6064; }.plainList .alertLine { display:grid; gap:5px; }
+                .financeGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:0 22px 22px; }.financeGrid>div { border:1px solid #E3DADD; border-radius:10px; padding:18px; }.financeGrid span,.financeGrid strong,.financeGrid small { display:block; }.financeGrid span { color:#6D6064; font-size:14px; }.financeGrid strong { font-size:28px; color:#4A1420; margin-top:6px; overflow-wrap:anywhere; }.financeGrid small { color:#6D6064; margin-top:6px; }.profit { background:#F5EBED; }.quickGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }.quickGrid button { text-align:left; min-height:52px; }.integrationNote { padding:0; margin-top:16px; }
+                @media(max-width:1200px) { .statusGrid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+                @media(max-width:760px) { .sourceNotice { align-items:stretch; flex-direction:column; }.reviewBanner { align-items:flex-start; flex-direction:column; padding:20px; gap:16px; }.reviewNumber { font-size:38px; }.reviewNumber span { display:inline; margin-left:18px; }.financeGrid,.quickGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }.loadRow summary { flex-wrap:wrap; padding:18px 16px; }.loadRow summary>span:first-child { flex-basis:100%; }.loadDetails { grid-template-columns:1fr; padding:0 16px 16px; }.statusGrid { padding:0 16px 16px; grid-template-columns:repeat(2,minmax(0,1fr)); }.plainList,.driverSummary,.financeGrid { padding-left:16px; padding-right:16px; }.plainList li { flex-wrap:wrap; }.financeGrid strong { font-size:23px; }.filterLabel { width:100%; }.financeNote { margin:0 16px 16px; } }
+                @media(max-width:380px) { .financeGrid,.quickGrid,.driverSummary { grid-template-columns:1fr; }.reviewNumber span { display:block; margin:0; } }
+
+                @keyframes enterPanel { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+                @keyframes revealDetail { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+                .pageIntro, .sourceNotice, .reviewBanner, .metricCard, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
+                .sourceNotice { animation-delay:40ms; }.reviewBanner { animation-delay:80ms; }
+                .metricCard:nth-child(1) { animation-delay:120ms; }.metricCard:nth-child(2) { animation-delay:170ms; }.metricCard:nth-child(3) { animation-delay:220ms; }.metricCard:nth-child(4) { animation-delay:270ms; }
+                button, .loadRow summary { transition:background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+                .loadList { animation:enterPanel 240ms ease-out; }
+                .loadRow[open] .loadDetails { animation:revealDetail 240ms ease-out; }
+                .detailToggle { color:#6D6064; font-size:14px; }.detailArrow { display:inline-block; transition:transform 220ms ease; }
+                .openLabel { display:none; }.loadRow[open] .closedLabel { display:none; }.loadRow[open] .openLabel { display:inline; }.loadRow[open] .detailArrow { transform:rotate(180deg); }
+                .loadRow[open] summary { background:#F5EBED; }
+                button:active { transform:scale(.985); }
+                @media(hover:hover) and (pointer:fine) {
+                  .metricCard:hover, .quickGrid button:hover { transform:translateY(-3px); border-color:#A85C6A; box-shadow:0 8px 20px #4A142012; }
+                  .reviewBanner:hover { transform:translateY(-2px); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
+                  .loadRow summary:hover { background:#F7F5F3; }
+                }
+                @media(max-width:760px) { .navList.isOpen { animation:revealDetail 220ms ease-out; } }
+                @media(prefers-reduced-motion:reduce) {
+                  *, *::before, *::after { animation:none !important; transition:none !important; }
+                  button:hover, button:active { transform:none !important; }
+                }
+
+                .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:280px; margin:24px 0; padding:32px; border-radius:16px; background:#24171D; }
+                .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/truck-dusk.png') center 59% / cover no-repeat; }
+                .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(32,13,22,.94) 0%,rgba(40,15,24,.82) 38%,rgba(40,15,24,.18) 70%,rgba(40,15,24,.05) 100%); }
+                .pageIntro>div { max-width:52%; }.pageIntro h1 { color:#fff; }.pageIntro h1 span { color:#E5B7C2; }.pageIntro .eyebrow { color:#F1CDD5; }.pageIntro .subtitle { color:#F4E9ED; }
+                @media(max-width:1000px) and (min-width:761px) { .pageIntro>div { max-width:65%; } }
+                @media(max-width:760px) { .pageIntro { min-height:360px; padding:24px; justify-content:flex-start; }.pageIntro>div { max-width:100%; }.pageIntro::before { background-position:76% 64%; }.pageIntro::after { background:linear-gradient(180deg,rgba(32,13,22,.96) 0%,rgba(32,13,22,.83) 38%,rgba(32,13,22,.18) 67%,rgba(32,13,22,.08) 100%); }.pageIntro h1 { font-size:27px; }.pageIntro .subtitle { max-width:300px; } }
+
+                .pageIntro h1 { font-size:clamp(36px,4.5vw,64px); font-weight:800; letter-spacing:1px; line-height:1.08; }.heroGreeting { color:white; font-size:18px; margin:16px 0 0; }.pageIntro .subtitle { font-size:15px; margin-top:6px; }
+                @media(max-width:760px) { .pageIntro h1 { font-size:38px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; }.heroGreeting { margin-top:12px; } }
+`}</style>
+</main>;
 }

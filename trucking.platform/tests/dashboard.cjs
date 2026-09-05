@@ -1,0 +1,27 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const Module = require('node:module');
+function loadTs(file) { const compiled=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText; const m=new Module(file,module); m._compile(compiled,file); return m.exports; }
+const {summarize,isOfficial,emptySnapshot}=loadTs('lib/dashboard.ts');
+const {demoSnapshot}=loadTs('lib/dashboard-demo.ts');
+const from='2026-08-31', to='2026-09-07';
+const result=summarize(demoSnapshot,from,to);
+assert.equal(result.review.length,2);
+assert.equal(result.active.length,2);
+assert.equal(result.gross,1850);
+assert.equal(result.receivable,1200);
+assert.equal(result.payable,0);
+assert.equal(isOfficial({...demoSnapshot.loads[0],approvedBy:''}),false);
+assert.equal(isOfficial({...demoSnapshot.loads[0],approvedAt:'invalid'}),false);
+assert.equal(isOfficial({...demoSnapshot.loads[0],approval:'Pendiente'}),false);
+const extra=structuredClone(demoSnapshot);
+extra.ledger.push({id:'cancelled-fare',loadId:'TR-2080',date:'2026-09-02',kind:'Ingreso',amount:9000});
+extra.ledger.push({id:'pending-fare',loadId:'TR-2082',date:'2026-09-02',kind:'Ingreso',amount:9000});
+extra.payments.push({id:'pending-invoice',loadId:'TR-2082',direction:'Cobrar',amount:9000,paid:0,due:'2026-09-04'});
+assert.equal(summarize(extra,from,to).gross,1850);
+assert.equal(summarize(extra,from,to).receivable,1200);
+assert.equal(summarize(extra,to,'2026-09-14').gross,0);
+assert.equal(summarize(emptySnapshot,from,to).active.length,0);
+assert.equal(demoSnapshot.loads.length,6);
+console.log('PASS: human approval, cancelled loads, pending invoices, TONU, partial payments, weekly boundaries and empty data.');
