@@ -15,7 +15,9 @@ export type FleetAction =
   | {type:'end'; id:string; reason:string}
   | {type:'document'; record:Omit<FleetDocument,'id'|'uploadedAt'|'reviewedAt'>}
   | {type:'reviewDocument'; id:string; reviewed:boolean; reason:string}
-  | {type:'warningDays'; days:number};
+  | {type:'warningDays'; days:number}
+  | {type:'delete'; kind:EntityKind; id:string; reason:string}
+  | {type:'deleteDocument'; id:string; reason:string};
 const requireValue = (condition:unknown, message:string) => {if(!condition) throw new Error(message);};
 const clean = (s:string) => s.trim().toLocaleLowerCase('en-US');
 export function assignmentFor(state:FleetState, kind:EntityKind, id:string) {return state.assignments.find(a=>!a.endedAt && (kind==='drivers'?a.driverId===id:kind==='trucks'?a.truckId===id:a.trailerId===id));}
@@ -75,6 +77,26 @@ export function applyFleetAction(original:FleetState, action:FleetAction, now:st
     const document={...d,id,reviewed:false,uploadedAt:now}; state.documents.push(document); entityIds=[d.ownerId]; after={type:d.type,filename:d.filename,issued:d.issued,expires:d.expires}; detail=`Recibió documento ${d.type} de ${entityName(state,d.ownerKind,d.ownerId)}; pendiente de revisión`;
   } else if(action.type==='reviewDocument') {
     const d=state.documents.find(d=>d.id===action.id); requireValue(d,'No se encontró el documento.'); requireValue(action.reason.trim(),'Escribe una nota de revisión.'); before={reviewed:d!.reviewed,reviewedAt:d!.reviewedAt}; d!.reviewed=action.reviewed; d!.reviewedAt=action.reviewed?now:undefined; after={reviewed:d!.reviewed,reviewedAt:d!.reviewedAt}; entityIds=[d!.ownerId]; detail=`${action.reviewed?'Revisó':'Devolvió a revisión'} ${d!.type}: ${action.reason.trim()}`;
+  } else if(action.type==='delete') {
+    const record=action.kind==='drivers'?state.drivers.find(d=>d.id===action.id):state[action.kind].find(e=>e.id===action.id);
+    requireValue(record,'No se encontró el registro.');
+    requireValue(action.reason.trim(),'Escribe el motivo de la eliminación.');
+    requireValue(!assignmentFor(state,action.kind,action.id),'Finaliza la asignación antes de eliminar este registro.');
+    before=record; after=null;
+    if(action.kind==='drivers') state.drivers=state.drivers.filter(d=>d.id!==action.id);
+    else if(action.kind==='trucks') state.trucks=state.trucks.filter(e=>e.id!==action.id);
+    else state.trailers=state.trailers.filter(e=>e.id!==action.id);
+    state.documents=state.documents.filter(d=>!(d.ownerKind===action.kind&&d.ownerId===action.id));
+    entityIds=[action.id];
+    detail=`Eliminó ${action.kind==='drivers'?'chofer':action.kind==='trucks'?'camión':'trailer'} ${action.kind==='drivers'?(record as Driver).name:(record as Equipment).unit}: ${action.reason.trim()}`;
+  } else if(action.type==='deleteDocument') {
+    const d=state.documents.find(d=>d.id===action.id);
+    requireValue(d,'No se encontró el documento.');
+    requireValue(action.reason.trim(),'Escribe el motivo de la eliminación.');
+    before=d; after=null;
+    state.documents=state.documents.filter(x=>x.id!==action.id);
+    entityIds=[d!.ownerId];
+    detail=`Eliminó documento ${d!.type} de ${entityName(state,d!.ownerKind,d!.ownerId)}: ${action.reason.trim()}`;
   } else {requireValue(Number.isInteger(action.days)&&action.days>=0&&action.days<=365,'El aviso debe estar entre 0 y 365 días.'); before=state.warningDays; state.warningDays=action.days; after=action.days; detail=`Cambió aviso de vencimientos a ${action.days} días`;}
   state.revision++; state.events.unshift({id:`event-${id}`,at:now,actor:'Usuario local · sin cuenta autenticada',entityIds,detail,before,after}); return state;
 }

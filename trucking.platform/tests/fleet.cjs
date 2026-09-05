@@ -39,6 +39,17 @@ run({type:'reviewDocument',id:state.documents[0].id,reviewed:true,reason:'Compro
 assert.equal(state.documents[0].reviewedAt,now);
 assert.equal(documentStatus(state.documents[0],'2026-09-04'),'Vencido');
 assert.throws(()=>run({type:'warningDays',days:-1}),/365/);
+run({type:'assign',driverId:'d2',truckId:'t1',trailerId:'',reason:'Prueba delete'});
+assert.throws(()=>run({type:'delete',kind:'drivers',id:'d2',reason:'Sobra'}),/Finaliza/);
+run({type:'end',id:assignmentFor(state,'drivers','d2').id,reason:'Fin prueba'});
+const docId=state.documents[0].id;
+run({type:'delete',kind:'drivers',id:'d2',reason:'Ya no se necesita'});
+assert.ok(!state.drivers.some(d=>d.id==='d2'));
+assert.ok(!state.documents.some(d=>d.id===docId));
+assert.throws(()=>run({type:'delete',kind:'trucks',id:'no-existe',reason:'x'}),/encontró/);
+run({type:'delete',kind:'trucks',id:'t3',reason:'Unidad de prueba'});
+assert.ok(!state.trucks.some(t=>t.id==='t3'));
+assert.throws(()=>run({type:'deleteDocument',id:'no-existe',reason:'x'}),/encontró/);
 assert.equal(state.revision,state.events.length);
 assert.equal(emptyFleet.drivers.length,0);
-console.log('PASS: duplicate equipment, conflicts, availability, immutable assignment history, inactivation, document review, expiry alerts and audit revisions.');
+console.log('PASS: duplicate equipment, conflicts, availability, immutable assignment history, inactivation, document review, expiry alerts, deletion with cascade and audit revisions.');

@@ -10,6 +10,15 @@ function asConflictError(error: { message?: string } | null) {
   return error ? new Error(error.message) : null;
 }
 
+// Instancias reales de Blob/File (incluida la que sube el propio usuario en 'document')
+// no se pueden serializar de vuelta a un Client Component — React las rechaza con
+// "Only plain objects... Classes... are not supported". El archivo real vive en Storage;
+// aquí solo viaja un objeto plano de relleno para satisfacer el tipo FleetDocument.file.
+const FILE_PLACEHOLDER = {} as unknown as Blob;
+function forClient(state: FleetState): FleetState {
+  return { ...state, documents: state.documents.map(d => ({ ...d, file: FILE_PLACEHOLDER })) };
+}
+
 export async function getFleetState(companyId = DEFAULT_COMPANY_ID): Promise<FleetState> {
   const supabase = supabaseServer();
   const [meta, drivers, equipment, assignments, documents, events] = await Promise.all([
@@ -40,7 +49,7 @@ export async function getFleetState(companyId = DEFAULT_COMPANY_ID): Promise<Fle
     documents: (documents.data ?? []).map(r => ({
       id: r.id, ownerKind: r.owner_kind, ownerId: r.owner_id, type: r.type,
       issued: r.issued ?? '', expires: r.expires ?? '', reviewed: r.reviewed, notes: r.notes,
-      filename: r.filename, file: new Blob([]), sizeBytes: Number(r.size_bytes),
+      filename: r.filename, file: FILE_PLACEHOLDER, sizeBytes: Number(r.size_bytes),
       uploadedAt: r.uploaded_at, reviewedAt: r.reviewed_at ?? undefined,
     })),
     events: (events.data ?? []).map(r => ({
@@ -76,6 +85,7 @@ export async function commitFleetAction(action: Exclude<FleetAction, { type: 'do
   const next = applyFleetAction(state, action, now, id);
   const event = eventPayload(next);
   let rpc;
+  let storagePathToRemove: string | null = null;
 
   if (action.type === 'driver') {
     const d = next.drivers.find(x => x.id === action.record.id)!;
@@ -113,6 +123,18 @@ export async function commitFleetAction(action: Exclude<FleetAction, { type: 'do
       p_document_id: d.id, p_reviewed: d.reviewed, p_reviewed_at: d.reviewedAt ?? null,
       p_event: event,
     });
+  } else if (action.type === 'delete') {
+    rpc = supabase.rpc('fleet_commit_delete_entity', {
+      p_company_id: companyId, p_expected_revision: expectedRevision,
+      p_kind: action.kind, p_entity_id: action.id, p_event: event,
+    });
+  } else if (action.type === 'deleteDocument') {
+    const { data: pathRow } = await supabase.from('fleet_documents').select('storage_path').eq('id', action.id).eq('company_id', companyId).single();
+    storagePathToRemove = pathRow?.storage_path ?? null;
+    rpc = supabase.rpc('fleet_commit_delete_document', {
+      p_company_id: companyId, p_expected_revision: expectedRevision,
+      p_document_id: action.id, p_event: event,
+    });
   } else {
     rpc = supabase.rpc('fleet_commit_warning_days', {
       p_company_id: companyId, p_expected_revision: expectedRevision,
@@ -123,8 +145,9 @@ export async function commitFleetAction(action: Exclude<FleetAction, { type: 'do
   const { data: newRevision, error } = await rpc;
   const conflict = asConflictError(error);
   if (conflict) throw conflict;
+  if (storagePathToRemove) await supabase.storage.from('fleet-documents').remove([storagePathToRemove]); // best-effort, la fila ya se borró
   next.revision = newRevision as number;
-  return next;
+  return forClient(next);
 }
 
 export async function commitDocumentAction(formData: FormData, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FleetState> {
@@ -164,7 +187,7 @@ export async function commitDocumentAction(formData: FormData, expectedRevision:
     throw conflict;
   }
   next.revision = newRevision as number;
-  return next;
+  return forClient(next);
 }
 
 export async function getFleetDocumentUrl(documentId: string, companyId = DEFAULT_COMPANY_ID): Promise<string> {

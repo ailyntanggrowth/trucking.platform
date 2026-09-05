@@ -2,15 +2,16 @@
 import {useState,type FormEvent} from 'react';
 import {assignmentFor,documentStatus,entityName,fleetAlerts,type EntityKind,type Driver,type Equipment,type FleetAction,type FleetDocument} from '../lib/fleet';
 import type {FleetController} from '../lib/use-fleet';
+import {getFleetDocumentUrl} from '../lib/fleet-actions';
 import type {Load} from '../lib/dashboard';
 import styles from './fleet.module.css';
 
 const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignments:'Asignaciones'};
 type Tab=keyof typeof titles;
-type Editor={type:'entity'|'assignment'|'document'|'end'|'review';kind:EntityKind;id:string;revision:number};
+type Editor={type:'entity'|'assignment'|'document'|'end'|'review'|'deleteEntity'|'deleteDocument';kind:EntityKind;id:string;revision:number};
 const dateTime=(s:string)=>new Intl.DateTimeFormat('es',{dateStyle:'medium',timeStyle:'short'}).format(new Date(s));
 const today=()=>new Date().toLocaleDateString('en-CA');
-function download(document:FleetDocument){const url=URL.createObjectURL(document.file);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function download(document:FleetDocument){const url=await getFleetDocumentUrl(document.id);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();}
 function exportBackup(state:FleetController['state']){
   const payload={schema:state.schema,revision:state.revision,warningDays:state.warningDays,drivers:state.drivers,trucks:state.trucks,trailers:state.trailers,assignments:state.assignments,documents:state.documents.map(({file,...meta})=>meta),events:state.events};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -18,10 +19,9 @@ function exportBackup(state:FleetController['state']){
   const a=window.document.createElement('a');
   a.href=url;a.download=`fleet-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  state.documents.forEach((d,i)=>setTimeout(()=>{
-    const fileUrl=URL.createObjectURL(d.file);const a2=window.document.createElement('a');
+  state.documents.forEach((d,i)=>setTimeout(async()=>{
+    const fileUrl=await getFleetDocumentUrl(d.id);const a2=window.document.createElement('a');
     a2.href=fileUrl;a2.download=`${d.id}__${d.filename}`;a2.click();
-    setTimeout(()=>URL.revokeObjectURL(fileUrl),1000);
   },i*300));
 }
 export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetController;loads:Load[];onOpenLoads:()=>void}) {
@@ -45,11 +45,14 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
       else if(editor.type==='assignment') action={type:'assign',driverId:text('driverId'),truckId:text('truckId'),trailerId:text('trailerId'),reason:text('reason')};
       else if(editor.type==='end')action={type:'end',id:editor.id,reason:text('reason')};
       else if(editor.type==='review')action={type:'reviewDocument',id:editor.id,reviewed:text('reviewed')==='true',reason:text('reason')};
+      else if(editor.type==='deleteEntity')action={type:'delete',kind:editor.kind,id:editor.id,reason:text('reason')};
+      else if(editor.type==='deleteDocument')action={type:'deleteDocument',id:editor.id,reason:text('reason')};
       else {const file=fields.get('file') as File;action={type:'document',record:{ownerKind:editor.kind,ownerId:editor.id,type:text('documentType'),issued:text('issued'),expires:text('expires'),reviewed:false,notes:text('notes'),filename:file.name,file}};}
       const next=await fleet.commit(action,editor.revision);
       if(action.type==='driver')setSelected({kind:'drivers',id:action.record.id});
       if(action.type==='equipment')setSelected({kind:action.kind,id:action.record.id});
-      setEditor(null);setNotice(`Guardado en este navegador · ${next.events[0].detail}`);
+      if(action.type==='delete')setSelected(null);
+      setEditor(null);setNotice(next.events[0].detail);
     }catch(e){setError((e as Error).message);}finally{setBusy(false);}
   }
   const changeTab=(next:Tab)=>{setTab(next);setSelected(null);setEditor(null);setQuery('');setFilter('Todos');setError('');setNotice('');};
@@ -58,9 +61,9 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
   const selectedAssignment=selected?assignmentFor(state,selected.kind,selected.id):undefined;
   const relevantAssignments=selected?state.assignments.filter(a=>selected.kind==='drivers'?a.driverId===selected.id:selected.kind==='trucks'?a.truckId===selected.id:a.trailerId===selected.id):[];
   const currentForForm=state.assignments.find(a=>!a.endedAt&&a.driverId===chosenDriver);
-  const editorTitle=editor?.type==='entity'?`${editor.id?'Editar':'Agregar'} ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='assignment'?'Asignar o cambiar equipo':editor?.type==='document'?'Agregar documento':editor?.type==='review'?'Revisar documento':'Finalizar asignación';
+  const editorTitle=editor?.type==='entity'?`${editor.id?'Editar':'Agregar'} ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='assignment'?'Asignar o cambiar equipo':editor?.type==='document'?'Agregar documento':editor?.type==='review'?'Revisar documento':editor?.type==='deleteEntity'?`Eliminar ${editor.kind==='drivers'?'chofer':editor.kind==='trucks'?'camión':'trailer'}`:editor?.type==='deleteDocument'?'Eliminar documento':'Finalizar asignación';
   return <div className={styles.fleet}>
-    <div className={styles.localNotice}><strong>Guardado local · M&A KING</strong><p>Los datos y archivos se conservan en este navegador y en esta dirección. No se sincronizan con otros dispositivos. Borrar los datos del navegador elimina esta copia. Usuarios y permisos compartidos están pendientes.</p><button disabled={!ready} onClick={()=>exportBackup(state)}>Exportar respaldo (JSON + archivos)</button></div>
+    <div className={styles.localNotice}><strong>M&A KING</strong><p>Los datos y archivos se guardan en Supabase y se sincronizan entre dispositivos. Usuarios y permisos compartidos están pendientes.</p><button disabled={!ready} onClick={()=>exportBackup(state)}>Exportar respaldo (JSON + archivos)</button></div>
     {fleet.error&&<div role="alert" className={styles.error}>{fleet.error} <button onClick={()=>void fleet.refresh()}>Reintentar</button></div>}
     {!ready&&!fleet.error&&<p role="status">Abriendo los registros de flota…</p>}
     <div className={styles.metrics}>
@@ -110,6 +113,8 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
         <label className={styles.wide}>Notas<textarea name="notes" maxLength={3000}/></label>
       </div></>}
       {editor.type==='review'&&<><p>Descarga y comprueba el documento antes de marcarlo como revisado.</p><label>Resultado<select name="reviewed"><option value="true">Revisado por mí</option><option value="false">Pendiente de revisión</option></select></label><label>Nota de revisión *<textarea name="reason" required maxLength={500}/></label></>}
+      {editor.type==='deleteEntity'&&<><p>Esta acción elimina el registro por completo, no solo lo desactiva. También se borran sus documentos y su historial de asignaciones. El evento de auditoría queda guardado igual.</p><label>Motivo de la eliminación *<input name="reason" required maxLength={500}/></label></>}
+      {editor.type==='deleteDocument'&&<><p>Esta acción elimina el documento y su archivo por completo. El evento de auditoría queda guardado igual.</p><label>Motivo de la eliminación *<input name="reason" required maxLength={500}/></label></>}
       {error&&<p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy?'Guardando…':'Guardar'}</button><button type="button" disabled={busy} onClick={()=>{setEditor(null);setError('');}}>Cancelar</button></div>
     </form>}
@@ -119,14 +124,14 @@ export default function FleetModule({fleet,loads,onOpenLoads}:{fleet:FleetContro
       {ready&&!records.length&&<p className={styles.empty}>{query||filter!=='Todos'?'No hay resultados con estos filtros.':`Todavía no hay ${titles[tab].toLowerCase()}. Usa el botón Agregar para comenzar.`}</p>}
     </>:<><p>Asignaciones activas: {activeAssignments.length}. Las finalizadas se conservan abajo.</p><div className={styles.cards}>{[...state.assignments].reverse().map(a=><article className={styles.card} key={a.id}><span className={styles.badge}>{a.endedAt?'Finalizada':'Activa'}</span><strong>{entityName(state,'drivers',a.driverId)}</strong><p>Camión {entityName(state,'trucks',a.truckId)} · Trailer {a.trailerId?entityName(state,'trailers',a.trailerId):'Sin trailer'}</p><small>Inicio: {dateTime(a.startedAt)}</small>{a.endedAt&&<small>Fin: {dateTime(a.endedAt)}</small>}<p>{a.reason}{a.endReason&&` · Finalización: ${a.endReason}`}</p>{!a.endedAt&&<div className={styles.actions}><button onClick={()=>open('assignment','drivers',a.driverId)}>Cambiar equipo</button><button onClick={()=>open('end','drivers',a.id)}>Finalizar</button></div>}</article>)}</div>{!state.assignments.length&&<p className={styles.empty}>Agrega un chofer y un camión para crear tu primera asignación.</p>}</>}
     {selected&&record&&tab!=='assignments'&&<section className={styles.profile}>
-      <div className={styles.toolbar}><h2>Ficha: {entityName(state,selected.kind,selected.id)}</h2><button onClick={()=>open('entity',selected.kind,selected.id)}>Editar ficha</button></div>
+      <div className={styles.toolbar}><h2>Ficha: {entityName(state,selected.kind,selected.id)}</h2><button onClick={()=>open('entity',selected.kind,selected.id)}>Editar ficha</button><button onClick={()=>{if(window.confirm('¿Eliminar este registro por completo? No se puede deshacer.'))open('deleteEntity',selected.kind,selected.id);}}>Eliminar {selected.kind==='drivers'?'chofer':selected.kind==='trucks'?'camión':'trailer'}</button></div>
       <dl className={styles.fields}>
         {(selected.kind==='drivers'?[['Nombre',(record as Driver).name],['Teléfono',(record as Driver).phone],['Correo',(record as Driver).email],['Grupo',(record as Driver).group],['Estado',(record as Driver).active?'Activo':'Inactivo'],['Disponibilidad',(record as Driver).availability]]:[['Unidad',(record as Equipment).unit],['VIN',(record as Equipment).vin],['Placa',(record as Equipment).plate],['Estado de registro',(record as Equipment).plateState],['Año',(record as Equipment).year],['Marca',(record as Equipment).make],['Modelo',(record as Equipment).model],['Tipo',(record as Equipment).type],['Estado',statusOf(selected.kind,record.id)]]).map(([label,v])=><div key={label}><dt>{label}</dt><dd>{v||'Pendiente de completar'}</dd></div>)}
       </dl><p><b>Notas:</b> {record.notes||'Sin notas'}</p>
       <h3>Equipo y asignación actual</h3>{selectedAssignment?<p>{entityName(state,'drivers',selectedAssignment.driverId)} · {entityName(state,'trucks',selectedAssignment.truckId)} · {selectedAssignment.trailerId?entityName(state,'trailers',selectedAssignment.trailerId):'Sin trailer'}</p>:<p>Sin asignación activa.</p>}
       <div className={styles.actions}>{selected.kind==='drivers'&&<button onClick={()=>open('assignment','drivers',selected.id)}>Asignar / cambiar equipo</button>}{selectedAssignment&&<button onClick={()=>open('end','drivers',selectedAssignment.id)}>Finalizar asignación</button>}</div>
       <h3>Documentos</h3><button onClick={()=>open('document',selected.kind,selected.id)}>+ Agregar documento</button>
-      {state.documents.filter(d=>d.ownerKind===selected.kind&&d.ownerId===selected.id).map(d=><div key={d.id} className={styles.document}><div><strong>{d.type} · {documentStatus(d,today())}</strong><p>{d.filename} · {Math.ceil(d.file.size/1024)} KB</p><small>Recibido: {dateTime(d.uploadedAt)}{d.issued&&` · Emisión: ${d.issued}`}{d.expires?` · Vence: ${d.expires}`:' · Sin vencimiento indicado'}</small>{d.reviewedAt&&<small>Revisado: {dateTime(d.reviewedAt)}</small>}<p>{d.notes}</p></div><div className={styles.actions}><button onClick={()=>download(d)}>Descargar</button><button onClick={()=>open('review',selected.kind,d.id)}>Revisar</button></div></div>)}
+      {state.documents.filter(d=>d.ownerKind===selected.kind&&d.ownerId===selected.id).map(d=><div key={d.id} className={styles.document}><div><strong>{d.type} · {documentStatus(d,today())}</strong><p>{d.filename} · {Math.ceil((d.sizeBytes??0)/1024)} KB</p><small>Recibido: {dateTime(d.uploadedAt)}{d.issued&&` · Emisión: ${d.issued}`}{d.expires?` · Vence: ${d.expires}`:' · Sin vencimiento indicado'}</small>{d.reviewedAt&&<small>Revisado: {dateTime(d.reviewedAt)}</small>}<p>{d.notes}</p></div><div className={styles.actions}><button onClick={()=>void download(d)}>Descargar</button><button onClick={()=>open('review',selected.kind,d.id)}>Revisar</button><button onClick={()=>{if(window.confirm('¿Eliminar este documento por completo? No se puede deshacer.'))open('deleteDocument',selected.kind,d.id);}}>Eliminar</button></div></div>)}
       {!state.documents.some(d=>d.ownerId===selected.id)&&<p className={styles.empty}>No se han recibido documentos para este perfil.</p>}
       <h3>Historial de asignaciones</h3>{relevantAssignments.length?<ul>{[...relevantAssignments].reverse().map(a=><li key={a.id}>{dateTime(a.startedAt)} — {entityName(state,'drivers',a.driverId)} / {entityName(state,'trucks',a.truckId)} / {a.trailerId?entityName(state,'trailers',a.trailerId):'Sin trailer'} · {a.endedAt?`Finalizada ${dateTime(a.endedAt)}`:'Activa'} · {a.reason}{a.endReason&&` · ${a.endReason}`}</li>)}</ul>:<p>Sin asignaciones anteriores.</p>}
       {selected.kind==='drivers'&&<><h3>Cargas y actividad relacionada</h3>{loads.filter(l=>l.driverId===selected.id).map(l=><p key={l.id}>{l.id} · {l.route} · {l.approval==='Aprobada'?l.status:'Pendiente de aprobación'}</p>)}<p>La gestión de cargas, combustible, pagos y liquidaciones está pendiente de conexión. No se copian cifras de ejemplo a este perfil.</p><button onClick={onOpenLoads}>Abrir Cargas y Operaciones →</button></>}
