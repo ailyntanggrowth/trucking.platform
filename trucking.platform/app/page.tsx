@@ -132,7 +132,7 @@ export default function Home() {
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="topbar"><div className="breadcrumb"><span>trucking.platform</span><b>/</b><strong>{moduleNames[activeModule]}</strong></div><button className="textButton" onClick={()=>go('alertas')}>Alertas {fleetReady?`(${alerts.length})`:''}</button></header>
       {activeModule==='dashboard' ? <>
-      <div className="pageIntro"><div><p className="eyebrow">TRUCK SERVICE</p><h1>M&amp;A KING</h1></div></div>
+      <div className="pageIntro"><span className="pageIntroTag">TRUCK SERVICE</span></div>
       <div className={`sourceNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?'Vista de ejemplo · No son datos de tu compañía':fleet.ready?'Flota conectada':'Cargando registros de flota'}</strong><p>{demo?'Los ejemplos no se guardan ni permiten aprobar cargas reales.':'Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.'}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?'Salir del ejemplo':'Ver ejemplo'}</button></div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">TU APROBACIÓN ES NECESARIA</span><h2>Cargas por revisar</h2><p>La IA prepara. Tú revisas y confirmas antes de que sean oficiales.</p></div><div className="reviewNumber">{value(summary.review.length)}<span>Revisar cargas →</span></div></button>
       <div className="metricsGrid">{metricCards.map(card=>{
@@ -260,8 +260,8 @@ export default function Home() {
                 .pageIntro { position:relative; isolation:isolate; overflow:hidden; min-height:200px; margin:24px 0; padding:32px; border-radius:16px; background:#24171D; }
                 .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/driver-night.png') center 38% / cover no-repeat; }
                 .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(20,10,14,.92) 0%,rgba(24,12,16,.78) 42%,rgba(24,12,16,.35) 75%,rgba(24,12,16,.15) 100%); }
-                .pageIntro>div { max-width:60%; }.pageIntro h1 { color:#fff; }.pageIntro h1 span { color:#E5B7C2; }.pageIntro .eyebrow { color:#F1CDD5; }
-                @media(max-width:760px) { .pageIntro { min-height:220px; padding:24px; justify-content:flex-start; }.pageIntro>div { max-width:100%; }.pageIntro::before { background-position:70% 38%; }.pageIntro::after { background:linear-gradient(180deg,rgba(20,10,14,.94) 0%,rgba(24,12,16,.75) 45%,rgba(24,12,16,.2) 75%,rgba(24,12,16,.08) 100%); }.pageIntro h1 { font-size:27px; } }
+                .pageIntroTag { position:absolute; top:20px; right:24px; color:#F1CDD5; font-size:12px; font-weight:700; letter-spacing:1.2px; background:rgba(0,0,0,.28); padding:7px 14px; border-radius:20px; }
+                @media(max-width:760px) { .pageIntro { min-height:220px; padding:24px; justify-content:flex-start; }.pageIntro::before { background-position:70% 38%; }.pageIntro::after { background:linear-gradient(180deg,rgba(20,10,14,.94) 0%,rgba(24,12,16,.75) 45%,rgba(24,12,16,.2) 75%,rgba(24,12,16,.08) 100%); }.pageIntroTag { top:16px; right:16px; font-size:11px; padding:6px 12px; } }
 
                 .pageIntro h1 { font-size:clamp(32px,4vw,52px); font-weight:800; letter-spacing:1px; line-height:1.08; }
                 @media(max-width:760px) { .pageIntro h1 { font-size:34px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; } }
