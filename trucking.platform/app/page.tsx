@@ -263,9 +263,9 @@ export default function Home() {
                 .pageIntro::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/driver-night.png') center 42% / cover no-repeat; }
                 .pageIntro::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(20,10,14,.05) 0%,rgba(20,10,14,.1) 70%,rgba(20,10,14,.55) 100%); }
                 .pageIntroTag { position:absolute; top:20px; right:24px; color:#F1CDD5; font-size:12px; font-weight:700; letter-spacing:1.2px; background:rgba(0,0,0,.35); padding:7px 14px; border-radius:20px; }
-                .pageIntroNotice { position:absolute; left:24px; right:24px; bottom:24px; margin-bottom:0; background:rgba(20,10,14,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); border-color:rgba(255,255,255,.22); }
-                .pageIntroNotice strong { color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.5); }.pageIntroNotice p { color:#F1CDD5; text-shadow:0 1px 3px rgba(0,0,0,.5); }.pageIntroNotice.exampleNotice { background:rgba(94,63,12,.35); border-color:rgba(215,182,118,.5); }
-                @media(max-width:760px) { .pageIntro { min-height:280px; padding:24px; justify-content:flex-start; }.pageIntro::before { background-position:70% 30%; }.pageIntroTag { top:16px; right:16px; font-size:11px; padding:6px 12px; }.pageIntroNotice { left:16px; right:16px; bottom:16px; } }
+                .pageIntroNotice { position:absolute; left:50%; top:50%; right:auto; bottom:auto; transform:translate(-50%,-50%); margin:0; background:transparent; border:0; padding:0; flex-direction:column; text-align:center; gap:14px; max-width:min(560px,80%); }
+                .pageIntroNotice strong { color:#fff; font-size:22px; text-shadow:0 2px 10px rgba(0,0,0,.65); }.pageIntroNotice p { color:#F1CDD5; text-shadow:0 1px 6px rgba(0,0,0,.65); }
+                @media(max-width:760px) { .pageIntro { min-height:280px; padding:24px; justify-content:flex-start; }.pageIntro::before { background-position:70% 30%; }.pageIntroTag { top:16px; right:16px; font-size:11px; padding:6px 12px; }.pageIntroNotice strong { font-size:18px; } }
 
                 .pageIntro h1 { font-size:clamp(32px,4vw,52px); font-weight:800; letter-spacing:1px; line-height:1.08; }
                 @media(max-width:760px) { .pageIntro h1 { font-size:34px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; } }
