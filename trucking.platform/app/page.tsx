@@ -131,9 +131,9 @@ export default function Home() {
     <a className="skipLink" href="#main-content">{t('Saltar al contenido')}</a>
 
     <div className="edgeZone" onPointerDown={onEdgePointerDown} aria-hidden="true" />
-    <button className={`drawerTab ${drawerOpen?'isOpen':''}`} aria-expanded={drawerOpen} aria-controls="main-navigation" onClick={()=>setDrawerOpen(o=>!o)}>
+    {activeModule!==null && <button className={`drawerTab ${drawerOpen?'isOpen':''}`} aria-expanded={drawerOpen} aria-controls="main-navigation" onClick={()=>setDrawerOpen(o=>!o)}>
       <span aria-hidden="true">{drawerOpen?'✕':'☰'}</span><span className="srOnly">{drawerOpen?t('Cerrar menú'):t('Abrir menú')}</span>
-    </button>
+    </button>}
     <button className="langToggle" onClick={()=>setLang(l=>l==='es'?'en':'es')} aria-label={lang==='es'?'Switch to English':'Cambiar a español'}>{lang==='es'?'EN':'ES'}</button>
     {(drawerOpen||dragOffset!==null) && <div className={`drawerBackdrop ${drawerOpen?'isOpen':''}`} onClick={()=>setDrawerOpen(false)} />}
     <aside ref={drawerRef} className={`drawer ${drawerOpen?'open':''}`} style={dragOffset!==null?{transform:`translateX(${dragOffset}px)`,transition:'none'}:undefined} onPointerDown={onDrawerPointerDown}>
@@ -150,7 +150,6 @@ export default function Home() {
         <p className="heroGreeting">{t('Hola, Adianez Tang')}</p>
         <p className="subtitle">{t('Tus cargas, tu equipo y tus números en un solo lugar.')}</p>
         <button className="heroCta" onClick={()=>setDrawerOpen(true)}>{t('☰ Ver módulos')}</button>
-        <div className="heroModules">{nav.map(item=><button key={item.id} className="heroModuleChip" onClick={()=>go(item.id)}><span className="heroModuleIcon" aria-hidden="true">{item.icon}</span>{t(item.name)}</button>)}</div>
         <p className="heroHint">{t('Desliza desde el borde izquierdo, o toca el botón, para abrir el menú.')}</p>
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
@@ -279,7 +278,6 @@ export default function Home() {
                   .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .loadRow summary:hover { background:#F7F5F3; }
                   .heroCta:hover { background:#fff; transform:scale(1.04); }
-                  .heroModuleChip:hover { background:rgba(197,164,109,.22); border-color:#C5A46D; transform:scale(1.05); }
                   .drawerTab:hover { background:#4A1420; transform:scale(1.08); }
                   .langToggle:hover { background:#F5EBED; border-color:#C5A46D; transform:scale(1.06); }
                   .navItem:hover { transform:scale(1.03); }
@@ -314,9 +312,6 @@ export default function Home() {
                 .landingHeroInner .heroGreeting { color:white; font-size:20px; margin:18px 0 0; }
                 .landingHeroInner .subtitle { color:#F4E9ED; font-size:16px; margin-top:8px; }
                 .heroCta { margin-top:32px; border:0; background:#EBD5DA; color:#4A1420; padding:14px 26px; border-radius:12px; font-weight:700; font-size:16px; box-shadow:0 8px 24px rgba(0,0,0,.2); transition:background 200ms ease, transform 180ms ease; }
-                .heroModules { display:flex; flex-wrap:wrap; gap:10px; margin-top:26px; }
-                .heroModuleChip { display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.08); color:#F4E9ED; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:600; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); transition:background 200ms ease, border-color 200ms ease, transform 180ms ease; }
-                .heroModuleIcon { font-size:11px; opacity:.85; }
                 .heroHint { color:#D8B7BF; font-size:13px; margin-top:18px; }
                 @media(max-width:760px) { .landingHero { padding:0 20px 64px; align-items:flex-end; } .landingHero::before { background-position:76% 64%; } .landingHeroInner h1 { font-size:44px; } }
 `}</style>
