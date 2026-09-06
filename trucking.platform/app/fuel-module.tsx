@@ -6,6 +6,7 @@ import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImpor
 import type { FleetController } from '../lib/use-fleet';
 import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
+import { Fuel as FuelIcon, Receipt, Wallet } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos';
@@ -106,9 +107,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <label>{t('Hasta')}<input type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
     </div>
     <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true">⛽</span><span className={styles.statLabel}>{t('Fuel')}</span><strong>{ready ? money(summary.fuel) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true">🧾</span><span className={styles.statLabel}>{t('Non-Fuel')}</span><strong>{ready ? money(summary.nonFuel) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true">💸</span><span className={styles.statLabel}>{t('Otros gastos')}</span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><span className={styles.statLabel}>{t('Fuel')}</span><strong>{ready ? money(summary.fuel) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><Receipt size={16}/></span><span className={styles.statLabel}>{t('Non-Fuel')}</span><strong>{ready ? money(summary.nonFuel) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><span className={styles.statLabel}>{t('Otros gastos')}</span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong></div>
     </div>
     <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
       <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>

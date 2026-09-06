@@ -5,6 +5,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
+import { AlertTriangle, Clock, Truck, ClipboardList, XCircle, Search, SlidersHorizontal, MoreVertical } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
@@ -76,22 +77,22 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     {!ready && !loads.error && <p role="status">{t('Abriendo los registros de cargas…')}</p>}
 
     <div className={styles.alertBanner}>
-      <div className={styles.alertBannerIcon} aria-hidden="true">!</div>
+      <div className={styles.alertBannerIcon} aria-hidden="true"><AlertTriangle size={18} strokeWidth={2.5}/></div>
       <div className={styles.alertBannerText}><strong>{ready ? review.length : '—'} {t('cargas requieren tu aprobación')}</strong><span>{t('Revisa y confirma para continuar con el proceso.')}</span></div>
       <button className={styles.alertBannerBtn} onClick={() => changeFilter('Por revisar')}>{t('Revisar ahora →')}</button>
     </div>
 
     <div className={styles.statCards}>
-      <button className={styles.statCard} data-tone="amber" aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}><span className={styles.statIcon} aria-hidden="true">⏱</span><span className={styles.statLabel}>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong><small>{t('Cargas pendientes')}</small></button>
-      <button className={styles.statCard} data-tone="green" aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}><span className={styles.statIcon} aria-hidden="true">🚚</span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></button>
-      <button className={styles.statCard} data-tone="blue" aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}><span className={styles.statIcon} aria-hidden="true">📋</span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></button>
-      <button className={styles.statCard} data-tone="red" aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}><span className={styles.statIcon} aria-hidden="true">✕</span><span className={styles.statLabel}>{t('Canceladas')}</span><strong>{ready ? cancelled.length : '—'}</strong><small>{t('Cargas canceladas')}</small></button>
+      <button className={styles.statCard} data-tone="amber" aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}><span className={styles.statIcon} aria-hidden="true"><Clock size={16}/></span><span className={styles.statLabel}>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong><small>{t('Cargas pendientes')}</small></button>
+      <button className={styles.statCard} data-tone="green" aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></button>
+      <button className={styles.statCard} data-tone="blue" aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></button>
+      <button className={styles.statCard} data-tone="red" aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}><span className={styles.statIcon} aria-hidden="true"><XCircle size={16}/></span><span className={styles.statLabel}>{t('Canceladas')}</span><strong>{ready ? cancelled.length : '—'}</strong><small>{t('Cargas canceladas')}</small></button>
     </div>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><span aria-hidden="true">🔍</span><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Número, broker, chofer, camión o ciudad...')} /></label>
-      <button type="button" className={styles.filtersBtn} aria-haspopup="true">{t('Filtros')}</button>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Número, broker, chofer, camión o ciudad...')} /></label>
+      <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
       <button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
     </div>
 
@@ -148,7 +149,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
           <td className={styles.tableSub}>{dateRange(l)}</td>
           <td>{money(l.amount)}</td>
           <td className={styles.tableActions}>
-            <button className={styles.moreBtn} onClick={() => setMenuOpen(menuOpen === l.id ? null : l.id)} aria-haspopup="true" aria-expanded={menuOpen === l.id} aria-label={t('Acciones')}>•••</button>
+            <button className={styles.moreBtn} onClick={() => setMenuOpen(menuOpen === l.id ? null : l.id)} aria-haspopup="true" aria-expanded={menuOpen === l.id} aria-label={t('Acciones')}><MoreVertical size={18}/></button>
             {menuOpen === l.id && <div className={styles.actionMenu} role="menu">
               {l.approval === 'Pendiente' && <button disabled={busy} onClick={() => { setMenuOpen(null); quickApprove(l.id); }}>{t('Aprobar')}</button>}
               {l.approval === 'Pendiente' && <button onClick={() => { setMenuOpen(null); open('reject', l.id); }}>{t('Rechazar')}</button>}

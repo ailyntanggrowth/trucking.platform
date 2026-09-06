@@ -6,6 +6,7 @@ import {getFleetDocumentUrl} from '../lib/fleet-actions';
 import {dateLabel as dateTime, today} from '../lib/format';
 import type {Lang} from '../lib/i18n';
 import type {Load} from '../lib/dashboard';
+import {User,CheckCircle2,Truck,AlertTriangle} from 'lucide-react';
 import styles from './fleet.module.css';
 
 const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignments:'Asignaciones',actividad:'Actividad'};
@@ -76,10 +77,10 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:
     {fleet.error&&<div role="alert" className={styles.error}>{fleet.error} <button onClick={()=>void fleet.refresh()}>{t('Reintentar')}</button></div>}
     {!ready&&!fleet.error&&<p role="status">{t('Abriendo los registros de flota…')}</p>}
     <div className={styles.statCards}>
-      <button className={styles.statCard} data-tone="blue" onClick={()=>changeTab('drivers')}><span className={styles.statIcon} aria-hidden="true">👤</span><span className={styles.statLabel}>{t('Choferes activos')}</span><strong>{ready?state.drivers.filter(d=>d.active).length:'—'}</strong></button>
-      <button className={styles.statCard} data-tone="green" onClick={()=>changeTab('drivers')}><span className={styles.statIcon} aria-hidden="true">✓</span><span className={styles.statLabel}>{t('Choferes disponibles')}</span><strong>{ready?state.drivers.filter(d=>d.active&&d.availability==='Disponible'&&!assignmentFor(state,'drivers',d.id)).length:'—'}</strong></button>
-      <button className={styles.statCard} data-tone="amber" onClick={()=>changeTab('trucks')}><span className={styles.statIcon} aria-hidden="true">🚚</span><span className={styles.statLabel}>{t('Camiones disponibles')}</span><strong>{ready?state.trucks.filter(e=>e.status==='Disponible'&&!assignmentFor(state,'trucks',e.id)).length:'—'}</strong></button>
-      <button className={styles.statCard} data-tone="red" onClick={()=>changeTab('trucks')}><span className={styles.statIcon} aria-hidden="true">⚠</span><span className={styles.statLabel}>{t('Equipo no operativo')}</span><strong>{ready?[...state.trucks,...state.trailers].filter(e=>['En mantenimiento','Fuera de servicio'].includes(e.status)).length:'—'}</strong></button>
+      <button className={styles.statCard} data-tone="blue" onClick={()=>changeTab('drivers')}><span className={styles.statIcon} aria-hidden="true"><User size={16}/></span><span className={styles.statLabel}>{t('Choferes activos')}</span><strong>{ready?state.drivers.filter(d=>d.active).length:'—'}</strong></button>
+      <button className={styles.statCard} data-tone="green" onClick={()=>changeTab('drivers')}><span className={styles.statIcon} aria-hidden="true"><CheckCircle2 size={16}/></span><span className={styles.statLabel}>{t('Choferes disponibles')}</span><strong>{ready?state.drivers.filter(d=>d.active&&d.availability==='Disponible'&&!assignmentFor(state,'drivers',d.id)).length:'—'}</strong></button>
+      <button className={styles.statCard} data-tone="amber" onClick={()=>changeTab('trucks')}><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Camiones disponibles')}</span><strong>{ready?state.trucks.filter(e=>e.status==='Disponible'&&!assignmentFor(state,'trucks',e.id)).length:'—'}</strong></button>
+      <button className={styles.statCard} data-tone="red" onClick={()=>changeTab('trucks')}><span className={styles.statIcon} aria-hidden="true"><AlertTriangle size={16}/></span><span className={styles.statLabel}>{t('Equipo no operativo')}</span><strong>{ready?[...state.trucks,...state.trailers].filter(e=>['En mantenimiento','Fuera de servicio'].includes(e.status)).length:'—'}</strong></button>
     </div>
     <nav className={styles.tabs} aria-label={t('Secciones de flota')}>{(Object.keys(titles) as Tab[]).map(tabKey=><button key={tabKey} aria-pressed={tab===tabKey} onClick={()=>changeTab(tabKey)}>{t(titles[tabKey])} <span>{tabKey==='assignments'?activeAssignments.length:tabKey==='actividad'?state.events.length:state[tabKey].length}</span></button>)}</nav>
     {notice&&<p role="status" className={styles.success}>{notice}</p>}

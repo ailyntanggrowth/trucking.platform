@@ -10,6 +10,7 @@ import { useLoads } from "../lib/use-loads";
 import { toDashboardLoad, summarizeLoads } from "../lib/loads";
 import { money, dateLabel, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
+import { Menu, X, Bell, ChevronDown, Truck, Crown } from "lucide-react";
 import FleetModule from "./fleet-module";
 import FuelModule from "./fuel-module";
 import LoadsModule from "./loads-module";
@@ -152,11 +153,14 @@ export default function Home() {
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="mainNav">
-        <button className="navMenuBtn" onClick={()=>setDrawerOpen(o=>!o)} aria-expanded={drawerOpen} aria-controls="main-navigation" aria-label={drawerOpen?t('Cerrar menú'):t('Abrir menú')}><span aria-hidden="true">{drawerOpen?'✕':'☰'}</span></button>
-        <button className="navLogo" onClick={()=>navigateTo('dashboard')}><span className="navLogoIcon" aria-hidden="true">🚚</span><span className="navLogoText"><strong>M&amp;A KING</strong><span>TRUCKING</span></span></button>
+        <button className="navMenuBtn" onClick={()=>setDrawerOpen(o=>!o)} aria-expanded={drawerOpen} aria-controls="main-navigation" aria-label={drawerOpen?t('Cerrar menú'):t('Abrir menú')}>{drawerOpen?<X size={20}/>:<Menu size={20}/>}</button>
+        <button className="navLogo" onClick={()=>navigateTo('dashboard')}>
+          <span className="navLogoIcon" aria-hidden="true"><Crown size={16} className="navLogoCrown"/><Truck size={26} strokeWidth={2}/></span>
+          <span className="navLogoText"><strong>M&amp;A KING</strong><span>TRUCKING</span></span>
+        </button>
         <div className="navSpacer" />
-        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><span aria-hidden="true">🔔</span>{alerts.length>0 && <span className="navBellBadge">{alerts.length}</span>}</button>
-        <button className="navUser" onClick={()=>{window.close();navigateTo(null);}} title={t('Salir del sistema')}><span className="avatar">AT</span><span className="navUserInfo"><strong>Adianez Tang</strong><span>{t('Administración')}</span></span><span aria-hidden="true">⌄</span></button>
+        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><Bell size={19}/>{alerts.length>0 && <span className="navBellBadge">{alerts.length}</span>}</button>
+        <button className="navUser" onClick={()=>{window.close();navigateTo(null);}} title={t('Salir del sistema')}><span className="avatar">AT</span><span className="navUserInfo"><strong>Adianez Tang</strong><span>{t('Administración')}</span></span><ChevronDown size={16}/></button>
       </header>
       <header className="topbar">
         <button className="backButton" onClick={goBack} disabled={!backStack.length} aria-label={t('Atrás')}>{t('← Atrás')}</button>
@@ -190,10 +194,12 @@ export default function Home() {
       <section className="sectionSpace" id="accesos" tabIndex={-1}><h2>{t('Accesos rápidos')}</h2><div className="quickGrid">{[{label:'Revisar cargas',id:'cargas',filter:'Por revisar'},{label:'Cargas activas',id:'cargas',filter:'Activas'},{label:'Choferes',id:'choferes'},{label:'Pagos pendientes',id:'pagos'},{label:'Resumen financiero',id:'finanzas'},{label:'Alertas e historial',id:'actividad'}].map(a=><button className="selectButton" key={a.label} onClick={()=>a.filter?viewLoads(a.filter):a.id==='choferes'?openFleet('drivers'):go(a.id)}>{t(a.label)} →</button>)}</div><p className="emptyState integrationNote">{t('Mensajería, combustible, contabilidad completa y gestión de cargas: pendientes de integración. Los accesos abren cada módulo en el panel derecho.')}</p></section>
       </> : <div className="moduleView">
         <div className="moduleHero">
-          <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
-          <h1>{t(moduleNames[activeModule])}</h1>
-          <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía en un solo lugar.',choferes:'Choferes, camiones, trailers y asignaciones de la flota.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
-          <span className="moduleHeroTag" aria-hidden="true">More Than Trucks<br/>A Family</span>
+          <div className="moduleHeroText">
+            <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
+            <h1>{t(moduleNames[activeModule])}</h1>
+            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía en un solo lugar.',choferes:'Choferes, camiones, trailers y asignaciones de la flota.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+          </div>
+          <div className="moduleHeroImage" aria-hidden="true"><span className="moduleHeroTag">More Than Trucks<br/>A Family</span></div>
         </div>
         {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter={filter}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t} initialTab={fleetTab}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se generarán y consultarán los reportes ya procesados de la compañía: semanales por chofer, cantidad y total de cargas, bruto, descuento del 6%, salario, combustible, non-fuel, seguro y ganancia final — además de reportes por grupo y el resumen semanal general.',comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
         <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
@@ -228,19 +234,21 @@ export default function Home() {
                 .content { max-width: 1920px; margin: 0 auto; padding: 0 clamp(20px, 3vw, 48px) 40px; animation:enterPanel 320ms ease-out; }
                 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
                 .moduleView { padding-top:28px; }.moduleView>.filterLabel { max-width:360px; }
-                .moduleHero { position:relative; isolation:isolate; overflow:hidden; background:#F7F3F0; border:1px solid #E9DCD4; border-radius:16px; padding:28px 32px; margin-bottom:24px; }
-                .moduleHero::before { content:""; position:absolute; inset:0; z-index:-1; background:url('/truck-dusk.png') right -40px center / 55% auto no-repeat; opacity:.16; }
+                .moduleHero { position:relative; overflow:hidden; display:flex; align-items:stretch; gap:24px; background:#F7F3F0; border:1px solid #E9DCD4; border-radius:16px; margin-bottom:24px; min-height:150px; }
+                .moduleHeroText { flex:1 1 auto; min-width:0; padding:28px 0 28px 32px; align-self:center; }
                 .moduleHero h1 { margin:6px 0 8px; font-size:34px; color:#2A1014; }
-                .moduleHeroSubtitle { margin:0; color:#4A4640; font-size:15px; max-width:520px; }
-                .moduleHeroTag { position:absolute; right:36px; bottom:20px; font-family:'Dancing Script',cursive; font-size:22px; color:#8F4F5B; text-align:right; line-height:1.3; opacity:.75; }
-                @media(max-width:760px) { .moduleHero { padding:22px; }.moduleHero h1 { font-size:26px; }.moduleHeroTag { display:none; } }
+                .moduleHeroSubtitle { margin:0; color:#4A4640; font-size:15px; max-width:480px; }
+                .moduleHeroImage { position:relative; isolation:isolate; flex:0 0 clamp(220px,32%,380px); background:url('/truck-dusk.png') center 55% / cover no-repeat; display:flex; align-items:flex-end; justify-content:flex-end; padding:20px; }
+                .moduleHeroImage::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(100deg,#F7F3F0 0%,rgba(247,243,240,0) 22%); }
+                .moduleHeroTag { font-family:'Dancing Script',cursive; font-size:20px; color:#fff; text-align:right; line-height:1.3; text-shadow:0 2px 8px rgba(0,0,0,.55); }
+                @media(max-width:760px) { .moduleHero { flex-direction:column; min-height:0; }.moduleHeroText { padding:22px 22px 0; }.moduleHero h1 { font-size:26px; }.moduleHeroImage { flex-basis:140px; padding:14px; } }
                 .topbar { min-height: 64px; border-bottom: 1px solid #E3DADD; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding:0 clamp(20px,3vw,48px); }.breadcrumb { color: #4A4640; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }.breadcrumb b { font-weight: 400; color:#4A4640; }.breadcrumb strong { color: #4A1420; }
                 .backButton { border:0; background:transparent; color:#6B1F2B; font-size:14px; font-weight:700; padding:8px 10px; border-radius:8px; transition:background 180ms ease, color 180ms ease; }.backButton:disabled { color:#B8ADAE; }
                 .dateBadge { border:1px solid #E3DADD; border-radius:20px; padding:8px 16px; font-size:14px; color:#4A4640; font-weight:600; white-space:nowrap; }
                 .mainNav { display:flex; align-items:center; gap:16px; padding:14px clamp(20px,3vw,48px); background:#fff; border-bottom:1px solid #E3DADD; }
                 .navMenuBtn { flex:0 0 auto; width:44px; height:44px; min-height:44px; padding:0; background:#6B1F2B; color:#fff; border:0; border-radius:10px; font-size:18px; display:grid; place-items:center; }
                 .navLogo { border:0; background:transparent; display:flex; align-items:center; gap:10px; padding:0; }
-                .navLogoIcon { font-size:28px; }
+                .navLogoIcon { position:relative; color:#6B1F2B; display:inline-flex; }.navLogoCrown { position:absolute; top:-11px; left:5px; color:#C5A46D; }
                 .navLogoText { display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; }.navLogoText strong { font-size:17px; color:#4A1420; letter-spacing:.5px; }.navLogoText span { font-size:11px; color:#8F4F5B; letter-spacing:2px; font-weight:700; }
                 .navSpacer { flex:1; }
                 .navBell { position:relative; flex:0 0 auto; width:44px; height:44px; min-height:44px; padding:0; background:#F7F3F0; border:1px solid #E3DADD; border-radius:50%; font-size:18px; display:grid; place-items:center; }
