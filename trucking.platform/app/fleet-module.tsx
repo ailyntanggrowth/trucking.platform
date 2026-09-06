@@ -8,7 +8,7 @@ import type {Lang} from '../lib/i18n';
 import type {Load} from '../lib/dashboard';
 import styles from './fleet.module.css';
 
-const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignments:'Asignaciones'};
+const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignments:'Asignaciones',actividad:'Actividad'};
 type Tab=keyof typeof titles;
 type Editor={type:'entity'|'assignment'|'document'|'end'|'review'|'deleteEntity'|'deleteDocument';kind:EntityKind;id:string;revision:number};
 const kindLabel=(kind:EntityKind)=>kind==='drivers'?'chofer':kind==='trucks'?'camión':'trailer';
@@ -25,9 +25,9 @@ function exportBackup(state:FleetController['state']){
     a2.href=fileUrl;a2.download=`${d.id}__${d.filename}`;a2.click();
   },i*300));
 }
-export default function FleetModule({fleet,loads,onOpenLoads,lang,t}:{fleet:FleetController;loads:Load[];onOpenLoads:()=>void;lang:Lang;t:(es:string)=>string}) {
+export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:{fleet:FleetController;loads:Load[];onOpenLoads:()=>void;lang:Lang;t:(es:string)=>string;initialTab?:Tab}) {
   const {state,ready}=fleet;
-  const [tab,setTab]=useState<Tab>('drivers'),[query,setQuery]=useState(''),[filter,setFilter]=useState('Todos');
+  const [tab,setTab]=useState<Tab>(initialTab||'drivers'),[query,setQuery]=useState(''),[filter,setFilter]=useState('Todos');
   const [selected,setSelected]=useState<{kind:EntityKind;id:string}|null>(null),[editor,setEditor]=useState<Editor|null>(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
   const [chosenDriver,setChosenDriver]=useState('');
@@ -58,7 +58,7 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t}:{fleet:Flee
   }
   const changeTab=(next:Tab)=>{setTab(next);setSelected(null);setEditor(null);setQuery('');setFilter('Todos');setError('');setNotice('');};
   const statusOf=(kind:EntityKind,id:string)=>{if(kind==='drivers'){const d=state.drivers.find(d=>d.id===id)!;return d.active?d.availability:'Inactivo';}const e=state[kind].find(e=>e.id===id)!;return assignmentFor(state,kind,id)?'Asignado':e.status;};
-  const records=tab==='assignments'?[]:state[tab].filter(r=>{const search=tab==='drivers'?`${(r as Driver).name} ${(r as Driver).phone} ${(r as Driver).email} ${(r as Driver).group}`:`${(r as Equipment).unit} ${(r as Equipment).vin} ${(r as Equipment).plate} ${(r as Equipment).make}`;return search.toLocaleLowerCase().includes(query.toLocaleLowerCase())&&(filter==='Todos'||statusOf(tab,r.id)===filter);});
+  const records=tab==='assignments'||tab==='actividad'?[]:state[tab].filter(r=>{const search=tab==='drivers'?`${(r as Driver).name} ${(r as Driver).phone} ${(r as Driver).email} ${(r as Driver).group}`:`${(r as Equipment).unit} ${(r as Equipment).vin} ${(r as Equipment).plate} ${(r as Equipment).make}`;return search.toLocaleLowerCase().includes(query.toLocaleLowerCase())&&(filter==='Todos'||statusOf(tab,r.id)===filter);});
   const selectedAssignment=selected?assignmentFor(state,selected.kind,selected.id):undefined;
   const relevantAssignments=selected?state.assignments.filter(a=>selected.kind==='drivers'?a.driverId===selected.id:selected.kind==='trucks'?a.truckId===selected.id:a.trailerId===selected.id):[];
   const currentForForm=state.assignments.find(a=>!a.endedAt&&a.driverId===chosenDriver);
@@ -73,9 +73,9 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t}:{fleet:Flee
       <div><span>{t('Camiones disponibles')}</span><strong>{ready?state.trucks.filter(e=>e.status==='Disponible'&&!assignmentFor(state,'trucks',e.id)).length:'—'}</strong></div>
       <div><span>{t('Equipo no operativo')}</span><strong>{ready?[...state.trucks,...state.trailers].filter(e=>['En mantenimiento','Fuera de servicio'].includes(e.status)).length:'—'}</strong></div>
     </div>
-    <nav className={styles.tabs} aria-label={t('Secciones de flota')}>{(Object.keys(titles) as Tab[]).map(tabKey=><button key={tabKey} aria-pressed={tab===tabKey} onClick={()=>changeTab(tabKey)}>{t(titles[tabKey])} <span>{tabKey==='assignments'?activeAssignments.length:state[tabKey].length}</span></button>)}</nav>
+    <nav className={styles.tabs} aria-label={t('Secciones de flota')}>{(Object.keys(titles) as Tab[]).map(tabKey=><button key={tabKey} aria-pressed={tab===tabKey} onClick={()=>changeTab(tabKey)}>{t(titles[tabKey])} <span>{tabKey==='assignments'?activeAssignments.length:tabKey==='actividad'?state.events.length:state[tabKey].length}</span></button>)}</nav>
     {notice&&<p role="status" className={styles.success}>{notice}</p>}
-    <div className={styles.toolbar}><h2>{t(titles[tab])}</h2><button className={styles.primary} disabled={!ready||busy} onClick={()=>open(tab==='assignments'?'assignment':'entity',tab==='assignments'?'drivers':tab)}>{tab==='assignments'?t('+ Nueva asignación'):`${t('+ Agregar')} ${t(kindLabel(tab as EntityKind))}`}</button></div>
+    <div className={styles.toolbar}><h2>{t(titles[tab])}</h2>{tab!=='actividad'&&<button className={styles.primary} disabled={!ready||busy} onClick={()=>open(tab==='assignments'?'assignment':'entity',tab==='assignments'?'drivers':tab)}>{tab==='assignments'?t('+ Nueva asignación'):`${t('+ Agregar')} ${t(kindLabel(tab as EntityKind))}`}</button>}</div>
     {editor&&<form id="fleet-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.kind}-${editor.id}`}>
       <h3>{editorTitle}</h3>
       {editor.type==='entity'&&<div className={styles.fields}>
@@ -120,12 +120,12 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t}:{fleet:Flee
       {error&&<p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy?t('Guardando…'):t('Guardar')}</button><button type="button" disabled={busy} onClick={()=>{setEditor(null);setError('');}}>{t('Cancelar')}</button></div>
     </form>}
-    {tab!=='assignments'?<>
+    {tab==='actividad'?<section className={styles.profile}>{state.events.length?<ul>{[...state.events].sort((a,b)=>b.at.localeCompare(a.at)).map(e=><li key={e.id}>{dateTime(e.at)} — {e.detail} · {e.actor}</li>)}</ul>:<p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>:tab!=='assignments'?<>
       <div className={styles.filters}><label>{t('Buscar')} {t(titles[tab]).toLowerCase()}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={tab==='drivers'?t('Nombre, teléfono o correo'):t('Unidad, VIN o placa')}/></label><label>{t('Filtrar estado')}<select value={filter} onChange={e=>setFilter(e.target.value)}>{(tab==='drivers'?['Todos','Disponible','En servicio','Descanso','Inactivo']:['Todos','Disponible','Asignado','En mantenimiento','Fuera de servicio','Inactivo']).map(s=><option key={s} value={s}>{t(s)}</option>)}</select></label></div>
       <div className={styles.cards}>{records.map(r=><button className={`${styles.card} ${selected?.id===r.id?styles.selected:''}`} key={r.id} onClick={()=>{setSelected({kind:tab,id:r.id});setEditor(null);}}><span className={styles.badge}>{t(statusOf(tab,r.id))}</span><strong>{tab==='drivers'?(r as Driver).name:(r as Equipment).unit}</strong><span>{tab==='drivers'?(r as Driver).phone||t('Teléfono pendiente'):`${(r as Equipment).make} ${(r as Equipment).model}`.trim()||t('Marca y modelo pendientes')}</span><span>{assignmentFor(state,tab,r.id)?t('Con equipo asignado'):t('Sin asignación activa')}</span><b>{t('Ver ficha →')}</b></button>)}</div>
       {ready&&!records.length&&<p className={styles.empty}>{query||filter!=='Todos'?t('No hay resultados con estos filtros.'):`${t('Todavía no hay')||''} ${t(titles[tab]).toLowerCase()}. ${t('Usa el botón Agregar para comenzar.')}`}</p>}
     </>:<><p>{t('Asignaciones activas')||'Asignaciones activas'}: {activeAssignments.length}. {t('Las finalizadas se conservan abajo.')}</p><div className={styles.cards}>{[...state.assignments].reverse().map(a=><article className={styles.card} key={a.id}><span className={styles.badge}>{a.endedAt?t('Finalizada'):t('Activa')}</span><strong>{entityName(state,'drivers',a.driverId)}</strong><p>{t('Camión')} {entityName(state,'trucks',a.truckId)} · {t('Trailer')} {a.trailerId?entityName(state,'trailers',a.trailerId):t('Sin trailer')}</p><small>{t('Inicio:')} {dateTime(a.startedAt)}</small>{a.endedAt&&<small>{t('Fin:')} {dateTime(a.endedAt)}</small>}<p>{a.reason}{a.endReason&&` · ${t('Finalización:')} ${a.endReason}`}</p>{!a.endedAt&&<div className={styles.actions}><button onClick={()=>open('assignment','drivers',a.driverId)}>{t('Cambiar equipo')}</button><button onClick={()=>open('end','drivers',a.id)}>{t('Finalizar')}</button></div>}</article>)}</div>{!state.assignments.length&&<p className={styles.empty}>{t('Agrega un chofer y un camión para crear tu primera asignación.')}</p>}</>}
-    {selected&&record&&tab!=='assignments'&&<section className={styles.profile}>
+    {selected&&record&&tab!=='assignments'&&tab!=='actividad'&&<section className={styles.profile}>
       <div className={styles.toolbar}><h2>{t('Ficha:')} {entityName(state,selected.kind,selected.id)}</h2><button onClick={()=>open('entity',selected.kind,selected.id)}>{t('Editar ficha')}</button><button onClick={()=>{if(window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.')))open('deleteEntity',selected.kind,selected.id);}}>{t('Eliminar')} {t(kindLabel(selected.kind))}</button></div>
       <dl className={styles.fields}>
         {(selected.kind==='drivers'?[['Nombre',(record as Driver).name],['Teléfono',(record as Driver).phone],['Correo',(record as Driver).email],['Grupo',(record as Driver).group],['Alias en tarjeta de combustible',(record as Driver).cardAlias],['Estado',(record as Driver).active?'Activo':'Inactivo'],['Disponibilidad',(record as Driver).availability]]:[['Unidad',(record as Equipment).unit],['VIN',(record as Equipment).vin],['Placa',(record as Equipment).plate],['Estado de registro',(record as Equipment).plateState],['Año',(record as Equipment).year],['Marca',(record as Equipment).make],['Modelo',(record as Equipment).model],['Tipo',(record as Equipment).type],['Estado',statusOf(selected.kind,record.id)]]).map(([label,v])=><div key={label}><dt>{t(label)}</dt><dd>{(v&&t(String(v)))||t('Pendiente de completar')}</dd></div>)}
