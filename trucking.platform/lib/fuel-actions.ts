@@ -188,18 +188,21 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
 
   const supabase = supabaseServer();
   const [{ data: drivers, error: driversError }, { data: existing, error: existingError }] = await Promise.all([
-    supabase.from('drivers').select('id, name').eq('company_id', companyId),
+    supabase.from('drivers').select('id, name, card_alias').eq('company_id', companyId),
     supabase.from('fuel_transactions').select('date, external_ref, fuel_amount, non_fuel_amount').eq('company_id', companyId),
   ]);
   if (driversError) throw new Error(driversError.message);
   if (existingError) throw new Error(existingError.message);
 
+  // El nombre real tiene prioridad; el alias de tarjeta (p.ej. "Raul Franc"
+  // para Osley) solo se usa si ningún chofer coincide por su nombre real.
   const driverByName = new Map((drivers ?? []).map(d => [normalizeName(d.name), d.id as string]));
+  const driverByAlias = new Map((drivers ?? []).filter(d => d.card_alias).map(d => [normalizeName(d.card_alias), d.id as string]));
   const existingKeys = new Set((existing ?? []).map(e => `${e.date}|${e.external_ref}|${e.fuel_amount}|${e.non_fuel_amount}`));
 
   const rows: MudflapDraftRow[] = parsed.rows.map(r => ({
     ...r,
-    driverId: driverByName.get(normalizeName(r.driverNameRaw)) || '',
+    driverId: driverByName.get(normalizeName(r.driverNameRaw)) || driverByAlias.get(normalizeName(r.driverNameRaw)) || '',
     duplicate: existingKeys.has(`${r.date}|${r.externalRef}|${r.type === 'Fuel' ? r.amount : 0}|${r.type === 'Non-Fuel' ? r.amount : 0}`),
   }));
 

@@ -6,10 +6,14 @@ import { demoSnapshot } from "../lib/dashboard-demo";
 import { useFleet } from "../lib/use-fleet";
 import { fleetAlerts, driverStatus, DRIVER_STATUS_VALUES } from "../lib/fleet";
 import { useFuel } from "../lib/use-fuel";
+import { summarizeFuel } from "../lib/fuel";
+import { useLoads } from "../lib/use-loads";
+import { toDashboardLoad, summarizeLoads } from "../lib/loads";
 import { money, dateLabel, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
 import FleetModule from "./fleet-module";
 import FuelModule from "./fuel-module";
+import LoadsModule from "./loads-module";
 
 const statuses: LoadStatus[] = ['Programado','Cargando','En tránsito','Entregada','Cancelada','Reemplazada'];
 const nav = [
@@ -40,15 +44,20 @@ export default function Home() {
   const t = (es:string) => translate(lang,es);
   const fleet = useFleet();
   const fuel = useFuel();
+  const loadsCtl = useLoads();
   const fleetReady = demo || fleet.ready;
   const data = demo ? demoSnapshot : {
     ...emptySnapshot,
+    connected: loadsCtl.ready,
+    loads: loadsCtl.state.loads.map(toDashboardLoad),
     drivers: fleet.state.drivers.map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
     alerts: fleet.ready ? fleetAlerts(fleet.state,today()) : [],
     activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
   };
   const start = week || (demo ? '2026-08-31' : currentWeek());
   const summary = summarize(data,start,weekEnd(start));
+  const fuelSummary = summarizeFuel(fuel.state,start,weekEnd(start));
+  const loadsSummary = summarizeLoads(loadsCtl.state,start,weekEnd(start));
   const value = (n:number, currency=false) => data.connected ? currency ? money(n) : n : '—';
   const shownLoads = filter === 'Por revisar' ? summary.review : filter === 'Activas' ? summary.active : filter === 'Todas' ? data.loads : summary.official.filter(l=>l.status===filter);
   const alerts = [...data.alerts,
@@ -164,7 +173,7 @@ export default function Home() {
       {activeModule==='dashboard' ? <>
       <div className="pageIntro">
         <span className="pageIntroTag">{t('TRUCK SERVICE')}</span>
-        <div className={`sourceNotice pageIntroNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?t('Vista de ejemplo · No son datos de tu compañía'):fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{demo?t('Los ejemplos no se guardan ni permiten aprobar cargas reales.'):t('Choferes, alertas e historial provienen del Módulo 3. Cargas y finanzas siguen pendientes de conexión.')}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?t('Salir del ejemplo'):t('Ver ejemplo')}</button></div>
+        <div className={`sourceNotice pageIntroNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?t('Vista de ejemplo · No son datos de tu compañía'):fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{demo?t('Los ejemplos no se guardan ni permiten aprobar cargas reales.'):t('Choferes, Cargas y Combustible ya usan datos reales. Contabilidad y Reportes siguen pendientes de conexión.')}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?t('Salir del ejemplo'):t('Ver ejemplo')}</button></div>
       </div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">{t('TU APROBACIÓN ES NECESARIA')}</span><h2>{t('Cargas por revisar')}</h2><p>{t('La IA prepara. Tú revisas y confirmas antes de que sean oficiales.')}</p></div><div className="reviewNumber">{value(summary.review.length)}<span>{t('Revisar cargas →')}</span></div></button>
       <div className="metricsGrid">{metricCards.map(card=>{
@@ -186,20 +195,21 @@ export default function Home() {
         <section className="panel" id="choferes" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Estado de choferes')}</h2><p>{t('Activo no significa disponible para una carga.')}</p></div></div><div className="driverSummary">{DRIVER_STATUS_VALUES.map(s=><div key={s}><strong>{fleetReady?data.drivers.filter(d=>d.status===s).length:'—'}</strong><span>{t(s)}</span></div>)}</div>{data.drivers.length?<div className="panelLinkWrap"><button className="selectButton" onClick={()=>go('choferes')}>{t('Ver todos los choferes →')}</button></div>:<p className="emptyState">{fleetReady?t('Todavía no hay choferes registrados.'):unavailable}</p>}</section>
         <section className="panel" id="alertas" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Requiere atención')}</h2><p>{t('Revisión, documentos, pagos y operación.')}</p></div><span className="alertCount">{fleetReady?alerts.length:'—'}</span></div>{alerts.length?<ul className="plainList">{alerts.map(a=><li key={a.id} className="alertLine"><strong>{a.title}</strong><span>{a.detail}</span></li>)}</ul>:<p className="emptyState">{fleetReady?t('No hay alertas de flota. Las demás fuentes están pendientes.'):unavailable}</p>}</section>
       </div>
-      <section className="panel sectionSpace" id="finanzas" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Resumen financiero')}</h2><p>{t('Semana desde')} {start} · USD · America/Chicago</p></div><label className="filterLabel">{t('Semana desde')}<input type="date" value={start} onChange={e=>setWeek(e.target.value)}/></label></div><div className="financeGrid">{[['Total bruto',summary.gross],['Fuel',summary.fuel],['Non-Fuel',summary.nonFuel],['Salarios',summary.salaries]].map(([label,n])=><div key={label}><span>{t(String(label))}</span><strong>{value(Number(n),true)}</strong></div>)}<div><span>{t('Otros gastos y ajustes')}</span><strong>—</strong></div><div className="profit"><span>{t('Ganancia estimada')}</span><strong>—</strong><small>{t('Pendiente de reglas contables completas')}</small></div></div><p className="detailNote financeNote">{t('El bruto no equivale a dinero cobrado. Los seguros, el 6%, descuentos y ajustes se integrarán desde contabilidad antes de mostrar una ganancia. Las cargas pendientes no generan ingresos oficiales.')}</p></section>
+      <section className="panel sectionSpace" id="finanzas" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Resumen financiero')}</h2><p>{t('Semana desde')} {start} · USD · America/Chicago</p></div><label className="filterLabel">{t('Semana desde')}<input type="date" value={start} onChange={e=>setWeek(e.target.value)}/></label></div><div className="financeGrid">
+        <div><span>{t('Total bruto')}</span><strong>{loadsCtl.ready?money(loadsSummary.gross):'—'}</strong></div>
+        <div><span>{t('Fuel')}</span><strong>{fuel.ready?money(fuelSummary.fuel):'—'}</strong></div>
+        <div><span>{t('Non-Fuel')}</span><strong>{fuel.ready?money(fuelSummary.nonFuel):'—'}</strong></div>
+        <div><span>{t('Otros gastos')}</span><strong>{fuel.ready?money(fuelSummary.expenseTotal):'—'}</strong></div>
+        <div><span>{t('Salarios')}</span><strong>—</strong></div>
+        <div className="profit"><span>{t('Ganancia estimada')}</span><strong>—</strong><small>{t('Pendiente de reglas contables completas')}</small></div>
+      </div><p className="detailNote financeNote">{t('El bruto no equivale a dinero cobrado. Los seguros, el 6%, descuentos y ajustes se integrarán desde contabilidad antes de mostrar una ganancia. Las cargas pendientes no generan ingresos oficiales.')}</p></section>
       <section className="panel sectionSpace" id="pagos" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Pagos pendientes')}</h2><p>{t('Saldos abiertos de todos los períodos, después de pagos parciales.')}</p></div></div><div className="driverSummary"><div><span>{t('Por cobrar')}</span><strong>{value(summary.receivable,true)}</strong></div><div><span>{t('Por pagar')}</span><strong>{value(summary.payable,true)}</strong></div></div>{summary.payments.length?<ul className="plainList">{summary.payments.map(p=><li key={p.id}><strong>{p.id} · {p.direction}</strong><span>{money(p.amount-p.paid)} · {t('Vence')} {p.due}</span></li>)}</ul>:<p className="emptyState">{data.connected?t('No hay pagos pendientes.'):unavailable}</p>}</section>
       <section className="panel sectionSpace" id="actividad" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Actividad reciente')}</h2><p>{t('Quién hizo cada cambio y cuándo.')}</p></div></div>{data.activity.length?<ol className="plainList">{[...data.activity].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,10).map(a=><li key={a.id} className="alertLine"><strong>{a.detail}</strong><span>{dateLabel(a.at)} · {a.actor}</span></li>)}</ol>:<p className="emptyState">{fleetReady?t('Todavía no hay actividad de flota.'):unavailable}</p>}</section>
       <section className="sectionSpace" id="accesos" tabIndex={-1}><h2>{t('Accesos rápidos')}</h2><div className="quickGrid">{[{label:'Revisar cargas',id:'cargas',filter:'Por revisar'},{label:'Cargas activas',id:'cargas',filter:'Activas'},{label:'Choferes',id:'choferes'},{label:'Pagos pendientes',id:'pagos'},{label:'Resumen financiero',id:'finanzas'},{label:'Alertas e historial',id:'actividad'}].map(a=><button className="selectButton" key={a.label} onClick={()=>a.filter?viewLoads(a.filter):go(a.id)}>{t(a.label)} →</button>)}</div><p className="emptyState integrationNote">{t('Mensajería, combustible, contabilidad completa y gestión de cargas: pendientes de integración. Los accesos abren cada módulo en el panel derecho.')}</p></section>
       </> : <div className="moduleView">
         <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
         <h1>{t(moduleNames[activeModule])}</h1>
-        {activeModule==='cargas' ? <>
-          <p>{t('Revisión y seguimiento de las cargas de la compañía.')}</p>
-          <div className="sourceNotice"><div><strong>{demo?t('Vista de ejemplo'):t('Módulo en preparación')}</strong><p>{t('La gestión y aprobación de cargas todavía no están conectadas. La IA prepara; la aprobación final es humana.')}</p></div><button className="selectButton" onClick={()=>setDemo(!demo)}>{demo?t('Salir del ejemplo'):t('Ver ejemplo')}</button></div>
-          <label className="filterLabel">{t('Mostrar cargas')}<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s} value={s}>{t(s)}</option>)}</select></label>
-          <section className="panel sectionSpace"><div className="panelHeader"><h2>{filter==='Por revisar'?t('Cargas por revisar'):t('Listado de cargas')}</h2><span>{data.connected?shownLoads.length:'—'}</span></div>
-          {shownLoads.length?shownLoads.map(load=><details className="loadRow" key={load.id}><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?t('Por revisar'):t(load.status)}</span></summary><div className="loadDetails"><p><b>{t('Chofer:')}</b> {data.drivers.find(d=>d.id===load.driverId)?.name||t('Sin asignar')}</p><p><b>{t('Unidad:')}</b> {load.truck}</p><p><b>{t('Broker:')}</b> {load.broker||t('Pendiente')}</p><p><b>{t('Precio:')}</b> {load.amount===undefined?t('Pendiente'):money(load.amount)}</p><p><b>{t('Fecha prevista:')}</b> {dateLabel(load.eta)}</p><p><b>{t('Aprobación:')}</b> {load.approval}</p>{load.replacedBy&&<p><b>{t('Reemplazo:')}</b> {load.replacedBy}</p>}</div></details>):<p className="emptyState">{data.connected?t('No hay cargas en este estado.'):t('Aquí aparecerán tus cargas cuando se conecte el registro operativo.')}</p>}</section>
-        </> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={emptySnapshot.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({choferes:'Aquí se organizarán los choferes, camiones, trailers y asignaciones.',combustible:'Aquí se registrarán Fuel, Non-Fuel y gastos operativos.',finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
+        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
         <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
       </div>}
     </section>}

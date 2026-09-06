@@ -3,7 +3,10 @@ export type Availability = 'Disponible' | 'En servicio' | 'Descanso';
 export const AVAILABILITY_VALUES: Availability[] = ['Disponible','En servicio','Descanso'];
 export const DRIVER_STATUS_VALUES: (Availability|'Inactivo')[] = [...AVAILABILITY_VALUES,'Inactivo'];
 export type EquipmentStatus = 'Disponible' | 'En mantenimiento' | 'Fuera de servicio' | 'Inactivo';
-export type Driver = { id:string; name:string; phone:string; email:string; group:string; active:boolean; availability:Availability; notes:string };
+// cardAlias: nombre con el que a veces aparece este chofer en la tarjeta de
+// combustible (p.ej. Mudflap) en vez de su nombre real — permite que la
+// importación de statements lo reconozca automáticamente sin marcarlo cada vez.
+export type Driver = { id:string; name:string; phone:string; email:string; group:string; active:boolean; availability:Availability; notes:string; cardAlias:string };
 // Un chofer inactivo se muestra como 'Inactivo' sin importar su disponibilidad guardada.
 // Antes esta regla se repetía en app/page.tsx y app/fleet-module.tsx por separado.
 export const driverStatus = (driver:Driver):Availability|'Inactivo' => driver.active ? driver.availability : 'Inactivo';

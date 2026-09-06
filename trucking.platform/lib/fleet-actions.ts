@@ -38,7 +38,7 @@ export async function getFleetState(companyId = DEFAULT_COMPANY_ID): Promise<Fle
     warningDays: meta.data!.warning_days,
     drivers: (drivers.data ?? []).map(r => ({
       id: r.id, name: r.name, phone: r.phone, email: r.email, group: r.group_name,
-      active: r.active, availability: r.availability, notes: r.notes,
+      active: r.active, availability: r.availability, notes: r.notes, cardAlias: r.card_alias ?? '',
     })),
     trucks: (equipment.data ?? []).filter(r => r.kind === 'trucks').map(mapEquipmentRow),
     trailers: (equipment.data ?? []).filter(r => r.kind === 'trailers').map(mapEquipmentRow),
@@ -91,7 +91,7 @@ export async function commitFleetAction(action: Exclude<FleetAction, { type: 'do
     const d = next.drivers.find(x => x.id === action.record.id)!;
     rpc = supabase.rpc('fleet_commit_driver', {
       p_company_id: companyId, p_expected_revision: expectedRevision,
-      p_driver: { id: d.id, name: d.name, phone: d.phone, email: d.email, group_name: d.group, active: d.active, availability: d.availability, notes: d.notes },
+      p_driver: { id: d.id, name: d.name, phone: d.phone, email: d.email, group_name: d.group, active: d.active, availability: d.availability, notes: d.notes, card_alias: d.cardAlias },
       p_event: event,
     });
   } else if (action.type === 'equipment') {
