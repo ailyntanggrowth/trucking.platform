@@ -5,9 +5,11 @@ import { emptySnapshot, summarize, type LoadStatus } from "../lib/dashboard";
 import { demoSnapshot } from "../lib/dashboard-demo";
 import { useFleet } from "../lib/use-fleet";
 import { fleetAlerts, driverStatus, DRIVER_STATUS_VALUES } from "../lib/fleet";
+import { useFuel } from "../lib/use-fuel";
 import { money, dateLabel, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
 import FleetModule from "./fleet-module";
+import FuelModule from "./fuel-module";
 
 const statuses: LoadStatus[] = ['Programado','Cargando','En tránsito','Entregada','Cancelada','Reemplazada'];
 const nav = [
@@ -37,6 +39,7 @@ export default function Home() {
   const [lang,setLang] = useState<Lang>('es');
   const t = (es:string) => translate(lang,es);
   const fleet = useFleet();
+  const fuel = useFuel();
   const fleetReady = demo || fleet.ready;
   const data = demo ? demoSnapshot : {
     ...emptySnapshot,
@@ -196,7 +199,7 @@ export default function Home() {
           <label className="filterLabel">{t('Mostrar cargas')}<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s} value={s}>{t(s)}</option>)}</select></label>
           <section className="panel sectionSpace"><div className="panelHeader"><h2>{filter==='Por revisar'?t('Cargas por revisar'):t('Listado de cargas')}</h2><span>{data.connected?shownLoads.length:'—'}</span></div>
           {shownLoads.length?shownLoads.map(load=><details className="loadRow" key={load.id}><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?t('Por revisar'):t(load.status)}</span></summary><div className="loadDetails"><p><b>{t('Chofer:')}</b> {data.drivers.find(d=>d.id===load.driverId)?.name||t('Sin asignar')}</p><p><b>{t('Unidad:')}</b> {load.truck}</p><p><b>{t('Broker:')}</b> {load.broker||t('Pendiente')}</p><p><b>{t('Precio:')}</b> {load.amount===undefined?t('Pendiente'):money(load.amount)}</p><p><b>{t('Fecha prevista:')}</b> {dateLabel(load.eta)}</p><p><b>{t('Aprobación:')}</b> {load.approval}</p>{load.replacedBy&&<p><b>{t('Reemplazo:')}</b> {load.replacedBy}</p>}</div></details>):<p className="emptyState">{data.connected?t('No hay cargas en este estado.'):t('Aquí aparecerán tus cargas cuando se conecte el registro operativo.')}</p>}</section>
-        </> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={emptySnapshot.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({choferes:'Aquí se organizarán los choferes, camiones, trailers y asignaciones.',combustible:'Aquí se registrarán Fuel, Non-Fuel y gastos operativos.',finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
+        </> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={emptySnapshot.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({choferes:'Aquí se organizarán los choferes, camiones, trailers y asignaciones.',combustible:'Aquí se registrarán Fuel, Non-Fuel y gastos operativos.',finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
         <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
       </div>}
     </section>}
