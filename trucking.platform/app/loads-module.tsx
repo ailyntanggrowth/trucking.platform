@@ -133,6 +133,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     </article>)}</div>
     {ready && !filtered.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay cargas en esta vista. Usa el botón de arriba para comenzar.')}</p>}
 
-    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <ul>{state.events.slice(0, 15).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
+    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <div className={styles.historyScroll}><ul>{state.events.slice(0, 30).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul></div> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
 }
