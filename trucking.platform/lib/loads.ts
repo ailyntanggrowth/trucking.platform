@@ -139,7 +139,7 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
 export function summarizeLoads(state: LoadState, start: string, end: string) {
   const inRange = (d: string) => d >= start && d < end;
   const official = state.loads.filter(isOfficial);
-  const review = state.loads.filter(l => l.approval === 'Pendiente');
+  const review = state.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada');
   const active = official.filter(isActive);
   const gross = official.filter(l => inRange(l.pickupDate) && l.status !== 'Cancelada').reduce((s, l) => s + l.amount, 0);
   const receivable = official.filter(l => l.paymentStatus !== 'Pagada' && l.paymentStatus !== 'No pagable').reduce((s, l) => s + balance(l), 0);

@@ -29,7 +29,7 @@ export const isActive = (load: Load) => isOfficial(load) && ['Programado', 'Carg
 // no calcularlos él mismo.
 export function summarize(data: Snapshot, start: string, end: string) {
   const official = data.loads.filter(isOfficial);
-  const review = data.loads.filter(l => l.approval !== 'Rechazada' && !isOfficial(l));
+  const review = data.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada');
   const loadIds = new Set(official.map(l => l.id));
   const payments = data.payments.filter(p => loadIds.has(p.loadId) && p.amount > p.paid);
   const ledger = data.ledger.filter(entry => {

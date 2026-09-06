@@ -7,21 +7,20 @@ import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
-type Tab = 'revision' | 'activas' | 'todas';
 type Editor = { type: 'load' | 'approve' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
 
-export default function LoadsModule({ loads, fleet, lang, t }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string }) {
+export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
-  const [tab, setTab] = useState<Tab>('revision'), [query, setQuery] = useState('');
+  const [filter, setFilter] = useState(initialFilter || 'Por revisar'), [query, setQuery] = useState('');
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
 
-  const review = state.loads.filter(l => l.approval === 'Pendiente');
+  const review = state.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada');
   const official = state.loads.filter(isOfficial);
   const active = official.filter(isActive);
-  const visible = tab === 'revision' ? review : tab === 'activas' ? active : state.loads;
+  const visible = filter === 'Activas' ? active : filter === 'Todas' ? state.loads : filter === 'Por revisar' ? review : official.filter(l => l.status === filter);
   const filtered = visible.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${truckUnit(l.truckId)} ${l.pickupCity} ${l.deliveryCity}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
@@ -53,16 +52,15 @@ export default function LoadsModule({ loads, fleet, lang, t }: { loads: LoadsCon
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
+  const changeFilter = (next: string) => { setFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'approve' ? t('Aprobar carga') : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
   const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeRejected : l.status === 'Cancelada' ? styles.badgeCancelled : styles.badgeApproved;
 
   return <div className={styles.loads}>
-    <div className={styles.localNotice}><strong>M&A KING</strong><p>{t('Ninguna carga es oficial ni cuenta como ingreso hasta que la apruebes. Las canceladas nunca se borran: quedan en el historial con el motivo.')}</p></div>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
     {!ready && !loads.error && <p role="status">{t('Abriendo los registros de cargas…')}</p>}
 
-    <button className={styles.reviewBanner} onClick={() => changeTab('revision')}><div><span>{t('TU APROBACIÓN ES NECESARIA')}</span><h3>{t('Cargas por revisar')}</h3></div><div className={styles.reviewNumber}>{ready ? review.length : '—'}</div></button>
+    <button className={styles.reviewBanner} onClick={() => changeFilter('Por revisar')}><div><span>{t('TU APROBACIÓN ES NECESARIA')}</span><h3>{t('Cargas por revisar')}</h3></div><div className={styles.reviewNumber}>{ready ? review.length : '—'}</div></button>
 
     <div className={styles.metrics}>
       <div><span>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong></div>
@@ -71,9 +69,9 @@ export default function LoadsModule({ loads, fleet, lang, t }: { loads: LoadsCon
     </div>
 
     <nav className={styles.tabs} aria-label={t('Secciones de cargas')}>
-      <button aria-pressed={tab === 'revision'} onClick={() => changeTab('revision')}>{t('Por revisar')} <span>{review.length}</span></button>
-      <button aria-pressed={tab === 'activas'} onClick={() => changeTab('activas')}>{t('Activas')} <span>{active.length}</span></button>
-      <button aria-pressed={tab === 'todas'} onClick={() => changeTab('todas')}>{t('Todas')} <span>{state.loads.length}</span></button>
+      <button aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}>{t('Por revisar')} <span>{review.length}</span></button>
+      <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}>{t('Activas')} <span>{active.length}</span></button>
+      <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}>{t('Todas')} <span>{state.loads.length}</span></button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
     <div className={styles.toolbar}><h2>{t('Cargas')}</h2><button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button></div>
