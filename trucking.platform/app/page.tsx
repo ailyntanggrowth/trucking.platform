@@ -63,9 +63,7 @@ export default function Home() {
     ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`,onClick:()=>go('pagos')}))];
   const moduleNames: Record<string,string> = { dashboard: 'Dashboard', ...Object.fromEntries(nav.map(item=>[item.id,item.name])) };
   const metricCards = [
-    {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
     {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
-    {label:'Choferes activos',amount:data.drivers.filter(d=>d.status!=='Inactivo').length,hint:'Incluye servicio, descanso y disponibles',action:()=>openFleet('drivers')},
   ];
   const maxMetric = Math.max(1,...metricCards.map(c=>c.amount));
 
@@ -172,7 +170,7 @@ export default function Home() {
       </div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">{t('TU APROBACIÓN ES NECESARIA')}</span><h2>{t('Cargas por revisar')}</h2><p>{t('La IA prepara. Tú revisas y confirmas antes de que sean oficiales.')}</p></div><div className="reviewNumber">{value(summary.review.length)}<span>{t('Revisar cargas →')}</span></div></button>
       <div className="metricsGrid">{metricCards.map(card=>{
-        const shown = card.label==='Choferes activos' ? (fleetReady?card.amount:null) : (data.connected?card.amount:null);
+        const shown = data.connected ? card.amount : null;
         const pct = shown===null ? 30 : Math.max(12,Math.round((card.amount/maxMetric)*100));
         return <button className="metricCard" key={card.label} onClick={card.action}>
           <div className="metricTop">{t(card.label)}<span aria-hidden="true">↗</span></div>
