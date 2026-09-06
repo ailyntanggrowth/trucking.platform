@@ -108,9 +108,9 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <p className={styles.note}>{t('Reporte angosto (spec 9.10): del bruto de la semana, el 12% se lo queda Mario; del 88% restante se le descuenta al Owner Operator el combustible que gastó con la tarjeta de la compañía, y lo que queda es lo que Mario le paga. No es una liquidación completa.')}</p>
       <div className={styles.cards}>{ownerOperators.map(o => <article className={styles.card} key={o.driverId}>
         <strong>{o.driverName}</strong>
-        <span>{t('Bruto:')} {money(o.gross)}</span>
+        <span>{o.loadsCount} {t('cargas')} · {t('Bruto:')} {money(o.gross)}</span>
         <p><b>{t('Corte de Mario (12%):')}</b> {money(o.marioCut)}</p>
-        <p><b>{t('88% del Owner Operator:')}</b> {money(o.driverShare)} · <b>{t('Combustible gastado:')}</b> {money(o.fuel)}</p>
+        <p><b>{t('Combustible gastado:')}</b> {money(o.fuel)}</p>
         <p><b>{t('A pagarle al Owner Operator:')}</b> {money(o.netPayout)}</p>
       </article>)}</div>
       {ready2 && !ownerOperators.length && <p className={styles.empty}>{t('No hay choferes del grupo Owner Operators todavía.')}</p>}
