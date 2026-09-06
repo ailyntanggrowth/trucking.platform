@@ -7,7 +7,7 @@ import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
-type Editor = { type: 'load' | 'approve' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
+type Editor = { type: 'load' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
 
 export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
@@ -16,14 +16,22 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
+  const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
 
-  const review = state.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada');
+  // Solo Mario necesita revisión/aprobación humana en este sistema — Owner Operators,
+  // Lázaro y Dionisio están fuera de alcance salvo para combustible (spec 7.3a).
+  const review = state.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && (!l.driverId || driverGroup(l.driverId) === 'Mario'));
   const official = state.loads.filter(isOfficial);
   const active = official.filter(isActive);
   const visible = filter === 'Activas' ? active : filter === 'Todas' ? state.loads : filter === 'Por revisar' ? review : official.filter(l => l.status === filter);
   const filtered = visible.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${truckUnit(l.truckId)} ${l.pickupCity} ${l.deliveryCity}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
+  async function quickApprove(id: string) {
+    if (busy) return; setError(''); setNotice(''); setBusy(true);
+    try { const next = await loads.commit({ type: 'approve', id, reason: '' }, state.revision); setNotice(next.events[0].detail); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
   const editLoad = editor?.type === 'load' ? state.loads.find(l => l.id === editor.id) : undefined;
   const target = editor ? state.loads.find(l => l.id === editor.id) : undefined;
 
@@ -44,8 +52,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
         };
         action = editor.type === 'load' ? { type: 'load', record, reason: text('reason') } : { type: 'replace', id: editor.id, replacement: record, reason: text('reason') };
-      } else if (editor.type === 'approve') action = { type: 'approve', id: editor.id, reason: text('reason') };
-      else if (editor.type === 'reject') action = { type: 'reject', id: editor.id, reason: text('reason') };
+      } else if (editor.type === 'reject') action = { type: 'reject', id: editor.id, reason: text('reason') };
       else action = { type: 'cancel', id: editor.id, reason: text('reason') };
       const next = await loads.commit(action, editor.revision);
       setEditor(null); setNotice(next.events[0].detail);
@@ -53,7 +60,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   }
 
   const changeFilter = (next: string) => { setFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
-  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'approve' ? t('Aprobar carga') : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
+  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
   const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeRejected : l.status === 'Cancelada' ? styles.badgeCancelled : styles.badgeApproved;
 
   return <div className={styles.loads}>
@@ -98,7 +105,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editor.type === 'load' ? editLoad?.notes : ''} /></label>
         {(editor.type === 'replace' || editor.id) && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
       </div>}
-      {editor.type === 'approve' && <><p>{t('Al aprobar, esta carga pasa a contar como oficial y activa.')}</p><label>{t('Motivo de la aprobación *')}<input name="reason" required maxLength={500} /></label></>}
       {editor.type === 'reject' && <><p>{t('La carga queda en el historial marcada como rechazada — nunca cuenta como ingreso.')}</p><label>{t('Motivo del rechazo *')}<input name="reason" required maxLength={500} /></label></>}
       {editor.type === 'cancel' && <><p>{t('La carga no se borra: queda cancelada en el historial con el motivo.')}</p><label>{t('Motivo de la cancelación *')}<input name="reason" required maxLength={500} /></label></>}
       {error && <p className={styles.error} role="alert">{error}</p>}
@@ -124,7 +130,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       {l.approval === 'Rechazada' && l.rejectedReason && <p className={styles.empty}>{t('Motivo del rechazo:')} {l.rejectedReason}</p>}
       {l.status === 'Cancelada' && l.cancelReason && <p className={styles.empty}>{t('Motivo de cancelación:')} {l.cancelReason}</p>}
       <div className={styles.actions}>
-        {l.approval === 'Pendiente' && <button onClick={() => open('approve', l.id)}>{t('Aprobar')}</button>}
+        {l.approval === 'Pendiente' && <button disabled={busy} onClick={() => quickApprove(l.id)}>{t('Aprobar')}</button>}
         {l.approval === 'Pendiente' && <button onClick={() => open('reject', l.id)}>{t('Rechazar')}</button>}
         <button onClick={() => open('load', l.id)}>{t('Editar')}</button>
         {l.status !== 'Cancelada' && l.status !== 'Reemplazada' && <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>}

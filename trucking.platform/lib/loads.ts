@@ -95,12 +95,11 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     entityIds = [record.id]; after = record;
     detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ' — pendiente de revisión'}`;
   } else if (action.type === 'approve') {
-    requireValue(action.reason.trim(), 'Escribe el motivo de la aprobación.');
     const load = state.loads.find(l => l.id === action.id); requireValue(load, 'No se encontró la carga.');
     requireValue(load!.approval !== 'Aprobada', 'Esta carga ya está aprobada.');
     before = { approval: load!.approval }; load!.approval = 'Aprobada'; load!.approvedBy = 'Usuario local · sin cuenta autenticada'; load!.approvedAt = now; load!.rejectedReason = '';
     after = { approval: load!.approval, approvedBy: load!.approvedBy, approvedAt: load!.approvedAt };
-    entityIds = [action.id]; detail = `Aprobó carga ${load!.loadNumber || load!.id}: ${action.reason.trim()}`;
+    entityIds = [action.id]; detail = `Aprobó carga ${load!.loadNumber || load!.id}`;
   } else if (action.type === 'reject') {
     requireValue(action.reason.trim(), 'Escribe el motivo del rechazo.');
     const load = state.loads.find(l => l.id === action.id); requireValue(load, 'No se encontró la carga.');
