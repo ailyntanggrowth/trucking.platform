@@ -196,7 +196,7 @@ export default function Home() {
 
                 :global(*) { box-sizing: border-box; }
                 :global(html) { color-scheme: light; }
-                :global(body) { margin: 0; background: linear-gradient(160deg,#150a0e 0%,#341722 32%,#4a1420 58%,#1c0d13 100%) fixed, radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.10), transparent 55%) fixed; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
+                :global(body) { margin: 0; background: linear-gradient(160deg,#050505 0%,#141416 35%,#1c1c1f 60%,#050505 100%) fixed, radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.06), transparent 55%) fixed; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
                 button { font: inherit; cursor: pointer; min-height: 44px; transition: background .15s; }
                 button:focus-visible, .skipLink:focus-visible { outline: 3px solid #A85C6A; outline-offset: 4px; }
                 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 60; background: white; color: #6B1F2B; padding: 12px; }
