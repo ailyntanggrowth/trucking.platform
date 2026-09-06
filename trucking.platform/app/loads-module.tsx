@@ -5,7 +5,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { AlertTriangle, Clock, Truck, ClipboardList, XCircle, Search, SlidersHorizontal, MoreVertical } from 'lucide-react';
+import { AlertTriangle, Clock, Truck, ClipboardList, XCircle, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
@@ -15,7 +15,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const [filter, setFilter] = useState(initialFilter || 'Por revisar'), [query, setQuery] = useState('');
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
@@ -132,39 +131,28 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
 
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        <thead><tr>
-          <th>{t('# Carga')}</th>
-          <th>{t('Broker')}</th>
-          <th>{t('Origen → Destino')}</th>
-          <th>{t('Chofer')}</th>
-          <th>{t('Estado')}</th>
-          <th>{t('Fecha')}</th>
-          <th>{t('Monto')}</th>
-          <th aria-hidden="true"></th>
-        </tr></thead>
-        <tbody>{pageRows.map(l => <tr key={l.id}>
-          <td><strong>{l.loadNumber || t('Sin número')}</strong></td>
-          <td className={styles.tableSub}>{l.broker || '—'}</td>
-          <td className={styles.tableSub}>{[l.pickupCity, l.pickupState].filter(Boolean).join(', ') || '—'} → {[l.deliveryCity, l.deliveryState].filter(Boolean).join(', ') || '—'}</td>
-          <td>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</td>
-          <td><span className={`${styles.badge} ${statusBadgeClass(l)}`}>{l.approval === 'Pendiente' ? t('Por revisar') : l.approval === 'Rechazada' ? t('Rechazada') : t(l.status)}</span>{l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}</td>
-          <td className={styles.tableSub}>{dateRange(l)}</td>
-          <td>{money(l.amount)}</td>
-          <td className={styles.tableActions}>
-            <button className={styles.moreBtn} onClick={() => setMenuOpen(menuOpen === l.id ? null : l.id)} aria-haspopup="true" aria-expanded={menuOpen === l.id} aria-label={t('Acciones')}><MoreVertical size={18}/></button>
-            {menuOpen === l.id && <div className={styles.actionMenu} role="menu">
-              {l.approval === 'Pendiente' && <button disabled={busy} onClick={() => { setMenuOpen(null); quickApprove(l.id); }}>{t('Aprobar')}</button>}
-              {l.approval === 'Pendiente' && <button onClick={() => { setMenuOpen(null); open('reject', l.id); }}>{t('Rechazar')}</button>}
-              <button onClick={() => { setMenuOpen(null); open('load', l.id); }}>{t('Editar')}</button>
-              {l.status !== 'Cancelada' && l.status !== 'Reemplazada' && <button onClick={() => { setMenuOpen(null); open('cancel', l.id); }}>{t('Cancelar')}</button>}
-              {l.status === 'Cancelada' && !l.replacedBy && <button onClick={() => { setMenuOpen(null); open('replace', l.id); }}>{t('Reemplazar')}</button>}
-            </div>}
-          </td>
-        </tr>)}</tbody>
-      </table>
-    </div>
+    <div className={styles.cards}>{pageRows.map(l => <article className={styles.card} key={l.id}>
+      <div className={styles.badgeRow}>
+        <span className={`${styles.badge} ${statusBadgeClass(l)}`}>{l.approval === 'Pendiente' ? t('Por revisar') : l.approval === 'Rechazada' ? t('Rechazada') : t(l.status)}</span>
+        {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
+      </div>
+      <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
+      <span>{[l.pickupCity, l.pickupState].filter(Boolean).join(', ') || '—'} → {[l.deliveryCity, l.deliveryState].filter(Boolean).join(', ') || '—'}</span>
+      <span>{dateRange(l)}</span>
+      <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')} · {l.truckId ? truckUnit(l.truckId) : t('Sin camión')}</span>
+      <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
+      {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
+      {l.replacesId && <span>{t('Reemplaza a:')} {state.loads.find(x => x.id === l.replacesId)?.loadNumber || l.replacesId}</span>}
+      {l.approval === 'Rechazada' && l.rejectedReason && <p className={styles.empty}>{t('Motivo del rechazo:')} {l.rejectedReason}</p>}
+      {l.status === 'Cancelada' && l.cancelReason && <p className={styles.empty}>{t('Motivo de cancelación:')} {l.cancelReason}</p>}
+      <div className={styles.actions}>
+        {l.approval === 'Pendiente' && <button disabled={busy} onClick={() => quickApprove(l.id)}>{t('Aprobar')}</button>}
+        {l.approval === 'Pendiente' && <button onClick={() => open('reject', l.id)}>{t('Rechazar')}</button>}
+        <button onClick={() => open('load', l.id)}>{t('Editar')}</button>
+        {l.status !== 'Cancelada' && l.status !== 'Reemplazada' && <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>}
+        {l.status === 'Cancelada' && !l.replacedBy && <button onClick={() => open('replace', l.id)}>{t('Reemplazar')}</button>}
+      </div>
+    </article>)}</div>
     {ready && !filtered.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay cargas en esta vista. Usa el botón de arriba para comenzar.')}</p>}
     {filtered.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, filtered.length)} {t('de')} {filtered.length} {t('cargas')}</span>
