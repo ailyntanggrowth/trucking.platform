@@ -18,6 +18,14 @@
 .tabs { display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid #e3dadd; padding-bottom:12px; margin-bottom:12px; }.tabs button { font-weight:700; font-size:13px; padding:7px 13px; min-height:38px; transition:background 220ms ease, color 220ms ease, border-color 220ms ease; }.tabs button[aria-pressed=true] { background:#8B102A; color:#fff; border-color:#8B102A; }.fleet button.primary { background:#8B102A; color:white; border-color:#8B102A; }.tabs span { margin-left:8px; opacity:.8; }
 .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:14px 0; }.toolbar h2 { margin:0; }.filters { display:grid; grid-template-columns:minmax(0,2fr) minmax(180px,1fr); gap:16px; margin:18px 0; }.fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }.wide { grid-column:1/-1; }
 .form,.profile { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; margin:14px 0; scroll-margin-top:20px; min-width:0; }.form { border-top:4px solid #8B102A; }.form h3 { margin-top:0; }.form>label { margin-top:10px; }.actions { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; margin-top:12px; }
+.cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.fleet .card { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:6px; padding:14px; border:1px solid #e3dadd; border-radius:12px; background:white; min-width:0; overflow-wrap:anywhere; transition:background 220ms ease, border-color 220ms ease, transform 180ms ease, box-shadow 220ms ease; }
+.card strong { font-size:15px; color:#11151B; }.card>span { font-size:13px; color:#59616D; }.card b { font-size:13px; }.card p { margin:0; font-size:13px; }
+.fleet .selected { border:2px solid #C5A46D; background:#FBF7EC; box-shadow:0 3px 12px rgba(197,164,109,.25); }
+@media(hover:hover) and (pointer:fine) { .fleet .card:hover:not(.selected) { transform:scale(1.01); border-color:#C5A46D; box-shadow:0 10px 22px rgba(74,20,32,.10); z-index:1; } }
+@media(max-width:1200px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:760px) { .cards { grid-template-columns:1fr; } }
+
 .tableWrap { overflow-x:auto; border:1px solid #e3dadd; border-radius:14px; background:white; }
 .dataTable { width:100%; border-collapse:collapse; min-width:640px; }
 .dataTable th { text-align:left; font-size:11px; letter-spacing:.4px; text-transform:uppercase; color:#59616D; padding:10px 12px; border-bottom:1px solid #e3dadd; white-space:nowrap; }

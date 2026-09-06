@@ -191,31 +191,28 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <label>{t('Buscar')}<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'transacciones' ? t('Estación, chofer, camión o referencia') : t('Categoría, chofer, camión o método')} /></label>
     </div>
 
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        {tab === 'transacciones' ? <>
-          <thead><tr><th>{t('Estación')}</th><th>{t('Chofer / Camión')}</th><th>{t('Fecha')}</th><th>{t('Fuel / Non-Fuel')}</th><th>{t('Total')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{pageTx.map(t2 => <tr key={t2.id}>
-            <td><strong>{t2.station || t('Estación sin indicar')}</strong>{t2.externalRef && <span className={styles.tableSub}>{t('Ref:')} {t2.externalRef}</span>}</td>
-            <td className={styles.tableSub}>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')} · {t2.truckId ? truckUnit(t2.truckId) : t('Sin camión')}</td>
-            <td className={styles.tableSub}>{dayLabel(t2.date)}</td>
-            <td className={styles.tableSub}>{money(t2.fuelAmount)} / {money(t2.nonFuelAmount)}</td>
-            <td>{money(txTotal(t2))}</td>
-            <td><div className={styles.actions}><button onClick={() => open('transaction', 'transaction', t2.id)}>{t('Editar')}</button><button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'transaction', t2.id); }}>{t('Eliminar')}</button></div></td>
-          </tr>)}</tbody>
-        </> : <>
-          <thead><tr><th>{t('Categoría')}</th><th>{t('Chofer / Camión')}</th><th>{t('Fecha')}</th><th>{t('Pago')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{pageExpenses.map(e => <tr key={e.id}>
-            <td><strong>{t(e.category)}</strong>{e.receiptFilename && <span className={styles.tableSub}>{t('Recibo:')} {e.receiptFilename}</span>}</td>
-            <td className={styles.tableSub}>{e.driverId ? driverName(e.driverId) : t('Sin chofer')} · {e.truckId ? truckUnit(e.truckId) : t('Sin camión')}</td>
-            <td className={styles.tableSub}>{dayLabel(e.date)}</td>
-            <td className={styles.tableSub}>{e.paymentMethod || '—'}</td>
-            <td>{money(e.amount)}</td>
-            <td><div className={styles.actions}><button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>{e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Recibo')}</button>}<button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button></div></td>
-          </tr>)}</tbody>
-        </>}
-      </table>
-    </div>
+    {tab === 'transacciones' ? <div className={styles.cards}>{pageTx.map(t2 => <article className={styles.card} key={t2.id}>
+      <strong>{t2.station || t('Estación sin indicar')}</strong>
+      <span>{dayLabel(t2.date)} · {t2.city}{t2.city && t2.state ? ', ' : ''}{t2.state}</span>
+      <span>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')} · {t2.truckId ? truckUnit(t2.truckId) : t('Sin camión')}</span>
+      <p><b>{t('Fuel:')}</b> {money(t2.fuelAmount)} · <b>{t('Non-Fuel:')}</b> {money(t2.nonFuelAmount)} · <b>{t('Total:')}</b> {money(txTotal(t2))}</p>
+      {t2.externalRef && <span>{t('Ref:')} {t2.externalRef}</span>}
+      <div className={styles.actions}>
+        <button onClick={() => open('transaction', 'transaction', t2.id)}>{t('Editar')}</button>
+        <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'transaction', t2.id); }}>{t('Eliminar')}</button>
+      </div>
+    </article>)}</div> : <div className={styles.cards}>{pageExpenses.map(e => <article className={styles.card} key={e.id}>
+      <strong>{t(e.category)}</strong>
+      <span>{dayLabel(e.date)} · {money(e.amount)}</span>
+      <span>{e.driverId ? driverName(e.driverId) : t('Sin chofer')} · {e.truckId ? truckUnit(e.truckId) : t('Sin camión')}</span>
+      {e.paymentMethod && <span>{t('Pago:')} {e.paymentMethod}</span>}
+      {e.receiptFilename && <p>{t('Recibo:')} {e.receiptFilename}</p>}
+      <div className={styles.actions}>
+        <button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>
+        {e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Descargar recibo')}</button>}
+        <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button>
+      </div>
+    </article>)}</div>}
     {ready && !rows.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
     {rows.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} {t('de')} {rows.length}</span>

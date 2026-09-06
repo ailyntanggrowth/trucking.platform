@@ -131,18 +131,13 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:
     </form>}
     {tab==='actividad'?<section className={styles.profile}>{state.events.length?<ul>{[...state.events].sort((a,b)=>b.at.localeCompare(a.at)).map(e=><li key={e.id}>{dateTime(e.at)} — {e.detail} · {e.actor}</li>)}</ul>:<p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>:tab!=='assignments'?<>
       <div className={styles.filters}><label>{t('Buscar')} {t(titles[tab]).toLowerCase()}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={tab==='drivers'?t('Nombre, teléfono o correo'):t('Unidad, VIN o placa')}/></label><label>{t('Filtrar estado')}<select value={filter} onChange={e=>setFilter(e.target.value)}>{(tab==='drivers'?['Todos','Disponible','En servicio','Descanso','Inactivo']:['Todos','Disponible','Asignado','En mantenimiento','Fuera de servicio','Inactivo']).map(s=><option key={s} value={s}>{t(s)}</option>)}</select></label></div>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{tab==='drivers'?t('Chofer'):t('Unidad')}</th><th>{tab==='drivers'?t('Contacto'):t('Marca / Modelo')}</th><th>{t('Estado')}</th><th>{t('Asignación')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{pageRecords.map(r=><tr key={r.id} className={selected?.id===r.id?styles.selected:''}>
-            <td><strong>{tab==='drivers'?(r as Driver).name:(r as Equipment).unit}</strong></td>
-            <td className={styles.tableSub}>{tab==='drivers'?(r as Driver).phone||t('Teléfono pendiente'):`${(r as Equipment).make} ${(r as Equipment).model}`.trim()||t('Marca y modelo pendientes')}</td>
-            <td><span className={styles.badge}>{t(statusOf(tab,r.id))}</span></td>
-            <td className={styles.tableSub}>{assignmentFor(state,tab,r.id)?t('Con equipo asignado'):t('Sin asignación activa')}</td>
-            <td><button onClick={()=>{setSelected({kind:tab,id:r.id});setEditor(null);}}>{t('Ver ficha →')}</button></td>
-          </tr>)}</tbody>
-        </table>
-      </div>
+      <div className={styles.cards}>{pageRecords.map(r=><button className={`${styles.card} ${selected?.id===r.id?styles.selected:''}`} key={r.id} onClick={()=>{setSelected({kind:tab,id:r.id});setEditor(null);}}>
+        <span className={styles.badge}>{t(statusOf(tab,r.id))}</span>
+        <strong>{tab==='drivers'?(r as Driver).name:(r as Equipment).unit}</strong>
+        <span>{tab==='drivers'?(r as Driver).phone||t('Teléfono pendiente'):`${(r as Equipment).make} ${(r as Equipment).model}`.trim()||t('Marca y modelo pendientes')}</span>
+        <span>{assignmentFor(state,tab,r.id)?t('Con equipo asignado'):t('Sin asignación activa')}</span>
+        <b>{t('Ver ficha →')}</b>
+      </button>)}</div>
       {ready&&!records.length&&<p className={styles.empty}>{query||filter!=='Todos'?t('No hay resultados con estos filtros.'):`${t('Todavía no hay')||''} ${t(titles[tab]).toLowerCase()}. ${t('Usa el botón Agregar para comenzar.')}`}</p>}
       {records.length>0&&<div className={styles.pagination}>
         <span>{t('Mostrando')} {(pageSafe-1)*pageSize+1}–{Math.min(pageSafe*pageSize,records.length)} {t('de')} {records.length}</span>
@@ -153,18 +148,13 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:
         </div>
       </div>}
     </>:<><p>{t('Asignaciones activas')||'Asignaciones activas'}: {activeAssignments.length}. {t('Las finalizadas se conservan abajo.')}</p>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{t('Chofer')}</th><th>{t('Camión / Trailer')}</th><th>{t('Estado')}</th><th>{t('Inicio → Fin')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{assignmentPageRows.map(a=><tr key={a.id}>
-            <td><strong>{entityName(state,'drivers',a.driverId)}</strong></td>
-            <td className={styles.tableSub}>{entityName(state,'trucks',a.truckId)}{a.trailerId?` · ${entityName(state,'trailers',a.trailerId)}`:''}</td>
-            <td><span className={styles.badge}>{a.endedAt?t('Finalizada'):t('Activa')}</span></td>
-            <td className={styles.tableSub}>{dateTime(a.startedAt)}{a.endedAt?` → ${dateTime(a.endedAt)}`:''}</td>
-            <td>{!a.endedAt&&<div className={styles.actions}><button onClick={()=>open('assignment','drivers',a.driverId)}>{t('Cambiar')}</button><button onClick={()=>open('end','drivers',a.id)}>{t('Finalizar')}</button></div>}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>
+      <div className={styles.cards}>{assignmentPageRows.map(a=><article className={styles.card} key={a.id}>
+        <span className={styles.badge}>{a.endedAt?t('Finalizada'):t('Activa')}</span>
+        <strong>{entityName(state,'drivers',a.driverId)}</strong>
+        <p>{t('Camión')} {entityName(state,'trucks',a.truckId)} · {t('Trailer')} {a.trailerId?entityName(state,'trailers',a.trailerId):t('Sin trailer')}</p>
+        <small>{t('Inicio:')} {dateTime(a.startedAt)}</small>{a.endedAt&&<small>{t('Fin:')} {dateTime(a.endedAt)}</small>}
+        {!a.endedAt&&<div className={styles.actions}><button onClick={()=>open('assignment','drivers',a.driverId)}>{t('Cambiar')}</button><button onClick={()=>open('end','drivers',a.id)}>{t('Finalizar')}</button></div>}
+      </article>)}</div>
       {!state.assignments.length&&<p className={styles.empty}>{t('Agrega un chofer y un camión para crear tu primera asignación.')}</p>}
       {state.assignments.length>0&&<div className={styles.pagination}>
         <span>{t('Mostrando')} {(assignmentPageSafe-1)*pageSize+1}–{Math.min(assignmentPageSafe*pageSize,assignmentsSorted.length)} {t('de')} {assignmentsSorted.length}</span>
