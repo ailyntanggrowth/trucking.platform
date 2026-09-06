@@ -1,0 +1,42 @@
+.reports { color:#30282a; padding-top:8px; }
+.reports button { font:inherit; font-size:14px; min-height:38px; border:1px solid #d6c6cb; border-radius:9px; padding:8px 12px; background:white; color:#11151B; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background .18s,border-color .18s; }
+.reports button:hover { background:#f5ebed; }
+.reports h3 { font-size:17px; color:#11151B; margin:0 0 10px; }
+.reports p { line-height:1.6; }
+
+.weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; }
+.weekBar span { font-weight:700; color:#11151B; font-size:14px; }
+.weekBar button { min-height:34px; padding:6px 10px; }
+
+.tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid #e3dadd; padding-bottom:12px; margin-bottom:14px; }
+.tabs button { font-weight:700; font-size:13px; padding:7px 13px; }
+.tabs button[aria-pressed=true] { background:#8B102A; color:#fff; border-color:#8B102A; }
+
+.note { font-size:13px; color:#59616D; margin:6px 0 14px; }
+.empty { color:#59616D; padding:14px 0; }
+
+.cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:14px 0; }
+.reportCard { background:white; border:1px solid #e3dadd; border-radius:12px; overflow:hidden; }
+.reportCard header { background:#11151B; color:#fff; font-size:11px; font-weight:800; letter-spacing:1.2px; text-align:center; padding:8px; }
+.reportCard h3 { text-align:center; margin:12px 14px 2px; }
+.reportCard .sub { text-align:center; color:#59616D; font-size:13px; margin:0 0 10px; }
+.reportCard dl { display:grid; gap:0; margin:0; padding:0 14px; }
+.reportCard dl > div { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-top:1px solid #f0e9e9; font-size:13px; }
+.reportCard dt { color:#59616D; font-weight:600; }
+.reportCard dd { margin:0; font-weight:700; color:#11151B; }
+.reportCard footer { display:flex; justify-content:space-between; align-items:center; background:#F7F8FA; padding:12px 14px; margin-top:8px; border-top:2px solid #8B102A; }
+.reportCard footer span { font-size:13px; font-weight:700; color:#59616D; }
+.reportCard footer strong { font-size:18px; color:#8B102A; }
+
+.groupSections { display:grid; gap:16px; margin:14px 0; }
+.groupSections section { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; }
+.groupGrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:0; }
+.groupGrid > div { display:flex; flex-direction:column; gap:2px; padding:10px; background:#F7F8FA; border-radius:8px; }
+.groupGrid dt { font-size:12px; color:#59616D; font-weight:600; }
+.groupGrid dd { margin:0; font-size:16px; font-weight:700; color:#11151B; }
+
+.companyFooter { display:flex; justify-content:space-between; align-items:center; background:#F7F8FA; border-radius:8px; padding:14px 16px; margin-top:14px; border-top:2px solid #8B102A; }
+.companyFooter span { font-size:14px; font-weight:700; color:#59616D; }
+.companyFooter strong { font-size:22px; color:#8B102A; }
+
+@media(max-width:1200px) { .cards { grid-template-columns:1fr; } }
