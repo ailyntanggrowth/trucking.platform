@@ -16,14 +16,13 @@ import LoadsModule from "./loads-module";
 
 const statuses: LoadStatus[] = ['Programado','Cargando','En tránsito','Entregada','Cancelada','Reemplazada'];
 const nav = [
-  {name:'Dashboard',id:'dashboard',icon:'01'},
-  {name:'Cargas y Operaciones',id:'cargas',icon:'02'},
-  {name:'Choferes y Flota',id:'choferes',icon:'03'},
-  {name:'Combustible y Gastos',id:'combustible',icon:'04'},
-  {name:'Contabilidad y Pagos',id:'finanzas',icon:'05'},
-  {name:'Reportes',id:'reportes',icon:'06'},
-  {name:'Comunicación',id:'comunicacion',icon:'07'},
-  {name:'Usuarios y Permisos',id:'usuarios',icon:'08'},
+  {name:'Cargas',id:'cargas',icon:'01'},
+  {name:'Choferes y Flota',id:'choferes',icon:'02'},
+  {name:'Combustible y Gastos',id:'combustible',icon:'03'},
+  {name:'Contabilidad y Pagos',id:'finanzas',icon:'04'},
+  {name:'Reportes',id:'reportes',icon:'05'},
+  {name:'Chat',id:'comunicacion',icon:'06'},
+  {name:'Usuarios y Permisos',id:'usuarios',icon:'07'},
 ];
 function currentWeek() {
   const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -63,7 +62,7 @@ export default function Home() {
     ...summary.official.filter(l=>l.missingPod).map(l=>({id:`pod-${l.id}`,title:'Falta POD',detail:`${l.id} · Documento de entrega pendiente`,onClick:()=>viewLoads('Activas')})),
     ...summary.official.filter(l=>['Cancelada','Reemplazada'].includes(l.status)).map(l=>({id:`cancel-${l.id}`,title:`Carga ${l.status.toLowerCase()}`,detail:`${l.id}${l.replacedBy ? ` · Relacionada con ${l.replacedBy}` : ''}`,onClick:()=>viewLoads(l.status)})),
     ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`,onClick:()=>go('pagos')}))];
-  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
+  const moduleNames: Record<string,string> = { dashboard: 'Dashboard', ...Object.fromEntries(nav.map(item=>[item.id,item.name])) };
   const metricCards = [
     {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
     {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
@@ -115,7 +114,7 @@ export default function Home() {
   // propia nunca recarga la página.
   const [backStack,setBackStack] = useState<(string|null)[]>([]);
   function navigateTo(target:string|null) {
-    setBackStack(prev=>[...prev,activeModule]);
+    setBackStack(prev=>activeModule===null?prev:[...prev,activeModule]);
     setActiveModule(target); setDrawerOpen(false);
   }
   function goBack() {
@@ -147,7 +146,7 @@ export default function Home() {
     <button className="langToggle" onClick={()=>setLang(l=>l==='es'?'en':'es')} aria-label={lang==='es'?'Switch to English':'Cambiar a español'}>{lang==='es'?'EN':'ES'}</button>
     {(drawerOpen||dragOffset!==null) && <div className={`drawerBackdrop ${drawerOpen?'isOpen':''}`} onClick={()=>setDrawerOpen(false)} />}
     <aside ref={drawerRef} className={`drawer ${drawerOpen?'open':''}`} style={dragOffset!==null?{transform:`translateX(${dragOffset}px)`,transition:'none'}:undefined} onPointerDown={onDrawerPointerDown}>
-      <button className="brand brandButton" onClick={()=>navigateTo(null)}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></button>
+      <button className="brand brandButton" onClick={()=>navigateTo('dashboard')}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></button>
       <div className="workspaceLabel">{t('OPERACIONES')}</div>
       <nav id="main-navigation" className="navList" aria-label={t('Navegación principal')}>{nav.map(item=><button key={item.id} className={`navItem ${activeModule===item.id?'active':''}`} aria-current={activeModule===item.id?'page':undefined} onClick={()=>go(item.id)}><span className="navIcon" aria-hidden="true">{item.icon}</span>{t(item.name)}</button>)}</nav>
       <div className="sidebarBottom"><div className="userRow"><div className="avatar">AT</div><div><strong>Adianez Tang</strong><span>{t('Panel principal')}</span></div></div></div>
@@ -159,8 +158,8 @@ export default function Home() {
         <h1>M&amp;A KING</h1>
         <p className="heroGreeting">{t('Hola, Adianez Tang')}</p>
         <p className="subtitle">{t('Tus cargas, tu equipo y tus números en un solo lugar.')}</p>
-        <button className="heroCta" onClick={()=>setDrawerOpen(true)}>{t('☰ Ver módulos')}</button>
-        <p className="heroHint">{t('Desliza desde el borde izquierdo, o toca el botón, para abrir el menú.')}</p>
+        <button className="heroCta" onClick={()=>navigateTo('dashboard')}>{t('START')}</button>
+        <p className="heroHint">{t('Desliza desde el borde izquierdo para abrir el menú.')}</p>
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="topbar">
@@ -185,7 +184,7 @@ export default function Home() {
         </button>;
       })}</div>
       <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
-        <div className="panelHeader"><div><h2>{t('Estado de cargas')}</h2><p>{t('Toca un estado para verlo en Cargas y Operaciones.')}</p></div></div>
+        <div className="panelHeader"><div><h2>{t('Estado de cargas')}</h2><p>{t('Toca un estado para verlo en Cargas.')}</p></div></div>
         <div className="statusGrid">{statuses.map(status=><button key={status} onClick={()=>viewLoads(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?t('Próximas a recoger'):t(status)}</span></button>)}</div>
       </section>
       <div className="bottomGrid">
@@ -206,7 +205,7 @@ export default function Home() {
       </> : <div className="moduleView">
         <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
         <h1>{t(moduleNames[activeModule])}</h1>
-        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter={filter}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se consultarán reportes basados en los datos de los demás módulos.',comunicacion:'Aquí estarán las conversaciones y documentos de la operación.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
+        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter={filter}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se generarán y consultarán los reportes ya procesados de la compañía: semanales por chofer, cantidad y total de cargas, bruto, descuento del 6%, salario, combustible, non-fuel, seguro y ganancia final — además de reportes por grupo y el resumen semanal general.',comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
         <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
       </div>}
     </section>}
