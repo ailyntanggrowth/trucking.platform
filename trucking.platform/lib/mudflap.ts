@@ -30,6 +30,7 @@ export type MudflapParseResult = {
 const MONTHS: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
 const norm = (s: string) => s.replace(/[ \t]+/g, ' ').trim();
 const money = (s: string) => Number(s.replace(/[^0-9.-]/g, ''));
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function inferYear(month: string, periodEnd: { y: number; m: number } | null): number {
   if (!periodEnd) return new Date().getFullYear();
@@ -106,17 +107,40 @@ export function parseMudflapText(text: string): MudflapParseResult {
   const rows: MudflapRow[] = [];
   const unparsed: MudflapParseResult['unparsed'] = [];
 
+  // Un salto de página puede partir una fila de la tabla a la mitad: la celda
+  // "Description" queda pegada al final del bloque ANTERIOR (después de su
+  // propia línea "Saved"), junto con el monto cobrado de la fila siguiente,
+  // mientras que Fecha/Tipo/Chofer/Tarjeta de esa fila aparecen recién en el
+  // bloque siguiente. `carry` traslada esas piezas sobrantes —texto real ya
+  // extraído del PDF, nunca inventado— al bloque que en verdad les pertenece.
+  let carry: { desc?: string; amount?: number } = {};
+
   for (const block of blocks) {
     const raw = `${block.date} ${block.type}\n${block.lines.join('\n')}`;
-    const descLine = block.lines.find(l => l.includes('SID'));
+    const sidLines = block.lines.filter(l => l.includes('SID'));
     const cardLine = block.lines.map(l => l.match(CARD_RETAIL)).find(Boolean);
     const savedLine = block.lines.map(l => l.match(SAVED)).find(Boolean);
     // El monto real es la línea "$X.XX" suelta que NO es el precio de venta
     // (ya capturado dentro de cardLine) ni la línea de "Saved".
     const bareAmounts = block.lines.filter(l => BARE_AMOUNT.test(l) && !SAVED.test(l));
-    const driverLine = block.lines.find(l => l !== descLine && !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
+    const descLine = sidLines[0] ?? carry.desc;
+    const driverLine = block.lines.find(l => l !== sidLines[0] && !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
 
-    if (!descLine || !cardLine || !bareAmounts.length) {
+    // Lo que sobre en ESTE bloque (una segunda línea SID, o un segundo monto
+    // suelto) no es suyo — pertenece a la fila que sigue, cortada por la página.
+    const nextCarry: { desc?: string; amount?: number } = {};
+    if (sidLines.length > 1) nextCarry.desc = sidLines[1];
+    if (bareAmounts.length > 1) nextCarry.amount = money(bareAmounts[bareAmounts.length - 1]);
+
+    let amount: number | undefined = bareAmounts.length ? money(bareAmounts[0]) : carry.amount;
+    // Si no hay monto suelto pero sí precio de venta y "Saved", el monto se
+    // deduce de la propia aritmética del programa (Retail − Saved = Amount,
+    // válido en todas las filas del statement) — no es una suposición nueva.
+    if (amount === undefined && cardLine && savedLine) amount = round2(money(cardLine[2]) - money(savedLine[1]));
+
+    carry = nextCarry;
+
+    if (!descLine || !cardLine || amount === undefined) {
       unparsed.push({ raw, reason: !descLine ? 'No se encontró la descripción de la estación (posible salto de página).' : !cardLine ? 'No se encontró la tarjeta/precio de venta.' : 'No se encontró el monto cobrado.' });
       continue;
     }
@@ -125,13 +149,12 @@ export function parseMudflapText(text: string): MudflapParseResult {
     rows.push({
       date: block.date, type: block.type, station, city, state,
       driverNameRaw: driverLine || '', cardLast4: cardLine[1], retailPrice: money(cardLine[2]),
-      amount: money(bareAmounts[0]), saved: savedLine ? money(savedLine[1]) : 0,
+      amount, saved: savedLine ? money(savedLine[1]) : 0,
       externalRef: sid ? `SID${sid}` : '', raw,
     });
   }
 
   const totals = rows.reduce((acc, r) => { if (r.type === 'Fuel') acc.fuel += r.amount; else acc.nonFuel += r.amount; acc.total += r.amount; return acc; }, { fuel: 0, nonFuel: 0, total: 0 });
-  const round2 = (n: number) => Math.round(n * 100) / 100;
   totals.fuel = round2(totals.fuel); totals.nonFuel = round2(totals.nonFuel); totals.total = round2(totals.total);
 
   return { period, rows, unparsed, declared, totals };

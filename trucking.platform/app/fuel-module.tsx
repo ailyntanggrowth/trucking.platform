@@ -27,6 +27,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const summary = summarizeFuel(state, start, end);
+  // No se permite importar hasta que no queden filas sin leer y los totales
+  // calculados coincidan al centavo con lo que el propio PDF declara — es la
+  // única forma de estar seguros de que ninguna transacción quedó afuera.
+  const reconciled = Boolean(preview) && preview!.unparsed.length === 0
+    && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - preview!.totals.fuel) < 0.01)
+    && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - preview!.totals.nonFuel) < 0.01);
 
   function openImport() { setError(''); setNotice(''); setEditor(null); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function handleParseStatement(event: FormEvent<HTMLFormElement>) {
@@ -123,6 +129,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
           {' · '}<b>{t('Non-Fuel:')}</b> {money(preview.totals.nonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - preview.totals.nonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
         </p>
         {preview.unparsed.length > 0 && <p className={styles.error} role="alert">{preview.unparsed.length} {t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — agrégalas manualmente:')} {preview.unparsed.map((u, i) => <details key={i}><summary>{t('Ver texto sin procesar')}</summary><pre>{u.raw}</pre></details>)}</p>}
+        {!reconciled && <p className={styles.error} role="alert">{t('No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.')}</p>}
         <div className={styles.importTableWrap}>
           <table className={styles.importTable}>
             <thead><tr><th></th><th>{t('Fecha')}</th><th>{t('Tipo')}</th><th>{t('Estación')}</th><th>{t('Ciudad')}</th><th>{t('Chofer')}</th><th>{t('Monto')}</th></tr></thead>
@@ -137,7 +144,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
             </tr>)}</tbody>
           </table>
         </div>
-        <div className={styles.actions}><button className={styles.primary} disabled={importBusy || !selectedRows.size} onClick={confirmImport}>{importBusy ? t('Importando…') : `${t('Confirmar e importar')} (${selectedRows.size})`}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); }}>{t('Cancelar')}</button></div>
+        <div className={styles.actions}><button className={styles.primary} disabled={importBusy || !selectedRows.size || !reconciled} onClick={confirmImport}>{importBusy ? t('Importando…') : `${t('Confirmar e importar')} (${selectedRows.size})`}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); }}>{t('Cancelar')}</button></div>
       </>}
     </div>}
 

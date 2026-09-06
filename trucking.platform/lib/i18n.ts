@@ -375,6 +375,7 @@ const en: Record<string, string> = {
   'posible duplicado': 'possible duplicate',
   'Confirmar e importar': 'Confirm and import',
   'Importando…': 'Importing…',
+  'No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.': "Can't import yet: the totals don't exactly match what the PDF states, or some rows couldn't be read. Resolve that first.",
 };
 
 export function translate(lang: Lang, es: string): string {
