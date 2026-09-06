@@ -56,7 +56,6 @@ export default function Home() {
   const fuelSummary = summarizeFuel(fuel.state,start,weekEnd(start));
   const loadsSummary = summarizeLoads(loadsCtl.state,start,weekEnd(start));
   const value = (n:number, currency=false) => data.connected ? currency ? money(n) : n : '—';
-  const missingDocsCount = data.alerts.filter(a=>a.title==='Documento faltante').length;
   const alerts = [...data.alerts.map(a=>({...a, onClick:()=>go('choferes')})),
     ...summary.review.map(l=>({id:`review-${l.id}`,title:'Carga por revisar',detail:`${l.id} · ${l.source} · Requiere aprobación humana`,onClick:()=>viewLoads('Por revisar')})),
     ...summary.official.filter(l=>l.missingPod).map(l=>({id:`pod-${l.id}`,title:'Falta POD',detail:`${l.id} · Documento de entrega pendiente`,onClick:()=>viewLoads('Activas')})),
@@ -67,7 +66,6 @@ export default function Home() {
     {label:'Cargas activas',amount:summary.active.length,hint:'Oficiales, aún en operación',action:()=>viewLoads('Activas')},
     {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
     {label:'Choferes activos',amount:data.drivers.filter(d=>d.status!=='Inactivo').length,hint:'Incluye servicio, descanso y disponibles',action:()=>go('choferes')},
-    {label:'Documentos faltantes',amount:missingDocsCount,hint:'Choferes y equipo sin documento requerido',action:()=>go('choferes')},
   ];
   const maxMetric = Math.max(1,...metricCards.map(c=>c.amount));
 

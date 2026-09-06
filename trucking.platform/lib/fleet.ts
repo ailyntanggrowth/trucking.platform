@@ -112,10 +112,12 @@ export function documentStatus(d:FleetDocument,today:string) {return d.expires&&
 export function fleetAlerts(state:FleetState,today:string) {
   const limit=new Date(`${today}T12:00:00Z`); limit.setUTCDate(limit.getUTCDate()+state.warningDays); const until=limit.toISOString().slice(0,10);
   const alerts:{id:string;title:string;detail:string}[]=[];
-  state.documents.forEach(d=>{const name=entityName(state,d.ownerKind,d.ownerId)||'Perfil'; if(d.expires&&d.expires<=until) alerts.push({id:`expiry-${d.id}`,title:d.expires<today?'Documento vencido':'Documento próximo a vencer',detail:`${name} · ${d.type} · ${d.expires}`}); if(!d.reviewed) alerts.push({id:`review-${d.id}`,title:'Documento por revisar',detail:`${name} · ${d.type}`});});
+  // Documentos de chofer (p. ej. licencia) quedan fuera de estas alertas a propósito: hoy solo
+  // interesan a nivel de compañía los documentos de equipo (seguro, registro de camión/trailer).
+  state.documents.filter(d=>d.ownerKind!=='drivers').forEach(d=>{const name=entityName(state,d.ownerKind,d.ownerId)||'Perfil'; if(d.expires&&d.expires<=until) alerts.push({id:`expiry-${d.id}`,title:d.expires<today?'Documento vencido':'Documento próximo a vencer',detail:`${name} · ${d.type} · ${d.expires}`}); if(!d.reviewed) alerts.push({id:`review-${d.id}`,title:'Documento por revisar',detail:`${name} · ${d.type}`});});
   (['drivers','trucks','trailers'] as EntityKind[]).forEach(kind=>state[kind].forEach(record=>{
     const active=kind==='drivers'?(record as Driver).active:(record as Equipment).status!=='Inactivo'; if(!active)return;
-    const required=kind==='drivers'?['Licencia']:kind==='trucks'?['Registro','Seguro']:['Registro'];
+    const required=kind==='drivers'?[]:kind==='trucks'?['Registro','Seguro']:['Registro'];
     required.forEach(type=>{if(!state.documents.some(d=>d.ownerId===record.id&&d.ownerKind===kind&&d.type===type)) alerts.push({id:`missing-${record.id}-${type}`,title:'Documento faltante',detail:`${entityName(state,kind,record.id)} · ${type}`});});
     if(kind!=='drivers'&&['En mantenimiento','Fuera de servicio'].includes((record as Equipment).status)) alerts.push({id:`service-${record.id}`,title:(record as Equipment).status,detail:entityName(state,kind,record.id)||''});
   })); return alerts;
