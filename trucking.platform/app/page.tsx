@@ -48,7 +48,7 @@ export default function Home() {
     ...emptySnapshot,
     connected: loadsCtl.ready,
     loads: loadsCtl.state.loads.map(toDashboardLoad),
-    drivers: fleet.state.drivers.filter(d=>['Mario','Owner Operators'].includes(d.group)).map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
+    drivers: fleet.state.drivers.filter(d=>d.group==='Mario').map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
     alerts: fleet.ready ? fleetAlerts(fleet.state,today()) : [],
     activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
   };
@@ -62,10 +62,6 @@ export default function Home() {
     ...summary.official.filter(l=>['Cancelada','Reemplazada'].includes(l.status)).map(l=>({id:`cancel-${l.id}`,title:`Carga ${l.status.toLowerCase()}`,detail:`${l.id}${l.replacedBy ? ` · Relacionada con ${l.replacedBy}` : ''}`,onClick:()=>viewLoads(l.status)})),
     ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`,onClick:()=>go('pagos')}))];
   const moduleNames: Record<string,string> = { dashboard: 'Dashboard', ...Object.fromEntries(nav.map(item=>[item.id,item.name])) };
-  const metricCards = [
-    {label:'Pagos pendientes',amount:summary.payments.length,hint:'Por cobrar y por pagar',action:()=>go('pagos')},
-  ];
-  const maxMetric = Math.max(1,...metricCards.map(c=>c.amount));
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
   // (mouse o dedo, vía Pointer Events) o tocando el botón. Antes era un sidebar
@@ -169,16 +165,6 @@ export default function Home() {
         <div className="sourceNotice pageIntroNotice" role="status"><div><strong>{fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{t('Choferes, Cargas y Combustible ya usan datos reales. Contabilidad y Reportes siguen pendientes de conexión.')}</p></div></div>
       </div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">{t('TU APROBACIÓN ES NECESARIA')}</span><h2>{t('Cargas por revisar')}</h2><p>{t('La IA prepara. Tú revisas y confirmas antes de que sean oficiales.')}</p></div><div className="reviewNumber">{value(summary.review.length)}<span>{t('Revisar cargas →')}</span></div></button>
-      <div className="metricsGrid">{metricCards.map(card=>{
-        const shown = data.connected ? card.amount : null;
-        const pct = shown===null ? 30 : Math.max(12,Math.round((card.amount/maxMetric)*100));
-        return <button className="metricCard" key={card.label} onClick={card.action}>
-          <div className="metricTop">{t(card.label)}<span aria-hidden="true">↗</span></div>
-          <strong>{shown===null?'—':shown}</strong>
-          <div className="metricBarTrack"><div className="metricBarFill" style={{height:`${pct}%`}}/></div>
-          <div className="metricDelta"><em>{t(card.hint)}</em></div>
-        </button>;
-      })}</div>
       <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
         <div className="panelHeader"><div><h2>{t('Estado de cargas')}</h2><p>{t('Toca un estado para verlo en Cargas.')}</p></div></div>
         <div className="statusGrid">{statuses.map(status=><button key={status} onClick={()=>viewLoads(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?t('Próximas a recoger'):t(status)}</span></button>)}</div>
@@ -238,17 +224,14 @@ export default function Home() {
                 .topbar { min-height: 80px; border-bottom: 1px solid rgba(255,255,255,.18); display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-left:56px; }.breadcrumb { color: #D8B7BF; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }.breadcrumb b { font-weight: 400; color:#D8B7BF; }.breadcrumb strong { color: #fff; }
                 .backButton { border:0; background:transparent; color:#F0DEE3; font-size:14px; font-weight:700; padding:8px 10px; border-radius:8px; transition:background 180ms ease, color 180ms ease; }.backButton:disabled { color:#8F6B73; }
                 .pageIntro { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 32px 0 24px; }.eyebrow { color: #6B1F2B; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; margin: 0 0 10px; }.pageIntro h1 { margin: 0; font-size: clamp(26px, 2.3vw, 36px); line-height: 1.2; letter-spacing: -.8px; color: #4A1420; }.pageIntro h1 span { color: #8F4F5B; }.subtitle { color: #4A4640; font-size: 16px; margin: 10px 0 0; }
-                .metricsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); justify-content: center; gap: 22px; }.metricCard { background: white; padding: 26px; border: 1px solid #E3DADD; border-top: 3px solid #6B1F2B; border-radius: 12px; min-width: 0; text-align:left; }.metricTop { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #4A4640; font-size: 15px; font-weight: 700; }.metricCard > strong { display: block; margin: 14px 0 10px; color: #4A1420; font-size: 38px; line-height: 1.2; letter-spacing: -.6px; }.metricDelta { font-size: 15px; font-weight: 700; color: #6B1F2B; }.metricDelta em { display: inline-block; font-style: normal; font-weight: 400; color: #4A4640; }
-                .metricBarTrack { height:56px; width:100%; background:#F7F5F3; border-radius:8px; display:flex; align-items:flex-end; overflow:hidden; margin:2px 0 12px; }.metricBarFill { width:100%; min-height:6px; border-radius:8px 8px 0 0; background:linear-gradient(180deg,#C5A46D,#6B1F2B); transition:height 500ms ease; }
                 .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #4A142004; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #4A1420; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #4A4640; font-size: 14px; }.textButton { border: 0; background: transparent; color: #6B1F2B; font-size: 14px; font-weight: 700; padding: 8px; border-radius:8px; transition:background 180ms ease; }.textButton:hover { background: #F5EBED; }.exitButton { border: 1px solid #E3DADD; background: #fff; color: #6B1F2B; font-size: 18px; font-weight: 700; width: 40px; height: 40px; min-height:40px; padding: 0; border-radius: 50%; display:grid; place-items:center; transition:background 180ms ease, border-color 180ms ease; }.exitButton:hover { background: #F5EBED; border-color:#C5A46D; }
                 .alertCount { background: #F5EBED; color: #6B1F2B; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
                 .bottomGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }.selectButton { border: 1px solid #D6C6CB; color: #4A4640; background: white; border-radius: 8px; font-size: 14px; padding: 8px 12px; transition:background 200ms ease, border-color 200ms ease, color 200ms ease, transform 180ms ease; }.selectButton[aria-pressed=true] { background:#C5A46D; border-color:#C5A46D; color:#3A2E14; font-weight:700; }
                 @media (max-width: 1200px) { .bottomGrid { grid-template-columns: 1fr; } }
                 @media (max-width: 1000px) { .pageIntro { flex-wrap: wrap; } }
-                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.metricsGrid { gap: 8px; }.metricCard { padding: 10px; }.metricCard > strong { font-size: 20px; margin:6px 0 4px; }.metricTop { font-size:11px; }.metricDelta { font-size:11px; }.metricDelta em { display: block; }.metricBarTrack { height:32px; margin:4px 0 6px; }.panelHeader { padding: 18px 16px; } }
-                @media (max-width: 380px) { .metricCard { padding: 8px; }.metricTop span { display:none; } }
+                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.panelHeader { padding: 18px 16px; } }
 
-                .metricCard { text-align:left; }.sectionSpace { margin-top:24px; scroll-margin-top:20px; }
+                .sectionSpace { margin-top:24px; scroll-margin-top:20px; }
                 h2 { color:#fff; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#4A4640; }.sourceNotice button { flex-shrink:0; }
                 .reviewBanner { display:flex; width:100%; align-items:center; justify-content:space-between; gap:24px; padding:26px; background:#6B1F2B; color:white; border:0; border-radius:14px; text-align:left; margin-bottom:24px; }.reviewBanner h2 { color:white; margin:8px 0; font-size:26px; }.reviewBanner p { margin:0; color:#F0DEE3; }.reviewBanner .eyebrow { color:#F0DEE3; }.reviewNumber { font-size:48px; font-weight:700; min-width:140px; }.reviewNumber span { display:block; font-size:15px; }
                 .filterLabel { display:grid; gap:5px; font-size:14px; color:#4A4640; }select,input { font:inherit; min-height:44px; max-width:100%; padding:8px 12px; border:1px solid #D6C6CB; border-radius:8px; background:white; color:#4A1420; }select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #A85C6A; outline-offset:3px; }
@@ -262,17 +245,12 @@ export default function Home() {
                 @media(max-width:380px) { .financeGrid,.quickGrid,.driverSummary { grid-template-columns:1fr; }.reviewNumber span { display:block; margin:0; } }
 
                 @keyframes enterPanel { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-                @keyframes flipCard { 0% { transform:rotateY(0deg); } 100% { transform:rotateY(360deg); } }
-                .pageIntro, .sourceNotice, .reviewBanner, .metricCard, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
+                .pageIntro, .sourceNotice, .reviewBanner, .bottomGrid, .sectionSpace { animation:enterPanel 420ms ease-out backwards; }
                 .sourceNotice { animation-delay:40ms; }.reviewBanner { animation-delay:80ms; }
-                .metricCard:nth-child(1) { animation-delay:120ms; }.metricCard:nth-child(2) { animation-delay:170ms; }.metricCard:nth-child(3) { animation-delay:220ms; }
-                .metricsGrid { perspective:900px; }
-                .metricCard { position:relative; }
                 button { transition:background 200ms ease, border-color 200ms ease, box-shadow 200ms ease, transform 180ms ease, color 200ms ease; }
                 button:active { transform:scale(.985); }
                 @media(hover:hover) and (pointer:fine) {
                   .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#C5A46D; box-shadow:0 10px 24px #4A142018; z-index:1; }
-                  .metricCard:hover { animation:flipCard 650ms ease-in-out; border-color:#C5A46D; box-shadow:0 16px 32px #4A142024; z-index:2; }
                   .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .heroCta:hover { background:#fff; transform:scale(1.04); }
                   .drawerTab:hover { background:#4A1420; transform:scale(1.08); }
