@@ -61,7 +61,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
 
   const changeFilter = (next: string) => { setFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
-  const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeRejected : l.status === 'Cancelada' ? styles.badgeCancelled : styles.badgeApproved;
+  const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeRejected : l.status === 'Cancelada' ? styles.badgeCancelled : ['Entregada', 'Completada'].includes(l.status) ? styles.badgeApproved : styles.badgeActive;
 
   return <div className={styles.loads}>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
@@ -70,16 +70,10 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     <button className={styles.reviewBanner} onClick={() => changeFilter('Por revisar')}><div><span>{t('TU APROBACIÓN ES NECESARIA')}</span><h3>{t('Cargas por revisar')}</h3></div><div className={styles.reviewNumber}>{ready ? review.length : '—'}</div></button>
 
     <div className={styles.metrics}>
-      <div><span>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong></div>
-      <div><span>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong></div>
-      <div><span>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong></div>
+      <button aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}><span>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong></button>
+      <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}><span>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong></button>
+      <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}><span>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong></button>
     </div>
-
-    <nav className={styles.tabs} aria-label={t('Secciones de cargas')}>
-      <button aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}>{t('Por revisar')} <span>{review.length}</span></button>
-      <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}>{t('Activas')} <span>{active.length}</span></button>
-      <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}>{t('Todas')} <span>{state.loads.length}</span></button>
-    </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
     <div className={styles.toolbar}><h2>{t('Cargas')}</h2><button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button></div>
 
