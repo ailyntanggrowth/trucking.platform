@@ -70,7 +70,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const changeFilter = (next: string) => { setFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); setPage(1); };
   const dateRange = (l: Load) => `${dayLabel(l.pickupDate)}${l.deliveryDate ? ` → ${dayLabel(l.deliveryDate)}` : ''}`;
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
-  const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeRejected : l.status === 'Cancelada' ? styles.badgeCancelled : ['Entregada', 'Completada'].includes(l.status) ? styles.badgeApproved : styles.badgeActive;
+  const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeCancelled : l.status === 'Cancelada' ? styles.badgeCancelled : l.status === 'En tránsito' ? styles.badgeTransit : styles.badgeApproved;
 
   return <div className={styles.loads}>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
@@ -135,16 +135,20 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
         <thead><tr>
-          <th>{t('Chofer / Carga')}</th>
+          <th>{t('# Carga')}</th>
+          <th>{t('Broker')}</th>
           <th>{t('Origen → Destino')}</th>
+          <th>{t('Chofer')}</th>
           <th>{t('Estado')}</th>
           <th>{t('Fecha')}</th>
           <th>{t('Monto')}</th>
           <th aria-hidden="true"></th>
         </tr></thead>
         <tbody>{pageRows.map(l => <tr key={l.id}>
-          <td><strong>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</strong><span className={styles.tableSub}>{l.loadNumber || t('Sin número')}</span></td>
-          <td>{l.pickupState || '—'} → {l.deliveryState || '—'}</td>
+          <td><strong>{l.loadNumber || t('Sin número')}</strong></td>
+          <td className={styles.tableSub}>{l.broker || '—'}</td>
+          <td className={styles.tableSub}>{[l.pickupCity, l.pickupState].filter(Boolean).join(', ') || '—'} → {[l.deliveryCity, l.deliveryState].filter(Boolean).join(', ') || '—'}</td>
+          <td>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</td>
           <td><span className={`${styles.badge} ${statusBadgeClass(l)}`}>{l.approval === 'Pendiente' ? t('Por revisar') : l.approval === 'Rechazada' ? t('Rechazada') : t(l.status)}</span>{l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}</td>
           <td className={styles.tableSub}>{dateRange(l)}</td>
           <td>{money(l.amount)}</td>
