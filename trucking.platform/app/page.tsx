@@ -133,9 +133,6 @@ export default function Home() {
     <a className="skipLink" href="#main-content">{t('Saltar al contenido')}</a>
 
     <div className="edgeZone" onPointerDown={onEdgePointerDown} aria-hidden="true" />
-    {activeModule!==null && <button className={`drawerTab ${drawerOpen?'isOpen':''}`} aria-expanded={drawerOpen} aria-controls="main-navigation" onClick={()=>setDrawerOpen(o=>!o)}>
-      <span aria-hidden="true">{drawerOpen?'✕':'☰'}</span><span className="srOnly">{drawerOpen?t('Cerrar menú'):t('Abrir menú')}</span>
-    </button>}
     {(drawerOpen||dragOffset!==null) && <div className={`drawerBackdrop ${drawerOpen?'isOpen':''}`} onClick={()=>setDrawerOpen(false)} />}
     <aside ref={drawerRef} className={`drawer ${drawerOpen?'open':''}`} style={dragOffset!==null?{transform:`translateX(${dragOffset}px)`,transition:'none'}:undefined} onPointerDown={onDrawerPointerDown}>
       <button className="brand brandButton" onClick={()=>navigateTo('dashboard')}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></button>
@@ -154,10 +151,17 @@ export default function Home() {
         <p className="heroHint">{t('Desliza desde el borde izquierdo para abrir el menú.')}</p>
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
+      <header className="mainNav">
+        <button className="navMenuBtn" onClick={()=>setDrawerOpen(o=>!o)} aria-expanded={drawerOpen} aria-controls="main-navigation" aria-label={drawerOpen?t('Cerrar menú'):t('Abrir menú')}><span aria-hidden="true">{drawerOpen?'✕':'☰'}</span></button>
+        <button className="navLogo" onClick={()=>navigateTo('dashboard')}><span className="navLogoIcon" aria-hidden="true">🚚</span><span className="navLogoText"><strong>M&amp;A KING</strong><span>TRUCKING</span></span></button>
+        <div className="navSpacer" />
+        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><span aria-hidden="true">🔔</span>{alerts.length>0 && <span className="navBellBadge">{alerts.length}</span>}</button>
+        <button className="navUser" onClick={()=>{window.close();navigateTo(null);}} title={t('Salir del sistema')}><span className="avatar">AT</span><span className="navUserInfo"><strong>Adianez Tang</strong><span>{t('Administración')}</span></span><span aria-hidden="true">⌄</span></button>
+      </header>
       <header className="topbar">
         <button className="backButton" onClick={goBack} disabled={!backStack.length} aria-label={t('Atrás')}>{t('← Atrás')}</button>
         <div className="breadcrumb"><span>trucking.platform</span><b>/</b><strong>{t(moduleNames[activeModule])}</strong></div>
-        <button className="exitButton" onClick={()=>{window.close();navigateTo(null);}} aria-label={t('Salir del sistema')} title={t('Salir del sistema')}>✕</button>
+        <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
       </header>
       {activeModule==='dashboard' ? <>
       <div className="pageIntro">
@@ -185,8 +189,12 @@ export default function Home() {
       <section className="panel sectionSpace" id="actividad" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Actividad reciente')}</h2><p>{t('Quién hizo cada cambio y cuándo.')}</p></div></div>{data.activity.length?<><div className="activityScroll"><ol className="plainList">{[...data.activity].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,20).map(a=><li key={a.id} className="alertLine"><strong>{a.detail}</strong><span>{dateLabel(a.at)} · {a.actor}</span></li>)}</ol></div><div className="panelLinkWrap"><button className="selectButton" onClick={()=>openFleet('actividad')}>{t('Ver toda la actividad →')}</button></div></>:<p className="emptyState">{fleetReady?t('Todavía no hay actividad de flota.'):unavailable}</p>}</section>
       <section className="sectionSpace" id="accesos" tabIndex={-1}><h2>{t('Accesos rápidos')}</h2><div className="quickGrid">{[{label:'Revisar cargas',id:'cargas',filter:'Por revisar'},{label:'Cargas activas',id:'cargas',filter:'Activas'},{label:'Choferes',id:'choferes'},{label:'Pagos pendientes',id:'pagos'},{label:'Resumen financiero',id:'finanzas'},{label:'Alertas e historial',id:'actividad'}].map(a=><button className="selectButton" key={a.label} onClick={()=>a.filter?viewLoads(a.filter):a.id==='choferes'?openFleet('drivers'):go(a.id)}>{t(a.label)} →</button>)}</div><p className="emptyState integrationNote">{t('Mensajería, combustible, contabilidad completa y gestión de cargas: pendientes de integración. Los accesos abren cada módulo en el panel derecho.')}</p></section>
       </> : <div className="moduleView">
-        <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
-        <h1>{t(moduleNames[activeModule])}</h1>
+        <div className="moduleHero">
+          <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
+          <h1>{t(moduleNames[activeModule])}</h1>
+          <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía en un solo lugar.',choferes:'Choferes, camiones, trailers y asignaciones de la flota.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+          <span className="moduleHeroTag" aria-hidden="true">More Than Trucks<br/>A Family</span>
+        </div>
         {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter={filter}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t} initialTab={fleetTab}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({finanzas:'Aquí se administrarán ingresos, pagos, deducciones y liquidaciones.',reportes:'Aquí se generarán y consultarán los reportes ya procesados de la compañía: semanales por chofer, cantidad y total de cargas, bruto, descuento del 6%, salario, combustible, non-fuel, seguro y ganancia final — además de reportes por grupo y el resumen semanal general.',comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.',usuarios:'Aquí se configurarán usuarios, roles y permisos.'} as Record<string,string>)[activeModule])}</p></section>}
         <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
       </div>}
@@ -196,7 +204,7 @@ export default function Home() {
 
                 :global(*) { box-sizing: border-box; }
                 :global(html) { color-scheme: light; }
-                :global(body) { margin: 0; background: linear-gradient(160deg,#050505 0%,#141416 35%,#1c1c1f 60%,#050505 100%) fixed, radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.06), transparent 55%) fixed; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
+                :global(body) { margin: 0; background: #F7F3F0; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
                 button { font: inherit; cursor: pointer; min-height: 44px; transition: background .15s; }
                 button:focus-visible, .skipLink:focus-visible { outline: 3px solid #A85C6A; outline-offset: 4px; }
                 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 60; background: white; color: #6B1F2B; padding: 12px; }
@@ -205,8 +213,6 @@ export default function Home() {
                 .srOnly { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 
                 .edgeZone { position:fixed; top:0; left:0; width:20px; height:100vh; z-index:40; touch-action:none; }
-                .drawerTab { position:fixed; top:18px; left:0; z-index:50; background:#6B1F2B; color:white; border:1px solid #A85C6A; border-left:0; border-radius:0 10px 10px 0; width:44px; height:44px; padding:0; display:grid; place-items:center; font-size:18px; box-shadow:2px 2px 10px #4A142022; transition:left 320ms cubic-bezier(.16,1,.3,1), background 220ms ease; }
-                .drawerTab.isOpen { left:calc(min(300px,86vw) - 1px); }
                 .drawerBackdrop { position:fixed; inset:0; background:rgba(20,8,12,.45); z-index:45; opacity:0; transition:opacity 280ms ease; }
                 .drawerBackdrop.isOpen { opacity:1; }
                 .drawer { position:fixed; top:0; left:0; height:100vh; width:min(300px,86vw); z-index:48; background:#4A1420; color:#EBD5DA; padding:30px 16px 24px; display:flex; flex-direction:column; overflow-y:auto; touch-action:none; transform:translateX(calc(-100% - 24px)); transition:transform 320ms cubic-bezier(.16,1,.3,1); box-shadow:6px 0 24px #4A142030; }
@@ -220,11 +226,30 @@ export default function Home() {
                 .sidebarBottom { margin-top: auto; padding-top: 40px; }.userRow { border-top: 1px solid #8F4F5B; padding-top: 20px; display: flex; align-items: center; gap: 10px; }.userRow strong, .userRow span { display: block; }.userRow strong { font-size: 14px; color: white; }.userRow span { font-size: 13px; color: #EBD5DA; }.avatar { background: #EBD5DA; color: #4A1420; flex: 0 0 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
 
                 .content { max-width: 1920px; margin: 0 auto; padding: 0 clamp(20px, 3vw, 48px) 40px; animation:enterPanel 320ms ease-out; }
-                .moduleView { padding-top:28px; }.moduleView>h1 { color:#fff; font-size:30px; margin:8px 0 12px; }.moduleView>.filterLabel { max-width:360px; }.moduleView .eyebrow { color:#E8B8C4; }
-                .topbar { min-height: 80px; border-bottom: 1px solid rgba(255,255,255,.18); display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-left:56px; }.breadcrumb { color: #D8B7BF; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }.breadcrumb b { font-weight: 400; color:#D8B7BF; }.breadcrumb strong { color: #fff; }
-                .backButton { border:0; background:transparent; color:#F0DEE3; font-size:14px; font-weight:700; padding:8px 10px; border-radius:8px; transition:background 180ms ease, color 180ms ease; }.backButton:disabled { color:#8F6B73; }
+                @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
+                .moduleView { padding-top:28px; }.moduleView>.filterLabel { max-width:360px; }
+                .moduleHero { position:relative; isolation:isolate; overflow:hidden; background:#F7F3F0; border:1px solid #E9DCD4; border-radius:16px; padding:28px 32px; margin-bottom:24px; }
+                .moduleHero::before { content:""; position:absolute; inset:0; z-index:-1; background:url('/truck-dusk.png') right -40px center / 55% auto no-repeat; opacity:.16; }
+                .moduleHero h1 { margin:6px 0 8px; font-size:34px; color:#2A1014; }
+                .moduleHeroSubtitle { margin:0; color:#4A4640; font-size:15px; max-width:520px; }
+                .moduleHeroTag { position:absolute; right:36px; bottom:20px; font-family:'Dancing Script',cursive; font-size:22px; color:#8F4F5B; text-align:right; line-height:1.3; opacity:.75; }
+                @media(max-width:760px) { .moduleHero { padding:22px; }.moduleHero h1 { font-size:26px; }.moduleHeroTag { display:none; } }
+                .topbar { min-height: 64px; border-bottom: 1px solid #E3DADD; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding:0 clamp(20px,3vw,48px); }.breadcrumb { color: #4A4640; font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }.breadcrumb b { font-weight: 400; color:#4A4640; }.breadcrumb strong { color: #4A1420; }
+                .backButton { border:0; background:transparent; color:#6B1F2B; font-size:14px; font-weight:700; padding:8px 10px; border-radius:8px; transition:background 180ms ease, color 180ms ease; }.backButton:disabled { color:#B8ADAE; }
+                .dateBadge { border:1px solid #E3DADD; border-radius:20px; padding:8px 16px; font-size:14px; color:#4A4640; font-weight:600; white-space:nowrap; }
+                .mainNav { display:flex; align-items:center; gap:16px; padding:14px clamp(20px,3vw,48px); background:#fff; border-bottom:1px solid #E3DADD; }
+                .navMenuBtn { flex:0 0 auto; width:44px; height:44px; min-height:44px; padding:0; background:#6B1F2B; color:#fff; border:0; border-radius:10px; font-size:18px; display:grid; place-items:center; }
+                .navLogo { border:0; background:transparent; display:flex; align-items:center; gap:10px; padding:0; }
+                .navLogoIcon { font-size:28px; }
+                .navLogoText { display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; }.navLogoText strong { font-size:17px; color:#4A1420; letter-spacing:.5px; }.navLogoText span { font-size:11px; color:#8F4F5B; letter-spacing:2px; font-weight:700; }
+                .navSpacer { flex:1; }
+                .navBell { position:relative; flex:0 0 auto; width:44px; height:44px; min-height:44px; padding:0; background:#F7F3F0; border:1px solid #E3DADD; border-radius:50%; font-size:18px; display:grid; place-items:center; }
+                .navBellBadge { position:absolute; top:-2px; right:-2px; background:#C0392B; color:#fff; font-size:11px; font-weight:700; min-width:18px; height:18px; border-radius:9px; display:grid; place-items:center; padding:0 4px; }
+                .navUser { border:0; background:transparent; display:flex; align-items:center; gap:10px; padding:6px; border-radius:12px; }.navUser:hover { background:#F7F3F0; }
+                .navUserInfo { display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; }.navUserInfo strong { font-size:14px; color:#4A1420; }.navUserInfo span { font-size:12px; color:#8F4F5B; }
+                @media(max-width:760px) { .navUserInfo,.navLogoText span { display:none; } }
                 .pageIntro { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 32px 0 24px; }.eyebrow { color: #6B1F2B; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; margin: 0 0 10px; }.pageIntro h1 { margin: 0; font-size: clamp(26px, 2.3vw, 36px); line-height: 1.2; letter-spacing: -.8px; color: #4A1420; }.pageIntro h1 span { color: #8F4F5B; }.subtitle { color: #4A4640; font-size: 16px; margin: 10px 0 0; }
-                .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #4A142004; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #4A1420; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #4A4640; font-size: 14px; }.textButton { border: 0; background: transparent; color: #6B1F2B; font-size: 14px; font-weight: 700; padding: 8px; border-radius:8px; transition:background 180ms ease; }.textButton:hover { background: #F5EBED; }.exitButton { border: 1px solid #E3DADD; background: #fff; color: #6B1F2B; font-size: 18px; font-weight: 700; width: 40px; height: 40px; min-height:40px; padding: 0; border-radius: 50%; display:grid; place-items:center; transition:background 180ms ease, border-color 180ms ease; }.exitButton:hover { background: #F5EBED; border-color:#C5A46D; }
+                .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #4A142004; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #4A1420; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #4A4640; font-size: 14px; }.textButton { border: 0; background: transparent; color: #6B1F2B; font-size: 14px; font-weight: 700; padding: 8px; border-radius:8px; transition:background 180ms ease; }.textButton:hover { background: #F5EBED; }
                 .alertCount { background: #F5EBED; color: #6B1F2B; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
                 .bottomGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }.selectButton { border: 1px solid #D6C6CB; color: #4A4640; background: white; border-radius: 8px; font-size: 14px; padding: 8px 12px; transition:background 200ms ease, border-color 200ms ease, color 200ms ease, transform 180ms ease; }.selectButton[aria-pressed=true] { background:#C5A46D; border-color:#C5A46D; color:#3A2E14; font-weight:700; }
                 @media (max-width: 1200px) { .bottomGrid { grid-template-columns: 1fr; } }
@@ -232,7 +257,7 @@ export default function Home() {
                 @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.panelHeader { padding: 18px 16px; } }
 
                 .sectionSpace { margin-top:24px; scroll-margin-top:20px; }
-                h2 { color:#fff; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#4A4640; }.sourceNotice button { flex-shrink:0; }
+                h2 { color:#4A1420; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#4A4640; }.sourceNotice button { flex-shrink:0; }
                 .reviewBanner { display:flex; width:100%; align-items:center; justify-content:space-between; gap:24px; padding:26px; background:#6B1F2B; color:white; border:0; border-radius:14px; text-align:left; margin-bottom:24px; }.reviewBanner h2 { color:white; margin:8px 0; font-size:26px; }.reviewBanner p { margin:0; color:#F0DEE3; }.reviewBanner .eyebrow { color:#F0DEE3; }.reviewNumber { font-size:48px; font-weight:700; min-width:140px; }.reviewNumber span { display:block; font-size:15px; }
                 .filterLabel { display:grid; gap:5px; font-size:14px; color:#4A4640; }select,input { font:inherit; min-height:44px; max-width:100%; padding:8px 12px; border:1px solid #D6C6CB; border-radius:8px; background:white; color:#4A1420; }select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #A85C6A; outline-offset:3px; }
                 .statusGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; padding:0 22px 22px; }.statusGrid button { border:1px solid #E3DADD; border-radius:10px; padding:12px; background:#F7F5F3; color:#4A1420; transition:background 200ms ease, border-color 200ms ease, transform 180ms ease, box-shadow 200ms ease; }.statusGrid strong { display:block; font-size:26px; }.statusGrid span { font-size:14px; }
@@ -253,7 +278,6 @@ export default function Home() {
                   .quickGrid button:hover { transform:translateY(-3px) scale(1.03); border-color:#C5A46D; box-shadow:0 10px 24px #4A142018; z-index:1; }
                   .reviewBanner:hover { transform:translateY(-2px) scale(1.01); background:#4A1420; box-shadow:0 8px 22px #4A142022; }
                   .heroCta:hover { background:#fff; transform:scale(1.04); }
-                  .drawerTab:hover { background:#4A1420; transform:scale(1.08); }
                   .navItem:hover { transform:scale(1.03); }
                   .statusGrid button:hover { transform:scale(1.05); border-color:#C5A46D; box-shadow:0 6px 16px #4A142014; z-index:1; }
                   .selectButton:hover:not([aria-pressed=true]) { transform:scale(1.05); border-color:#C5A46D; box-shadow:0 6px 14px #4A142012; }
