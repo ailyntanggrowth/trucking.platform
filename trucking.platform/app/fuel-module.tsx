@@ -4,7 +4,7 @@ import { EXPENSE_CATEGORIES, summarizeFuel, txTotal, type Expense, type ExpenseC
 import type { FuelController } from '../lib/use-fuel';
 import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
-import { money, dateLabel as dateTime, today } from '../lib/format';
+import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import styles from './fuel.module.css';
 
@@ -120,7 +120,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </form>
       {importError && <p className={styles.error} role="alert">{importError}</p>}
       {preview && <>
-        {preview.period && <p>{t('Período del statement:')} {dateTime(preview.period.start)} – {dateTime(preview.period.end)}</p>}
+        {preview.period && <p>{t('Período del statement:')} {dayLabel(preview.period.start)} – {dayLabel(preview.period.end)}</p>}
         <p>
           <b>{t('Filas leídas:')}</b> {preview.rows.length} · <b>{t('Fuel:')}</b> {money(preview.totals.fuel)}{preview.declared.fuel !== null && (Math.abs(preview.declared.fuel - preview.totals.fuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.fuel)}`)}
           {' · '}<b>{t('Non-Fuel:')}</b> {money(preview.totals.nonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - preview.totals.nonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
@@ -132,7 +132,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
             <thead><tr><th></th><th>{t('Fecha')}</th><th>{t('Tipo')}</th><th>{t('Estación')}</th><th>{t('Ciudad')}</th><th>{t('Chofer')}</th><th>{t('Monto')}</th></tr></thead>
             <tbody>{preview.rows.map((r, i) => <tr key={i} className={r.duplicate ? styles.duplicateRow : ''}>
               <td><input type="checkbox" checked={selectedRows.has(i)} onChange={() => toggleRow(i)} aria-label={t('Incluir fila')} /></td>
-              <td>{dateTime(r.date)}</td>
+              <td>{dayLabel(r.date)}</td>
               <td>{t(r.type)}</td>
               <td>{r.station}</td>
               <td>{r.city}{r.city && r.state ? ', ' : ''}{r.state}</td>
@@ -186,7 +186,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
 
     {tab === 'transacciones' ? <div className={styles.cards}>{filteredTx.map(t2 => <article className={styles.card} key={t2.id}>
       <strong>{t2.station || t('Estación sin indicar')}</strong>
-      <span>{dateTime(t2.date)} · {t2.city}{t2.city && t2.state ? ', ' : ''}{t2.state}</span>
+      <span>{dayLabel(t2.date)} · {t2.city}{t2.city && t2.state ? ', ' : ''}{t2.state}</span>
       <span>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')} · {t2.truckId ? truckUnit(t2.truckId) : t('Sin camión')}</span>
       <p><b>{t('Fuel:')}</b> {money(t2.fuelAmount)} · <b>{t('Non-Fuel:')}</b> {money(t2.nonFuelAmount)} · <b>{t('Total:')}</b> {money(txTotal(t2))}</p>
       {t2.externalRef && <span>{t('Ref:')} {t2.externalRef}</span>}
@@ -196,7 +196,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </div>
     </article>)}</div> : <div className={styles.cards}>{filteredExpenses.map(e => <article className={styles.card} key={e.id}>
       <strong>{t(e.category)}</strong>
-      <span>{dateTime(e.date)} · {money(e.amount)}</span>
+      <span>{dayLabel(e.date)} · {money(e.amount)}</span>
       <span>{e.driverId ? driverName(e.driverId) : t('Sin chofer')} · {e.truckId ? truckUnit(e.truckId) : t('Sin camión')}</span>
       {e.paymentMethod && <span>{t('Pago:')} {e.paymentMethod}</span>}
       {e.receiptFilename && <p>{t('Recibo:')} {e.receiptFilename}</p>}

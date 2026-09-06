@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, balance, routeLabel, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
-import { money, dateLabel as dateTime, today } from '../lib/format';
+import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
@@ -118,7 +118,7 @@ export default function LoadsModule({ loads, fleet, lang, t }: { loads: LoadsCon
       </div>
       <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
       <span>{routeLabel(l)}</span>
-      <span>{t('Recogida:')} {dateTime(l.pickupDate)}{l.deliveryDate && ` · ${t('Entrega:')} ${dateTime(l.deliveryDate)}`}</span>
+      <span>{t('Recogida:')} {dayLabel(l.pickupDate)}{l.deliveryDate && ` · ${t('Entrega:')} ${dayLabel(l.deliveryDate)}`}</span>
       <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')} · {l.truckId ? truckUnit(l.truckId) : t('Sin camión')}</span>
       <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
       {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
