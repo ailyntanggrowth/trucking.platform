@@ -376,6 +376,9 @@ const en: Record<string, string> = {
   'Confirmar e importar': 'Confirm and import',
   'Importando…': 'Importing…',
   'No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.': "Can't import yet: the totals don't exactly match what the PDF states, or some rows couldn't be read. Resolve that first.",
+  '¡Listo!': 'Done!',
+  'transacciones importadas correctamente.': 'transactions imported successfully.',
+  'se omitieron por ya existir en la base de datos.': 'were skipped because they already exist in the database.',
 };
 
 export function translate(lang: Lang, es: string): string {

@@ -55,9 +55,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         notes: `Importado de statement Mudflap${!(rowDriverOverride[i] ?? r.driverId) && r.driverNameRaw ? ` · Chofer en statement: ${r.driverNameRaw}` : ''}`,
       }));
       const result = await commitStatementImportAction(input, state.revision);
-      setImportOpen(false); setPreview(null); setSelectedRows(new Set());
-      setNotice(result.events[0].detail);
       await fuel.refresh();
+      setImportOpen(false); setPreview(null); setSelectedRows(new Set());
+      setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);
     } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
   }
   function toggleRow(i: number) { setSelectedRows(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; }); }

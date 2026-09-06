@@ -212,19 +212,32 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
 }
 
 export type StatementImportRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: number; externalRef: string; notes: string };
+export type StatementImportResult = FuelState & { imported: number; skippedDuplicates: number };
 
 // Confirma el lote: se guarda como UNA sola escritura (una revisión, un solo
 // evento de auditoría con el resumen), reutilizando la misma validación que
 // una transacción manual (applyFuelAction) fila por fila antes de tocar la DB.
-export async function commitStatementImportAction(input: StatementImportRow[], expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
+// Protección contra duplicados a nivel de servidor: aunque el usuario marque
+// a mano una fila que la vista previa ya señaló como probable duplicado, aquí
+// se vuelve a comprobar contra lo que HOY existe en la base de datos (no lo
+// que había al abrir el formulario) y se omite en vez de guardarla dos veces.
+export async function commitStatementImportAction(input: StatementImportRow[], expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<StatementImportResult> {
   if (!input.length) throw new Error('No hay filas seleccionadas para importar.');
   const supabase = supabaseServer();
   const state = await getFuelState(companyId);
   const now = new Date().toISOString();
 
+  const existingKeys = new Set(state.transactions.map(t => `${t.date}|${t.externalRef}|${t.fuelAmount}|${t.nonFuelAmount}`));
+  const rowsToImport = input.filter(row => {
+    const fuelAmount = row.type === 'Fuel' ? row.amount : 0, nonFuelAmount = row.type === 'Non-Fuel' ? row.amount : 0;
+    return !existingKeys.has(`${row.date}|${row.externalRef}|${fuelAmount}|${nonFuelAmount}`);
+  });
+  const skippedDuplicates = input.length - rowsToImport.length;
+  if (!rowsToImport.length) throw new Error('Todas las filas seleccionadas ya existen en la base de datos — no se guardó nada de nuevo.');
+
   let working = state;
   const created: FuelTransaction[] = [];
-  for (const row of input) {
+  for (const row of rowsToImport) {
     const record: FuelTransaction = {
       id: randomUUID(), date: row.date, driverId: row.driverId, truckId: '', loadRef: '',
       station: row.station, city: row.city, state: row.state, gallons: 0, pricePerGallon: 0,
@@ -240,7 +253,7 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
   const event = {
     id: `event-${randomUUID()}`, at: now, actor: 'Usuario local · sin cuenta autenticada',
     entity_ids: created.map(r => r.id),
-    detail: `Importó statement: ${created.length} transacciones (Fuel ${money(fuelTotal)}, Non-Fuel ${money(nonFuelTotal)})`,
+    detail: `Importó statement: ${created.length} transacciones (Fuel ${money(fuelTotal)}, Non-Fuel ${money(nonFuelTotal)})${skippedDuplicates ? ` · ${skippedDuplicates} omitidas por ya existir` : ''}`,
     before: null, after: { count: created.length },
   };
 
@@ -257,5 +270,5 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
   if (conflict) throw conflict;
   const result = await getFuelState(companyId);
   result.revision = newRevision as number;
-  return result;
+  return { ...result, imported: created.length, skippedDuplicates };
 }
