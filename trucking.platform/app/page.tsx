@@ -48,7 +48,7 @@ export default function Home() {
     ...emptySnapshot,
     connected: loadsCtl.ready,
     loads: loadsCtl.state.loads.map(toDashboardLoad),
-    drivers: fleet.state.drivers.map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
+    drivers: fleet.state.drivers.filter(d=>['Mario','Owner Operators'].includes(d.group)).map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
     alerts: fleet.ready ? fleetAlerts(fleet.state,today()) : [],
     activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
   };
