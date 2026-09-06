@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { emptySnapshot, summarize, type LoadStatus } from "../lib/dashboard";
-import { demoSnapshot } from "../lib/dashboard-demo";
 import { useFleet } from "../lib/use-fleet";
 import { fleetAlerts, driverStatus, DRIVER_STATUS_VALUES } from "../lib/fleet";
 import { useFuel } from "../lib/use-fuel";
@@ -37,7 +36,6 @@ function weekEnd(start: string) { const date = new Date(`${start}T12:00:00Z`); d
 
 export default function Home() {
   const [activeModule,setActiveModule] = useState<string|null>(null);
-  const [demo,setDemo] = useState(false);
   const [week,setWeek] = useState('');
   const [filter,setFilter] = useState('Activas');
   const [lang,setLang] = useState<Lang>('es');
@@ -45,8 +43,8 @@ export default function Home() {
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
-  const fleetReady = demo || fleet.ready;
-  const data = demo ? demoSnapshot : {
+  const fleetReady = fleet.ready;
+  const data = {
     ...emptySnapshot,
     connected: loadsCtl.ready,
     loads: loadsCtl.state.loads.map(toDashboardLoad),
@@ -54,7 +52,7 @@ export default function Home() {
     alerts: fleet.ready ? fleetAlerts(fleet.state,today()) : [],
     activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
   };
-  const start = week || (demo ? '2026-08-31' : currentWeek());
+  const start = week || currentWeek();
   const summary = summarize(data,start,weekEnd(start));
   const fuelSummary = summarizeFuel(fuel.state,start,weekEnd(start));
   const loadsSummary = summarizeLoads(loadsCtl.state,start,weekEnd(start));
@@ -173,7 +171,7 @@ export default function Home() {
       {activeModule==='dashboard' ? <>
       <div className="pageIntro">
         <span className="pageIntroTag">{t('TRUCK SERVICE')}</span>
-        <div className={`sourceNotice pageIntroNotice ${demo?'exampleNotice':''}`} role="status"><div><strong>{demo?t('Vista de ejemplo · No son datos de tu compañía'):fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{demo?t('Los ejemplos no se guardan ni permiten aprobar cargas reales.'):t('Choferes, Cargas y Combustible ya usan datos reales. Contabilidad y Reportes siguen pendientes de conexión.')}</p></div><button className="selectButton" aria-pressed={demo} onClick={()=>{setDemo(!demo);setWeek('');setFilter('Activas');}}>{demo?t('Salir del ejemplo'):t('Ver ejemplo')}</button></div>
+        <div className="sourceNotice pageIntroNotice" role="status"><div><strong>{fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{t('Choferes, Cargas y Combustible ya usan datos reales. Contabilidad y Reportes siguen pendientes de conexión.')}</p></div></div>
       </div>
       <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">{t('TU APROBACIÓN ES NECESARIA')}</span><h2>{t('Cargas por revisar')}</h2><p>{t('La IA prepara. Tú revisas y confirmas antes de que sean oficiales.')}</p></div><div className="reviewNumber">{value(summary.review.length)}<span>{t('Revisar cargas →')}</span></div></button>
       <div className="metricsGrid">{metricCards.map(card=>{
@@ -189,7 +187,7 @@ export default function Home() {
       <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
         <div className="panelHeader"><div><h2>{t('Resumen de cargas')}</h2><p>{t('Estado actual · Las pendientes están separadas de las oficiales.')}</p></div><label className="filterLabel">{t('Mostrar')}<select value={filter} onChange={e=>setFilter(e.target.value)}>{['Activas','Por revisar','Todas',...statuses].map(s=><option key={s} value={s}>{t(s)}</option>)}</select></label></div>
         <div className="statusGrid">{statuses.map(status=><button key={status} aria-pressed={filter===status} onClick={()=>setFilter(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?t('Próximas a recoger'):t(status)}</span></button>)}</div>
-        {shownLoads.length ? <div className="loadList" key={`${demo}-${filter}`}>{shownLoads.map(load=><details key={load.id} className="loadRow"><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?t('Por revisar'):t(load.status)}</span><span className="detailToggle"><span className="closedLabel">{t('Ver detalle')}</span><span className="openLabel">{t('Cerrar detalle')}</span> <span className="detailArrow" aria-hidden="true">↓</span></span></summary><div className="loadDetails"><p><b>{t('Chofer:')}</b> {data.drivers.find(d=>d.id===load.driverId)?.name||t('Sin asignar')}</p><p><b>{t('Unidad:')}</b> {load.truck}</p><p><b>{t('Fecha prevista:')}</b> {dayLabel(load.eta)}</p><p><b>{t('Broker:')}</b> {load.broker||t('Pendiente de completar')}</p><p><b>{t('Precio:')}</b> {load.amount===undefined?t('Pendiente de completar'):money(load.amount)}</p><p><b>{t('Preparada por:')}</b> {load.source}</p><p><b>{t('Aprobación:')}</b> {load.approvedBy?`${load.approvedBy} · ${dateLabel(load.approvedAt!)}`:t('Pendiente de aprobación humana')}</p>{load.replacedBy&&<p><b>{t('Carga relacionada:')}</b> {load.replacedBy}</p>}<p className="detailNote">{demo?t('Registro de ejemplo. '):''}{t('Aprobar, corregir o rechazar corresponde a Cargas y Operaciones, pendiente de integración. Este panel no confirma cargas.')}</p></div></details>)}</div>:<p className="emptyState">{data.connected?t('No hay cargas en este estado.'):unavailable}</p>}
+        {shownLoads.length ? <div className="loadList" key={filter}>{shownLoads.map(load=><details key={load.id} className="loadRow"><summary><span><strong>{load.id}</strong><span className="cellMuted">{load.route}</span></span><span className="status statusTransit">{summary.review.includes(load)?t('Por revisar'):t(load.status)}</span><span className="detailToggle"><span className="closedLabel">{t('Ver detalle')}</span><span className="openLabel">{t('Cerrar detalle')}</span> <span className="detailArrow" aria-hidden="true">↓</span></span></summary><div className="loadDetails"><p><b>{t('Chofer:')}</b> {data.drivers.find(d=>d.id===load.driverId)?.name||t('Sin asignar')}</p><p><b>{t('Unidad:')}</b> {load.truck}</p><p><b>{t('Fecha prevista:')}</b> {dayLabel(load.eta)}</p><p><b>{t('Broker:')}</b> {load.broker||t('Pendiente de completar')}</p><p><b>{t('Precio:')}</b> {load.amount===undefined?t('Pendiente de completar'):money(load.amount)}</p><p><b>{t('Preparada por:')}</b> {load.source}</p><p><b>{t('Aprobación:')}</b> {load.approvedBy?`${load.approvedBy} · ${dateLabel(load.approvedAt!)}`:t('Pendiente de aprobación humana')}</p>{load.replacedBy&&<p><b>{t('Carga relacionada:')}</b> {load.replacedBy}</p>}<p className="detailNote">{t('Aprobar, corregir o rechazar corresponde a Cargas y Operaciones, pendiente de integración. Este panel no confirma cargas.')}</p></div></details>)}</div>:<p className="emptyState">{data.connected?t('No hay cargas en este estado.'):unavailable}</p>}
       </section>
       <div className="bottomGrid">
         <section className="panel" id="choferes" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Estado de choferes')}</h2><p>{t('Activo no significa disponible para una carga.')}</p></div></div><div className="driverSummary">{DRIVER_STATUS_VALUES.map(s=><div key={s}><strong>{fleetReady?data.drivers.filter(d=>d.status===s).length:'—'}</strong><span>{t(s)}</span></div>)}</div>{data.drivers.length?<div className="panelLinkWrap"><button className="selectButton" onClick={()=>go('choferes')}>{t('Ver todos los choferes →')}</button></div>:<p className="emptyState">{fleetReady?t('Todavía no hay choferes registrados.'):unavailable}</p>}</section>
@@ -258,7 +256,7 @@ export default function Home() {
                 @media (max-width: 380px) { .metricCard { padding: 8px; }.metricTop span { display:none; } }
 
                 .metricCard { text-align:left; }.sectionSpace { margin-top:24px; scroll-margin-top:20px; }
-                h2 { color:#4A1420; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#4A4640; }.sourceNotice button { flex-shrink:0; }.exampleNotice { background:#fff7e8; border-color:#D7B676; }
+                h2 { color:#4A1420; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#4A4640; }.sourceNotice button { flex-shrink:0; }
                 .reviewBanner { display:flex; width:100%; align-items:center; justify-content:space-between; gap:24px; padding:26px; background:#6B1F2B; color:white; border:0; border-radius:14px; text-align:left; margin-bottom:24px; }.reviewBanner h2 { color:white; margin:8px 0; font-size:26px; }.reviewBanner p { margin:0; color:#F0DEE3; }.reviewBanner .eyebrow { color:#F0DEE3; }.reviewNumber { font-size:48px; font-weight:700; min-width:140px; }.reviewNumber span { display:block; font-size:15px; }
                 .filterLabel { display:grid; gap:5px; font-size:14px; color:#4A4640; }select,input { font:inherit; min-height:44px; max-width:100%; padding:8px 12px; border:1px solid #D6C6CB; border-radius:8px; background:white; color:#4A1420; }select:focus-visible,input:focus-visible,summary:focus-visible { outline:3px solid #A85C6A; outline-offset:3px; }
                 .statusGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; padding:0 22px 22px; }.statusGrid button { border:1px solid #E3DADD; border-radius:10px; padding:12px; background:#F7F5F3; color:#4A1420; transition:background 200ms ease, border-color 200ms ease, transform 180ms ease, box-shadow 200ms ease; }.statusGrid button[aria-pressed=true] { background:#C5A46D; border-color:#C5A46D; color:#3A2E14; }.statusGrid strong { display:block; font-size:26px; }.statusGrid span { font-size:14px; }
