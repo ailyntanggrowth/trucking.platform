@@ -134,7 +134,10 @@ export function computeMarioSettlements(
   }).sort((a, b) => b.gross - a.gross);
 }
 
-export type OwnerOperatorSettlement = { driverId: string; driverName: string; gross: number; marioCut: number; fuel: number };
+// netPayout: lo que Mario realmente le paga al Owner Operator esa semana. No es
+// solo "88% del bruto" — el chofer gastó el combustible con la tarjeta de la
+// compañía (Mudflap), así que Mario se lo descuenta de su parte antes de pagarle.
+export type OwnerOperatorSettlement = { driverId: string; driverName: string; gross: number; marioCut: number; fuel: number; driverShare: number; netPayout: number };
 export function computeOwnerOperatorSettlements(
   drivers: Driver[], loads: Load[], transactions: FuelTransaction[], expenses: Expense[],
   weekStart: string, weekEnd: string, config: SettlementConfig,
@@ -142,7 +145,9 @@ export function computeOwnerOperatorSettlements(
   return drivers.filter(d => d.group === 'Owner Operators').map(d => {
     const gross = grossFor(d.id, loads, weekStart, weekEnd);
     const fuel = fuelAndExpenses(d.id, transactions, expenses, weekStart, weekEnd);
-    return { driverId: d.id, driverName: d.name, gross, marioCut: gross * config.ownerOperatorCutPct, fuel };
+    const marioCut = gross * config.ownerOperatorCutPct;
+    const driverShare = gross - marioCut;
+    return { driverId: d.id, driverName: d.name, gross, marioCut, fuel, driverShare, netPayout: driverShare - fuel };
   }).sort((a, b) => b.gross - a.gross);
 }
 
