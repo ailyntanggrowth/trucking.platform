@@ -59,8 +59,8 @@ function eventPayload(next: FuelState) {
   return { id: e.id, at: e.at, actor: e.actor, entity_ids: e.entityIds, detail: e.detail, before: e.before, after: e.after };
 }
 
-// Acciones sin archivo: transaction, setStatus, delete. El caso 'expense' (con
-// recibo opcional) va por commitExpenseAction, ver abajo.
+// Acciones sin archivo: transaction, delete. El caso 'expense' (con recibo
+// opcional) va por commitExpenseAction, ver abajo.
 export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expense' }>, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
   const supabase = supabaseServer();
   const state = await getFuelState(companyId);
@@ -81,11 +81,6 @@ export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expe
         fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
       },
       p_event: event,
-    });
-  } else if (action.type === 'setStatus') {
-    rpc = supabase.rpc('fuel_commit_status', {
-      p_company_id: companyId, p_expected_revision: expectedRevision,
-      p_kind: action.kind, p_id: action.id, p_status: action.status, p_event: event,
     });
   } else {
     if (action.kind === 'expense') {
@@ -121,7 +116,7 @@ export async function commitExpenseAction(formData: FormData, expectedRevision: 
     loadRef: String(formData.get('loadRef') || ''),
     paymentMethod: String(formData.get('paymentMethod') || ''),
     notes: String(formData.get('notes') || ''),
-    status: String(formData.get('status')) as TxStatus,
+    status: 'Final',
     receiptFilename: hasFile ? file!.name : (String(formData.get('existingReceiptFilename') || '') || undefined),
   };
   const reason = String(formData.get('reason') || '');
@@ -242,7 +237,7 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
       id: randomUUID(), date: row.date, driverId: row.driverId, truckId: '', loadRef: '',
       station: row.station, city: row.city, state: row.state, gallons: 0, pricePerGallon: 0,
       fuelAmount: row.type === 'Fuel' ? row.amount : 0, nonFuelAmount: row.type === 'Non-Fuel' ? row.amount : 0,
-      status: 'Pendiente', externalRef: row.externalRef, notes: row.notes,
+      status: 'Final', externalRef: row.externalRef, notes: row.notes,
     };
     working = applyFuelAction(working, { type: 'transaction', record, reason: '' }, now, record.id);
     created.push(record);

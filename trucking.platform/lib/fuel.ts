@@ -31,7 +31,6 @@ export const emptyFuel: FuelState = { schema: 1, revision: 0, transactions: [], 
 export type FuelAction =
   | { type: 'transaction'; record: FuelTransaction; reason: string }
   | { type: 'expense'; record: Expense; receiptFile?: Blob; reason: string }
-  | { type: 'setStatus'; kind: 'transaction' | 'expense'; id: string; status: TxStatus; reason: string }
   | { type: 'delete'; kind: 'transaction' | 'expense'; id: string; reason: string };
 
 const requireValue = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
@@ -66,15 +65,6 @@ export function applyFuelAction(original: FuelState, action: FuelAction, now: st
     state.expenses = old ? state.expenses.map(e => e.id === record.id ? record : e) : [...state.expenses, record];
     entityIds = [record.id]; after = record;
     detail = `${old ? 'Actualizó' : 'Registró'} gasto de ${record.category}${old ? `: ${action.reason.trim()}` : ''}`;
-  } else if (action.type === 'setStatus') {
-    requireValue(TX_STATUS_VALUES.includes(action.status), 'Estado inválido.');
-    requireValue(action.reason.trim(), 'Escribe el motivo del cambio de estado.');
-    const list: (FuelTransaction | Expense)[] = action.kind === 'transaction' ? state.transactions : state.expenses;
-    const record = list.find(r => r.id === action.id);
-    requireValue(record, 'No se encontró el registro.');
-    before = { status: record!.status }; record!.status = action.status; after = { status: record!.status };
-    entityIds = [action.id];
-    detail = `Marcó ${action.kind === 'transaction' ? 'transacción' : 'gasto'} como ${action.status}: ${action.reason.trim()}`;
   } else {
     requireValue(action.reason.trim(), 'Escribe el motivo de la eliminación.');
     if (action.kind === 'transaction') {
@@ -101,6 +91,5 @@ export function summarizeFuel(state: FuelState, start: string, end: string) {
   const fuel = transactions.reduce((s, t) => s + t.fuelAmount, 0);
   const nonFuel = transactions.reduce((s, t) => s + t.nonFuelAmount, 0);
   const expenseTotal = expenses.reduce((s, e) => s + e.amount, 0);
-  const pendingCount = transactions.filter(t => t.status === 'Pendiente').length + expenses.filter(e => e.status === 'Pendiente').length;
-  return { transactions, expenses, fuel, nonFuel, expenseTotal, pendingCount };
+  return { transactions, expenses, fuel, nonFuel, expenseTotal };
 }

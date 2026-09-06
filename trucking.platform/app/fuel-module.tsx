@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { EXPENSE_CATEGORIES, TX_STATUS_VALUES, summarizeFuel, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction, type TxStatus } from '../lib/fuel';
+import { EXPENSE_CATEGORIES, summarizeFuel, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction } from '../lib/fuel';
 import type { FuelController } from '../lib/use-fuel';
 import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
@@ -9,14 +9,14 @@ import type { Lang } from '../lib/i18n';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos';
-type Editor = { type: 'transaction' | 'expense' | 'status' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
+type Editor = { type: 'transaction' | 'expense' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
 const monthStart = () => today().slice(0, 7) + '-01';
 const monthEnd = () => { const d = new Date(`${monthStart()}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 10); };
 async function downloadReceipt(expense: Expense) { const url = await getExpenseReceiptUrl(expense.id); const a = document.createElement('a'); a.href = url; a.download = expense.receiptFilename || 'recibo'; a.click(); }
 
 export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string }) {
   const { state, ready } = fuel;
-  const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState(''), [statusFilter, setStatusFilter] = useState('Todos');
+  const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState('');
   const [start, setStart] = useState(monthStart()), [end, setEnd] = useState(monthEnd());
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
@@ -72,14 +72,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     try {
       let action: FuelAction;
       if (editor.type === 'transaction') {
-        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), status: text('status') as TxStatus, externalRef: text('externalRef'), notes: text('notes') };
+        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
         action = { type: 'transaction', record, reason: text('reason') };
       } else if (editor.type === 'expense') {
         const file = fields.get('receipt') as File;
-        const record: Expense = { id: editor.id || crypto.randomUUID(), category: text('category') as ExpenseCategory, amount: num('amount'), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), paymentMethod: text('paymentMethod'), notes: text('notes'), status: text('status') as TxStatus, receiptFilename: editExpense?.receiptFilename };
+        const record: Expense = { id: editor.id || crypto.randomUUID(), category: text('category') as ExpenseCategory, amount: num('amount'), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), paymentMethod: text('paymentMethod'), notes: text('notes'), status: 'Final', receiptFilename: editExpense?.receiptFilename };
         action = { type: 'expense', record, receiptFile: file && file.size > 0 ? file : undefined, reason: text('reason') };
-      } else if (editor.type === 'status') {
-        action = { type: 'setStatus', kind: editor.kind, id: editor.id, status: text('status') as TxStatus, reason: text('reason') };
       } else {
         action = { type: 'delete', kind: editor.kind, id: editor.id, reason: text('reason') };
       }
@@ -88,10 +86,10 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setImportOpen(false); setQuery(''); setStatusFilter('Todos'); setError(''); setNotice(''); };
-  const filteredTx = state.transactions.filter(t2 => `${t2.station} ${t2.city} ${t2.state} ${driverName(t2.driverId)} ${truckUnit(t2.truckId)} ${t2.externalRef}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (statusFilter === 'Todos' || t2.status === statusFilter)).sort((a, b) => b.date.localeCompare(a.date));
-  const filteredExpenses = state.expenses.filter(e => `${e.category} ${driverName(e.driverId)} ${truckUnit(e.truckId)} ${e.paymentMethod}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (statusFilter === 'Todos' || e.status === statusFilter)).sort((a, b) => b.date.localeCompare(a.date));
-  const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : editor?.type === 'status' ? t('Cambiar estado') : t('Eliminar registro');
+  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setImportOpen(false); setQuery(''); setError(''); setNotice(''); };
+  const filteredTx = state.transactions.filter(t2 => `${t2.station} ${t2.city} ${t2.state} ${driverName(t2.driverId)} ${truckUnit(t2.truckId)} ${t2.externalRef}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
+  const filteredExpenses = state.expenses.filter(e => `${e.category} ${driverName(e.driverId)} ${truckUnit(e.truckId)} ${e.paymentMethod}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
+  const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : t('Eliminar registro');
 
   return <div className={styles.fuel}>
     <div className={styles.localNotice}><strong>M&A KING</strong><p>{t('Los datos y recibos se guardan en Supabase y se sincronizan entre dispositivos. Los totales aquí no son ganancia final: faltan deducciones de Contabilidad.')}</p></div>
@@ -105,7 +103,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div><span>{t('Fuel')}</span><strong>{ready ? money(summary.fuel) : '—'}</strong></div>
       <div><span>{t('Non-Fuel')}</span><strong>{ready ? money(summary.nonFuel) : '—'}</strong></div>
       <div><span>{t('Otros gastos')}</span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong></div>
-      <div><span>{t('Pendientes de finalizar')}</span><strong>{ready ? summary.pendingCount : '—'}</strong></div>
     </div>
     <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
       <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
@@ -152,7 +149,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <h3>{editorTitle}</h3>
       {editor.type === 'transaction' && <div className={styles.fields}>
         <label>{t('Fecha de la visita *')}<input name="date" type="date" required defaultValue={editTx?.date || today()} /></label>
-        <label>{t('Estado *')}<select name="status" defaultValue={editTx?.status || 'Pendiente'}>{TX_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
         <label>{t('Chofer')}<select name="driverId" defaultValue={editTx?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
         <label>{t('Camión')}<select name="truckId" defaultValue={editTx?.truckId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.trucks.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
         <label>{t('Estación')}<input name="station" maxLength={150} defaultValue={editTx?.station} /></label>
@@ -171,7 +167,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         <label>{t('Categoría *')}<select name="category" defaultValue={editExpense?.category || EXPENSE_CATEGORIES[0]}>{EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></label>
         <label>{t('Monto *')}<input name="amount" type="number" step="0.01" min="0" required defaultValue={editExpense?.amount ?? 0} /></label>
         <label>{t('Fecha *')}<input name="date" type="date" required defaultValue={editExpense?.date || today()} /></label>
-        <label>{t('Estado *')}<select name="status" defaultValue={editExpense?.status || 'Pendiente'}>{TX_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
         <label>{t('Chofer')}<select name="driverId" defaultValue={editExpense?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
         <label>{t('Camión')}<select name="truckId" defaultValue={editExpense?.truckId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.trucks.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
         <label>{t('Referencia de carga')}<input name="loadRef" maxLength={100} defaultValue={editExpense?.loadRef} /></label>
@@ -180,7 +175,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editExpense?.notes} /></label>
         {editor.id && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
       </div>}
-      {editor.type === 'status' && <><p>{t('El registro queda visualmente marcado como final; esto no lo aprueba contablemente.')}</p><label>{t('Nuevo estado')}<select name="status" defaultValue="Final">{TX_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label><label>{t('Motivo *')}<input name="reason" required maxLength={500} /></label></>}
       {editor.type === 'delete' && <><p>{t('Esta acción elimina el registro por completo. El evento de auditoría queda guardado igual.')}</p><label>{t('Motivo de la eliminación *')}<input name="reason" required maxLength={500} /></label></>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
@@ -188,11 +182,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
 
     <div className={styles.filters}>
       <label>{t('Buscar')}<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'transacciones' ? t('Estación, chofer, camión o referencia') : t('Categoría, chofer, camión o método')} /></label>
-      <label>{t('Filtrar estado')}<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>{['Todos', ...TX_STATUS_VALUES].map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
     </div>
 
     {tab === 'transacciones' ? <div className={styles.cards}>{filteredTx.map(t2 => <article className={styles.card} key={t2.id}>
-      <span className={styles.badge}>{t(t2.status)}</span>
       <strong>{t2.station || t('Estación sin indicar')}</strong>
       <span>{dateTime(t2.date)} · {t2.city}{t2.city && t2.state ? ', ' : ''}{t2.state}</span>
       <span>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')} · {t2.truckId ? truckUnit(t2.truckId) : t('Sin camión')}</span>
@@ -200,11 +192,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       {t2.externalRef && <span>{t('Ref:')} {t2.externalRef}</span>}
       <div className={styles.actions}>
         <button onClick={() => open('transaction', 'transaction', t2.id)}>{t('Editar')}</button>
-        {t2.status === 'Pendiente' && <button onClick={() => open('status', 'transaction', t2.id)}>{t('Marcar final')}</button>}
         <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'transaction', t2.id); }}>{t('Eliminar')}</button>
       </div>
     </article>)}</div> : <div className={styles.cards}>{filteredExpenses.map(e => <article className={styles.card} key={e.id}>
-      <span className={styles.badge}>{t(e.status)}</span>
       <strong>{t(e.category)}</strong>
       <span>{dateTime(e.date)} · {money(e.amount)}</span>
       <span>{e.driverId ? driverName(e.driverId) : t('Sin chofer')} · {e.truckId ? truckUnit(e.truckId) : t('Sin camión')}</span>
@@ -213,11 +203,10 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div className={styles.actions}>
         <button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>
         {e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Descargar recibo')}</button>}
-        {e.status === 'Pendiente' && <button onClick={() => open('status', 'expense', e.id)}>{t('Marcar final')}</button>}
         <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button>
       </div>
     </article>)}</div>}
-    {ready && (tab === 'transacciones' ? !filteredTx.length : !filteredExpenses.length) && <p className={styles.empty}>{query || statusFilter !== 'Todos' ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
+    {ready && (tab === 'transacciones' ? !filteredTx.length : !filteredExpenses.length) && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
 
     <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <ul>{state.events.slice(0, 15).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
