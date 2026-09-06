@@ -1,7 +1,18 @@
 'use server';
 import { randomUUID } from 'node:crypto';
-import { applyFuelAction, type Expense, type ExpenseCategory, type FuelAction, type FuelState, type TxStatus } from './fuel';
+import { createRequire } from 'node:module';
+import { applyFuelAction, type Expense, type ExpenseCategory, type FuelAction, type FuelState, type FuelTransaction, type TxStatus } from './fuel';
+import { parseMudflapText, type MudflapRow } from './mudflap';
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { money } from './format';
+// pdf-parse es CommonJS y no tiene tipos propios confiables bajo ESM/NodeNext;
+// se carga con createRequire para evitar arrastrar eso al resto del proyecto.
+// Importa 'pdf-parse/lib/pdf-parse.js' directamente (no 'pdf-parse' a secas):
+// el index.js del paquete trae un auto-test de depuración que se activa solo
+// con `require()` cuando `module.parent` es undefined — exactamente el caso
+// al empaquetar con webpack en una Server Action — e intenta leer un PDF de
+// ejemplo que no existe en este proyecto (ENOENT). El archivo interno no tiene ese problema.
+const pdfParse = createRequire(import.meta.url)('pdf-parse/lib/pdf-parse.js') as (data: Buffer) => Promise<{ text: string }>;
 
 const CONFLICT_MESSAGE = 'Los datos cambiaron en otro dispositivo o pestaña. Actualiza y vuelve a intentarlo.';
 
@@ -155,4 +166,96 @@ export async function getExpenseReceiptUrl(expenseId: string, companyId = DEFAUL
   const signed = await supabase.storage.from('fuel-receipts').createSignedUrl(data.receipt_storage_path, 60);
   if (signed.error || !signed.data) throw new Error('No se pudo generar el enlace de descarga.');
   return signed.data.signedUrl;
+}
+
+const normalizeName = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+export type MudflapDraftRow = MudflapRow & { driverId: string; duplicate: boolean };
+export type MudflapParsePreview = {
+  period: { start: string; end: string } | null;
+  rows: MudflapDraftRow[];
+  unparsed: { raw: string; reason: string }[];
+  declared: { fuel: number | null; nonFuel: number | null; total: number | null };
+  totals: { fuel: number; nonFuel: number; total: number };
+};
+
+// Solo LEE el PDF y propone filas — no guarda nada todavía. El usuario revisa
+// y confirma (o corrige) antes de que exista un solo commitStatementImportAction.
+export async function parseMudflapStatementAction(formData: FormData, companyId = DEFAULT_COMPANY_ID): Promise<MudflapParsePreview> {
+  const file = formData.get('statement') as File | null;
+  if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
+  if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { text } = await pdfParse(buffer);
+  const parsed = parseMudflapText(text);
+
+  const supabase = supabaseServer();
+  const [{ data: drivers, error: driversError }, { data: existing, error: existingError }] = await Promise.all([
+    supabase.from('drivers').select('id, name').eq('company_id', companyId),
+    supabase.from('fuel_transactions').select('date, external_ref, fuel_amount, non_fuel_amount').eq('company_id', companyId),
+  ]);
+  if (driversError) throw new Error(driversError.message);
+  if (existingError) throw new Error(existingError.message);
+
+  const driverByName = new Map((drivers ?? []).map(d => [normalizeName(d.name), d.id as string]));
+  const existingKeys = new Set((existing ?? []).map(e => `${e.date}|${e.external_ref}|${e.fuel_amount}|${e.non_fuel_amount}`));
+
+  const rows: MudflapDraftRow[] = parsed.rows.map(r => ({
+    ...r,
+    driverId: driverByName.get(normalizeName(r.driverNameRaw)) || '',
+    duplicate: existingKeys.has(`${r.date}|${r.externalRef}|${r.type === 'Fuel' ? r.amount : 0}|${r.type === 'Non-Fuel' ? r.amount : 0}`),
+  }));
+
+  return { period: parsed.period, rows, unparsed: parsed.unparsed, declared: parsed.declared, totals: parsed.totals };
+}
+
+export type StatementImportRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: number; externalRef: string; notes: string };
+
+// Confirma el lote: se guarda como UNA sola escritura (una revisión, un solo
+// evento de auditoría con el resumen), reutilizando la misma validación que
+// una transacción manual (applyFuelAction) fila por fila antes de tocar la DB.
+export async function commitStatementImportAction(input: StatementImportRow[], expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
+  if (!input.length) throw new Error('No hay filas seleccionadas para importar.');
+  const supabase = supabaseServer();
+  const state = await getFuelState(companyId);
+  const now = new Date().toISOString();
+
+  let working = state;
+  const created: FuelTransaction[] = [];
+  for (const row of input) {
+    const record: FuelTransaction = {
+      id: randomUUID(), date: row.date, driverId: row.driverId, truckId: '', loadRef: '',
+      station: row.station, city: row.city, state: row.state, gallons: 0, pricePerGallon: 0,
+      fuelAmount: row.type === 'Fuel' ? row.amount : 0, nonFuelAmount: row.type === 'Non-Fuel' ? row.amount : 0,
+      status: 'Pendiente', externalRef: row.externalRef, notes: row.notes,
+    };
+    working = applyFuelAction(working, { type: 'transaction', record, reason: '' }, now, record.id);
+    created.push(record);
+  }
+
+  const fuelTotal = created.reduce((s, r) => s + r.fuelAmount, 0);
+  const nonFuelTotal = created.reduce((s, r) => s + r.nonFuelAmount, 0);
+  const event = {
+    id: `event-${randomUUID()}`, at: now, actor: 'Usuario local · sin cuenta autenticada',
+    entity_ids: created.map(r => r.id),
+    detail: `Importó statement: ${created.length} transacciones (Fuel ${money(fuelTotal)}, Non-Fuel ${money(nonFuelTotal)})`,
+    before: null, after: { count: created.length },
+  };
+
+  const { data: newRevision, error } = await supabase.rpc('fuel_commit_import', {
+    p_company_id: companyId, p_expected_revision: expectedRevision,
+    p_transactions: created.map(t => ({
+      id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: null, load_ref: t.loadRef,
+      station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
+      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
+    })),
+    p_event: event,
+  });
+  const conflict = asConflictError(error);
+  if (conflict) throw conflict;
+  const result = await getFuelState(companyId);
+  result.revision = newRevision as number;
+  return result;
 }

@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { EXPENSE_CATEGORIES, TX_STATUS_VALUES, summarizeFuel, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction, type TxStatus } from '../lib/fuel';
 import type { FuelController } from '../lib/use-fuel';
-import { getExpenseReceiptUrl } from '../lib/fuel-actions';
+import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dateLabel as dateTime, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
@@ -20,11 +20,43 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const [start, setStart] = useState(monthStart()), [end, setEnd] = useState(monthEnd());
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  const [importOpen, setImportOpen] = useState(false), [importBusy, setImportBusy] = useState(false), [importError, setImportError] = useState('');
+  const [preview, setPreview] = useState<MudflapParsePreview | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [rowDriverOverride, setRowDriverOverride] = useState<Record<number, string>>({});
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const summary = summarizeFuel(state, start, end);
 
-  function open(type: Editor['type'], kind: Editor['kind'], id = '') { setError(''); setNotice(''); setEditor({ type, kind, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('fuel-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
+  function openImport() { setError(''); setNotice(''); setEditor(null); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
+  async function handleParseStatement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (importBusy) return; const fields = new FormData(event.currentTarget);
+    setImportBusy(true); setImportError('');
+    try {
+      const result = await parseMudflapStatementAction(fields);
+      setPreview(result);
+      setSelectedRows(new Set(result.rows.map((r, i) => i).filter(i => !result.rows[i].duplicate)));
+      setRowDriverOverride({});
+    } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
+  }
+  async function confirmImport() {
+    if (!preview || importBusy) return;
+    setImportBusy(true); setImportError('');
+    try {
+      const input = preview.rows.map((r, i) => ({ r, i })).filter(({ i }) => selectedRows.has(i)).map(({ r, i }) => ({
+        date: r.date, type: r.type, station: r.station, city: r.city, state: r.state,
+        driverId: rowDriverOverride[i] ?? r.driverId, amount: r.amount, externalRef: r.externalRef,
+        notes: `Importado de statement Mudflap${!(rowDriverOverride[i] ?? r.driverId) && r.driverNameRaw ? ` · Chofer en statement: ${r.driverNameRaw}` : ''}`,
+      }));
+      const result = await commitStatementImportAction(input, state.revision);
+      setImportOpen(false); setPreview(null); setSelectedRows(new Set());
+      setNotice(result.events[0].detail);
+      await fuel.refresh();
+    } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
+  }
+  function toggleRow(i: number) { setSelectedRows(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; }); }
+
+  function open(type: Editor['type'], kind: Editor['kind'], id = '') { setError(''); setNotice(''); setImportOpen(false); setEditor({ type, kind, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('fuel-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   const editTx = editor?.type === 'transaction' ? state.transactions.find(x => x.id === editor.id) : undefined;
   const editExpense = editor?.type === 'expense' ? state.expenses.find(x => x.id === editor.id) : undefined;
 
@@ -50,7 +82,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
-  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setQuery(''); setStatusFilter('Todos'); setError(''); setNotice(''); };
+  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setImportOpen(false); setQuery(''); setStatusFilter('Todos'); setError(''); setNotice(''); };
   const filteredTx = state.transactions.filter(t2 => `${t2.station} ${t2.city} ${t2.state} ${driverName(t2.driverId)} ${truckUnit(t2.truckId)} ${t2.externalRef}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (statusFilter === 'Todos' || t2.status === statusFilter)).sort((a, b) => b.date.localeCompare(a.date));
   const filteredExpenses = state.expenses.filter(e => `${e.category} ${driverName(e.driverId)} ${truckUnit(e.truckId)} ${e.paymentMethod}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (statusFilter === 'Todos' || e.status === statusFilter)).sort((a, b) => b.date.localeCompare(a.date));
   const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : editor?.type === 'status' ? t('Cambiar estado') : t('Eliminar registro');
@@ -74,7 +106,40 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
-    <div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones de combustible') : t('Gastos operativos')}</h2><button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Registrar gasto')}</button></div>
+    <div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones de combustible') : t('Gastos operativos')}</h2><div className={styles.actions}>{tab === 'transacciones' && <button disabled={!ready || busy} onClick={openImport}>{t('Importar statement (PDF)')}</button>}<button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Registrar gasto')}</button></div></div>
+
+    {importOpen && <div id="fuel-import" className={styles.form}>
+      <h3>{t('Importar statement de Mudflap')}</h3>
+      <p>{t('Sube el PDF semanal. Se leen las filas exactas del documento (sin adivinar montos); tú revisas y confirmas antes de guardar nada.')}</p>
+      <form onSubmit={handleParseStatement} className={styles.fields}>
+        <label className={styles.wide}>{t('Archivo PDF *')}<input name="statement" type="file" accept="application/pdf" required disabled={importBusy} /></label>
+        <div className={styles.actions}><button type="submit" className={styles.primary} disabled={importBusy}>{importBusy ? t('Leyendo…') : t('Analizar PDF')}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); setImportError(''); }}>{t('Cancelar')}</button></div>
+      </form>
+      {importError && <p className={styles.error} role="alert">{importError}</p>}
+      {preview && <>
+        {preview.period && <p>{t('Período del statement:')} {dateTime(preview.period.start)} – {dateTime(preview.period.end)}</p>}
+        <p>
+          <b>{t('Filas leídas:')}</b> {preview.rows.length} · <b>{t('Fuel:')}</b> {money(preview.totals.fuel)}{preview.declared.fuel !== null && (Math.abs(preview.declared.fuel - preview.totals.fuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.fuel)}`)}
+          {' · '}<b>{t('Non-Fuel:')}</b> {money(preview.totals.nonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - preview.totals.nonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
+        </p>
+        {preview.unparsed.length > 0 && <p className={styles.error} role="alert">{preview.unparsed.length} {t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — agrégalas manualmente:')} {preview.unparsed.map((u, i) => <details key={i}><summary>{t('Ver texto sin procesar')}</summary><pre>{u.raw}</pre></details>)}</p>}
+        <div className={styles.importTableWrap}>
+          <table className={styles.importTable}>
+            <thead><tr><th></th><th>{t('Fecha')}</th><th>{t('Tipo')}</th><th>{t('Estación')}</th><th>{t('Ciudad')}</th><th>{t('Chofer')}</th><th>{t('Monto')}</th></tr></thead>
+            <tbody>{preview.rows.map((r, i) => <tr key={i} className={r.duplicate ? styles.duplicateRow : ''}>
+              <td><input type="checkbox" checked={selectedRows.has(i)} onChange={() => toggleRow(i)} aria-label={t('Incluir fila')} /></td>
+              <td>{dateTime(r.date)}</td>
+              <td>{t(r.type)}</td>
+              <td>{r.station}</td>
+              <td>{r.city}{r.city && r.state ? ', ' : ''}{r.state}</td>
+              <td><select value={rowDriverOverride[i] ?? r.driverId} onChange={e => setRowDriverOverride(prev => ({ ...prev, [i]: e.target.value }))}><option value="">{r.driverNameRaw ? `${t('Sin asignar')} (${r.driverNameRaw})` : t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></td>
+              <td>{money(r.amount)}{r.duplicate ? ` · ${t('posible duplicado')}` : ''}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <div className={styles.actions}><button className={styles.primary} disabled={importBusy || !selectedRows.size} onClick={confirmImport}>{importBusy ? t('Importando…') : `${t('Confirmar e importar')} (${selectedRows.size})`}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); }}>{t('Cancelar')}</button></div>
+      </>}
+    </div>}
 
     {editor && <form id="fuel-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
       <h3>{editorTitle}</h3>

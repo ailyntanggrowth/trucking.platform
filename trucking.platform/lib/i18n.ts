@@ -357,6 +357,24 @@ const en: Record<string, string> = {
   'Descargar recibo': 'Download receipt',
   'Todavía no hay registros. Usa el botón de arriba para comenzar.': 'No records yet. Use the button above to get started.',
   'Todavía no hay actividad.': 'No activity yet.',
+  // Importación de statement (Mudflap)
+  'Importar statement (PDF)': 'Import statement (PDF)',
+  'Importar statement de Mudflap': 'Import Mudflap statement',
+  'Sube el PDF semanal. Se leen las filas exactas del documento (sin adivinar montos); tú revisas y confirmas antes de guardar nada.': "Upload the weekly PDF. The exact rows are read from the document (no guessing amounts); you review and confirm before anything is saved.",
+  'Archivo PDF *': 'PDF file *',
+  'Leyendo…': 'Reading…',
+  'Analizar PDF': 'Analyze PDF',
+  'Período del statement:': 'Statement period:',
+  'Filas leídas:': 'Rows read:',
+  'coincide con el PDF': 'matches the PDF',
+  'el PDF declara': 'the PDF states',
+  'fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — agrégalas manualmente:': "row(s) couldn't be read automatically (possible page break in the PDF) — add them manually:",
+  'Ver texto sin procesar': 'View raw text',
+  'Fecha': 'Date',
+  'Incluir fila': 'Include row',
+  'posible duplicado': 'possible duplicate',
+  'Confirmar e importar': 'Confirm and import',
+  'Importando…': 'Importing…',
 };
 
 export function translate(lang: Lang, es: string): string {
