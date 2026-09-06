@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
-import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
+import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { AlertTriangle, Clock, Truck, ClipboardList, XCircle, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
@@ -92,16 +92,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     <div className={styles.toolbarRow}>
       <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Número, broker, chofer, camión o ciudad...')} /></label>
       <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
-      <button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
     </div>
-
-    <nav className={styles.tabs} aria-label={t('Secciones de cargas')}>
-      <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}>{t('Todas')} ({state.loads.length})</button>
-      <button aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}>{t('Por revisar')} ({review.length})</button>
-      <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}>{t('Activas')} ({active.length})</button>
-      <button aria-pressed={filter === 'Entregada'} onClick={() => changeFilter('Entregada')}>{t('Entregadas')} ({delivered.length})</button>
-      <button aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}>{t('Canceladas')} ({cancelled.length})</button>
-    </nav>
 
     {editor && <form id="loads-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
       <h3>{editorTitle}</h3>
@@ -153,7 +144,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         {l.status === 'Cancelada' && !l.replacedBy && <button onClick={() => open('replace', l.id)}>{t('Reemplazar')}</button>}
       </div>
     </article>)}</div>
-    {ready && !filtered.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay cargas en esta vista. Usa el botón de arriba para comenzar.')}</p>}
+    {ready && !filtered.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay cargas en esta vista.')}</p>}
     {filtered.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, filtered.length)} {t('de')} {filtered.length} {t('cargas')}</span>
       <div className={styles.pageButtons}>
@@ -162,7 +153,5 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <button disabled={pageSafe >= pageCount} onClick={() => setPage(p => Math.min(pageCount, p + 1))} aria-label={t('Siguiente')}>›</button>
       </div>
     </div>}
-
-    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <div className={styles.historyScroll}><ul>{state.events.slice(0, 30).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul></div> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
 }
