@@ -38,7 +38,7 @@ export async function getFuelState(companyId = DEFAULT_COMPANY_ID): Promise<Fuel
     transactions: (transactions.data ?? []).map(r => ({
       id: r.id, date: r.date, driverId: r.driver_id ?? '', truckId: r.truck_id ?? '', loadRef: r.load_ref,
       station: r.station, city: r.city, state: r.state, gallons: Number(r.gallons), pricePerGallon: Number(r.price_per_gallon),
-      fuelAmount: Number(r.fuel_amount), nonFuelAmount: Number(r.non_fuel_amount), status: r.status as TxStatus,
+      fuelAmount: Number(r.fuel_amount), nonFuelAmount: Number(r.non_fuel_amount), retailAmount: Number(r.retail_amount ?? 0), status: r.status as TxStatus,
       externalRef: r.external_ref, notes: r.notes,
     })),
     expenses: (expenses.data ?? []).map(r => ({
@@ -78,7 +78,7 @@ export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expe
       p_transaction: {
         id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: t.truckId || null, load_ref: t.loadRef,
         station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
-        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
+        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
       },
       p_event: event,
     });
@@ -209,7 +209,7 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
   return { period: parsed.period, rows, unparsed: parsed.unparsed, declared: parsed.declared, totals: parsed.totals };
 }
 
-export type StatementImportRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: number; externalRef: string; notes: string };
+export type StatementImportRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: number; retailAmount: number; externalRef: string; notes: string };
 export type StatementImportResult = FuelState & { imported: number; skippedDuplicates: number };
 
 // Confirma el lote: se guarda como UNA sola escritura (una revisión, un solo
@@ -240,6 +240,7 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
       id: randomUUID(), date: row.date, driverId: row.driverId, truckId: '', loadRef: '',
       station: row.station, city: row.city, state: row.state, gallons: 0, pricePerGallon: 0,
       fuelAmount: row.type === 'Fuel' ? row.amount : 0, nonFuelAmount: row.type === 'Non-Fuel' ? row.amount : 0,
+      retailAmount: row.type === 'Fuel' ? (row.retailAmount || row.amount) : 0,
       status: 'Final', externalRef: row.externalRef, notes: row.notes,
     };
     working = applyFuelAction(working, { type: 'transaction', record, reason: '' }, now, record.id);
@@ -260,7 +261,7 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
     p_transactions: created.map(t => ({
       id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: null, load_ref: t.loadRef,
       station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
-      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
+      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
     })),
     p_event: event,
   });

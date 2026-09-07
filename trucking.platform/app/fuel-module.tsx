@@ -1,24 +1,27 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { EXPENSE_CATEGORIES, summarizeFuel, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction } from '../lib/fuel';
+import { EXPENSE_CATEGORIES, summarizeFuel, computeWeeklyFuelSummary, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction } from '../lib/fuel';
 import type { FuelController } from '../lib/use-fuel';
 import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
+import { weekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical } from 'lucide-react';
+import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import styles from './fuel.module.css';
 
-type Tab = 'transacciones' | 'gastos';
+type Tab = 'transacciones' | 'gastos' | 'resumen';
 type Editor = { type: 'transaction' | 'expense' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
 const monthStart = () => today().slice(0, 7) + '-01';
 const monthEnd = () => { const d = new Date(`${monthStart()}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 10); };
+const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
 async function downloadReceipt(expense: Expense) { const url = await getExpenseReceiptUrl(expense.id); const a = document.createElement('a'); a.href = url; a.download = expense.receiptFilename || 'recibo'; a.click(); }
 
 export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string }) {
   const { state, ready } = fuel;
   const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState('');
   const [start, setStart] = useState(monthStart()), [end, setEnd] = useState(monthEnd());
+  const [weekStart, setWeekStart] = useState(weekRange(weekStartOf(today())).prevWeek);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false), [importBusy, setImportBusy] = useState(false), [importError, setImportError] = useState('');
@@ -32,6 +35,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const summary = summarizeFuel(state, start, end);
+  const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
+  const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart, weekEnd);
+  const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10))}`;
   const totalGastos = summary.fuel + summary.nonFuel;
   // Top 5 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
   // el panel "Top 5 Choferes", nunca inventado: sale de summary.transactions.
@@ -71,12 +77,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     try {
       const fromPreview = preview.rows.map((r, i) => ({ r, i })).filter(({ i }) => selectedRows.has(i)).map(({ r, i }) => ({
         date: r.date, type: r.type, station: r.station, city: r.city, state: r.state,
-        driverId: rowDriverOverride[i] ?? r.driverId, amount: r.amount, externalRef: r.externalRef,
+        driverId: rowDriverOverride[i] ?? r.driverId, amount: r.amount, retailAmount: r.retailPrice, externalRef: r.externalRef,
         notes: `Importado de statement Mudflap${!(rowDriverOverride[i] ?? r.driverId) && r.driverNameRaw ? ` · Chofer en statement: ${r.driverNameRaw}` : ''}`,
       }));
       const fromManual = Object.values(manualUnparsed).map(r => ({
         date: r.date, type: r.type, station: r.station, city: r.city, state: r.state,
-        driverId: r.driverId, amount: Number(r.amount) || 0, externalRef: '',
+        driverId: r.driverId, amount: Number(r.amount) || 0, retailAmount: 0, externalRef: '',
         notes: 'Completada a mano: el PDF no se pudo leer automáticamente en esta fila (posible salto de página).',
       }));
       const input = [...fromPreview, ...fromManual];
@@ -98,7 +104,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     try {
       let action: FuelAction;
       if (editor.type === 'transaction') {
-        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
+        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), retailAmount: editTx?.retailAmount ?? 0, status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
         action = { type: 'transaction', record, reason: text('reason') };
       } else if (editor.type === 'expense') {
         const file = fields.get('receipt') as File;
@@ -138,15 +144,60 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
       <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
       <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
+      <button aria-pressed={tab === 'resumen'} onClick={() => changeTab('resumen')}>{t('Resumen semanal')}</button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
-    <div className={styles.toolbarRow}>
+    {tab === 'resumen' && <>
+      <div className={styles.filters}>
+        <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
+        <span>📅 {t('Semana')} {weekLabel}</span>
+        <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
+        <button onClick={() => setWeekStart(weekRange(weekStartOf(today())).prevWeek)}>{t('Última semana cerrada')}</button>
+      </div>
+
+      <h3>{t('Resumen de Mudflap')}</h3>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <tbody>
+            {weeklySummary.groups.map(g => <>
+              <tr key={`h-${g.group}`}><td colSpan={2}><strong>{t(groupLabel(g.group))}</strong></td></tr>
+              {g.drivers.length ? g.drivers.map(d => <tr key={d.driverId}><td>{d.driverName}</td><td>{money(d.amount)}</td></tr>)
+                : <tr><td colSpan={2} className={styles.empty}>{t('No hubo transacciones de Fuel en este período.')}</td></tr>}
+              <tr key={`t-${g.group}`} className={styles.tableSub}><td><b>{t('Total')} {t(groupLabel(g.group))}</b></td><td><b>{money(g.total)}</b></td></tr>
+            </>)}
+            {!weeklySummary.groups.length && <tr><td colSpan={2} className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {weeklySummary.groups.length > 0 && <p className={styles.note}>
+        <b>{t('Total sin descuento')}</b> {money(weeklySummary.grandRetailTotal)} · <b>{t('Total con descuento')}</b> {money(weeklySummary.grandTotal)}
+      </p>}
+
+      <h3>{t('Resumen de Non-Fuel')}</h3>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <thead><tr><th>{t('Grupo / Chofer')}</th><th>{t('Fecha')}</th><th>{t('Estado')}</th><th>{t('Gasolinera')}</th><th>{t('Monto')}</th></tr></thead>
+          <tbody>
+            {weeklySummary.groups.map(g => <>
+              <tr key={`nh-${g.group}`}><td colSpan={5}><strong>{t(groupLabel(g.group))}</strong></td></tr>
+              {g.nonFuelRows.length ? g.nonFuelRows.map((r, i) => <tr key={`${g.group}-${i}`}><td>{r.driverName}</td><td className={styles.tableSub}>{dayLabel(r.date)}</td><td className={styles.tableSub}>{r.state}</td><td className={styles.tableSub}>{r.station}</td><td>{money(r.amount)}</td></tr>)
+                : <tr><td colSpan={5} className={styles.empty}>{t('No hubo transacciones de Non-Fuel en este período.')}</td></tr>}
+              <tr key={`nt-${g.group}`} className={styles.tableSub}><td colSpan={4}><b>{t('Total')} {t(groupLabel(g.group))}</b></td><td><b>{money(g.nonFuelTotal)}</b></td></tr>
+            </>)}
+            {!weeklySummary.groups.length && <tr><td colSpan={5} className={styles.empty}>{t('No hay transacciones en esta semana todavía.')}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {weeklySummary.groups.length > 0 && <p className={styles.note}><b>{t('Total general Non-Fuel')}</b> {money(weeklySummary.grandNonFuelTotal)}</p>}
+    </>}
+
+    {tab !== 'resumen' && <div className={styles.toolbarRow}>
       <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={tab === 'transacciones' ? t('Buscar por chofer, estación, etc...') : t('Categoría, chofer, camión o método')} /></label>
       <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
       {tab === 'transacciones' && <button disabled={!ready || busy} onClick={openImport}>{t('Importar PDF')}</button>}
       <button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Agregar Gasto')}</button>
-    </div>
+    </div>}
 
     {importOpen && <div id="fuel-import" className={styles.form}>
       <h3>{t('Importar statement de Mudflap')}</h3>
@@ -243,7 +294,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
 
-    <div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones Recientes') : t('Gastos Recientes')}</h2></div>
+    {tab !== 'resumen' && <><div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones Recientes') : t('Gastos Recientes')}</h2></div>
 
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
@@ -282,7 +333,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         {Array.from({ length: pageCount }, (_, i) => i + 1).map(n => <button key={n} aria-pressed={pageSafe === n} onClick={() => setPage(n)}>{n}</button>)}
         <button disabled={pageSafe >= pageCount} onClick={() => setPage(p => Math.min(pageCount, p + 1))} aria-label={t('Siguiente')}>›</button>
       </div>
-    </div>}
+    </div>}</>}
 
     {tab === 'transacciones' && <div className={styles.summaryGrid}>
       <section className={styles.summaryPanel}>
