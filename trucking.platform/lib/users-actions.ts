@@ -1,9 +1,9 @@
 'use server';
 // El navegador nunca tiene la clave service-role, así que estas funciones
 // reciben el access_token de la sesión del que llama y lo validan aquí mismo
-// contra Supabase Auth (auth.getUser) antes de hacer nada. Las acciones que
-// cambian permisos (invitar, cambiar rol, quitar acceso) además verifican que
-// quien llama sea 'admin' — ver requireAdmin.
+// contra Supabase Auth (auth.getUser) antes de hacer nada. Usuarios y Permisos
+// es SOLO para 'owner' — ni siquiera 'admin' puede ver ni tocar esto, pedido
+// explícito de la dueña — ver requireOwner.
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
 import type { Profile, Role } from './users';
 
@@ -26,17 +26,17 @@ export async function getMyProfile(accessToken: string): Promise<Profile | null>
   return data ? mapRow(data) : null;
 }
 
-async function requireAdmin(accessToken: string): Promise<string> {
+async function requireOwner(accessToken: string): Promise<string> {
   const id = await callerId(accessToken);
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('profiles').select('role').eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data || data.role !== 'admin') throw new Error('Solo un administrador puede hacer esto.');
+  if (!data || data.role !== 'owner') throw new Error('Solo el dueño de la cuenta puede hacer esto.');
   return id;
 }
 
 export async function listProfiles(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Profile[]> {
-  await requireAdmin(accessToken);
+  await requireOwner(accessToken);
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('profiles').select('*').eq('company_id', companyId).order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
@@ -44,7 +44,7 @@ export async function listProfiles(accessToken: string, companyId = DEFAULT_COMP
 }
 
 export async function inviteProfile(accessToken: string, email: string, name: string, role: Role, companyId = DEFAULT_COMPANY_ID): Promise<Profile> {
-  await requireAdmin(accessToken);
+  await requireOwner(accessToken);
   const cleanEmail = email.trim().toLocaleLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) throw new Error('Revisa el correo electrónico.');
   if (!name.trim()) throw new Error('Escribe el nombre de la persona.');
@@ -70,7 +70,8 @@ export async function inviteProfile(accessToken: string, email: string, name: st
 }
 
 export async function updateProfileRole(accessToken: string, targetId: string, role: Role): Promise<Profile> {
-  await requireAdmin(accessToken);
+  const callerId = await requireOwner(accessToken);
+  if (callerId === targetId) throw new Error('No puedes cambiar tu propio rol. Pídeselo a otro dueño.');
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('profiles').update({ role }).eq('id', targetId).select('*').single();
   if (error) throw new Error(error.message);
@@ -78,8 +79,8 @@ export async function updateProfileRole(accessToken: string, targetId: string, r
 }
 
 export async function removeProfile(accessToken: string, targetId: string): Promise<void> {
-  const callerAdmin = await requireAdmin(accessToken);
-  if (callerAdmin === targetId) throw new Error('No puedes quitarte el acceso a ti mismo.');
+  const callerId = await requireOwner(accessToken);
+  if (callerId === targetId) throw new Error('No puedes quitarte el acceso a ti mismo.');
   const supabase = supabaseServer();
   const { error } = await supabase.from('profiles').delete().eq('id', targetId);
   if (error) throw new Error(error.message);

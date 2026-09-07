@@ -10,6 +10,7 @@ import { useLoads } from "../lib/use-loads";
 import { toDashboardLoad, summarizeLoads } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
+import { roleLabel } from "../lib/users";
 import { money, dateLabel, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
 import { Menu, X, Bell, ChevronDown, Truck, Crown } from "lucide-react";
@@ -48,8 +49,11 @@ export default function Home() {
   const lang: Lang = 'es';
   const t = (es:string) => translate(lang,es);
   const auth = useAuth();
-  const isAdmin = auth.profile?.role === 'admin';
-  const homeModule = isAdmin ? 'dashboard' : 'cargas';
+  const role = auth.profile?.role;
+  const isOwner = role === 'owner';
+  const isDispatcher = role === 'dispatcher';
+  const hasFullAccess = role === 'owner' || role === 'admin';
+  const homeModule = isDispatcher ? 'cargas' : 'dashboard';
   const displayName = auth.profile?.name || auth.email || '';
   const initials = (displayName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || 'U').toUpperCase();
   const fleet = useFleet();
@@ -79,8 +83,12 @@ export default function Home() {
   // se oculta del menú, y si por cualquier vía activeModule queda en otro
   // valor, este efecto lo corrige solo — no depende de acordarse de filtrar
   // cada punto de lectura de activeModule más abajo.
-  const visibleNav = isAdmin ? nav : nav.filter(item=>item.id==='cargas');
-  useEffect(() => { if (auth.status==='ready' && !isAdmin && activeModule && activeModule!=='cargas') setActiveModule('cargas'); }, [auth.status, isAdmin, activeModule]);
+  const visibleNav = isDispatcher ? nav.filter(item=>item.id==='cargas') : isOwner ? nav : nav.filter(item=>item.id!=='usuarios');
+  useEffect(() => {
+    if (auth.status!=='ready' || !activeModule) return;
+    if (isDispatcher && activeModule!=='cargas') setActiveModule('cargas');
+    else if (!isOwner && activeModule==='usuarios') setActiveModule('dashboard');
+  }, [auth.status, isDispatcher, isOwner, activeModule]);
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
   // (mouse o dedo, vía Pointer Events) o tocando el botón. Antes era un sidebar
@@ -157,7 +165,7 @@ export default function Home() {
       <button className="brand brandButton" onClick={()=>navigateTo(homeModule)}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></button>
       <div className="workspaceLabel">{t('OPERACIONES')}</div>
       <nav id="main-navigation" className="navList" aria-label={t('Navegación principal')}>{visibleNav.map(item=><button key={item.id} className={`navItem ${activeModule===item.id?'active':''}`} aria-current={activeModule===item.id?'page':undefined} onClick={()=>go(item.id)}><span className="navIcon" aria-hidden="true">{item.icon}</span>{t(item.name)}</button>)}</nav>
-      <div className="sidebarBottom"><div className="userRow"><div className="avatar">{initials}</div><div><strong>{displayName}</strong><span>{t(isAdmin?'Administrador':'Dispatcher')}</span></div></div></div>
+      <div className="sidebarBottom"><div className="userRow"><div className="avatar">{initials}</div><div><strong>{displayName}</strong><span>{t(role?roleLabel(role):'')}</span></div></div></div>
     </aside>
 
     {activeModule===null ? <section className="landingHero" id="main-content" tabIndex={-1}>
@@ -182,7 +190,7 @@ export default function Home() {
         <div className="navSpacer" />
         <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><Bell size={18}/>{alerts.length>0 && <span className="navBellBadge">{alerts.length}</span>}</button>
         <div className="navDivider" aria-hidden="true" />
-        <button className="navUser" onClick={()=>void auth.signOut()} title={t('Salir del sistema')}><span className="avatar">{initials}</span><span className="navUserInfo"><strong>{displayName}</strong><span>{t(isAdmin?'Administrador':'Dispatcher')}</span></span><ChevronDown size={14}/></button>
+        <button className="navUser" onClick={()=>void auth.signOut()} title={t('Salir del sistema')}><span className="avatar">{initials}</span><span className="navUserInfo"><strong>{displayName}</strong><span>{t(role?roleLabel(role):'')}</span></span><ChevronDown size={14}/></button>
       </header>
       <header className="topbar">
         <button className="backButton" onClick={goBack} disabled={!backStack.length} aria-label={t('Atrás')}>{t('← Atrás')}</button>
