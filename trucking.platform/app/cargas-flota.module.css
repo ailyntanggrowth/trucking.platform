@@ -14,6 +14,5 @@
 .driverList { display:flex; flex-direction:column; gap:6px; list-style:none; margin:0; padding:0; }
 .driverChip { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:600; color:#11151B; }
 .driverChip::before { content:"•"; color:#8B102A; }
-.driverChip small { font-weight:600; color:#59616D; font-size:11px; }
 .empty { color:#59616D; font-size:13px; margin:0; }
 @media(max-width:520px) { .driverColumns { flex-direction:column; gap:16px; } .driverGroup { min-width:0; } }

@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import LoadsModule from './loads-module';
 import FleetModule from './fleet-module';
-import { driverStatus } from '../lib/fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { Load } from '../lib/dashboard';
@@ -39,7 +38,7 @@ export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSee
       </div>
       {activeDrivers.length ? <div className={styles.driverColumns}>{activeByGroup.filter(g => g.drivers.length).map(g => <div className={styles.driverGroup} key={g.group}>
         <span className={styles.driverGroupLabel}>{g.group === 'Mario' ? t('Grupo Mario') : g.group === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({g.drivers.length})</span>
-        <ul className={styles.driverList}>{g.drivers.map(d => <li className={styles.driverChip} key={d.id}>{d.name} <small>{t(driverStatus(d))}</small></li>)}</ul>
+        <ul className={styles.driverList}>{g.drivers.map(d => <li className={styles.driverChip} key={d.id}>{d.name}</li>)}</ul>
       </div>)}</div>
         : <p className={styles.empty}>{fleet.ready ? t('No hay choferes activos todavía.') : t('Cargando…')}</p>}
     </section>}
