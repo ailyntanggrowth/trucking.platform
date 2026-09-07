@@ -6,7 +6,7 @@ import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImpor
 import type { FleetController } from '../lib/use-fleet';
 import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Receipt, Wallet } from 'lucide-react';
+import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos';
@@ -29,6 +29,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const summary = summarizeFuel(state, start, end);
+  const totalGastos = summary.fuel + summary.nonFuel;
+  // Top 5 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
+  // el panel "Top 5 Choferes", nunca inventado: sale de summary.transactions.
+  const topDrivers = Object.entries(summary.transactions.reduce((acc: Record<string, number>, t2) => {
+    if (!t2.driverId) return acc; acc[t2.driverId] = (acc[t2.driverId] || 0) + txTotal(t2); return acc;
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   // No se permite importar hasta que no queden filas sin leer y los totales
   // calculados coincidan al centavo con lo que el propio PDF declara — es la
   // única forma de estar seguros de que ninguna transacción quedó afuera.
@@ -99,7 +105,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : t('Eliminar registro');
 
   return <div className={styles.fuel}>
-    <div className={styles.localNotice}><strong>M&A KING</strong><p>{t('Los datos y recibos se guardan en Supabase y se sincronizan entre dispositivos. Los totales aquí no son ganancia final: faltan deducciones de Contabilidad.')}</p></div>
     {fuel.error && <div role="alert" className={styles.error}>{fuel.error} <button onClick={() => void fuel.refresh()}>{t('Reintentar')}</button></div>}
     {!ready && !fuel.error && <p role="status">{t('Abriendo los registros de combustible y gastos…')}</p>}
     <div className={styles.filters}>
@@ -107,16 +112,23 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <label>{t('Hasta')}<input type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
     </div>
     <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><span className={styles.statLabel}>{t('Fuel')}</span><strong>{ready ? money(summary.fuel) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><Receipt size={16}/></span><span className={styles.statLabel}>{t('Non-Fuel')}</span><strong>{ready ? money(summary.nonFuel) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><span className={styles.statLabel}>{t('Otros gastos')}</span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(summary.fuel) : '—'}</strong><span className={styles.statLabel}>{t('Total Combustible')}</span></div>
+      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><Receipt size={16}/></span><strong>{ready ? money(summary.nonFuel) : '—'}</strong><span className={styles.statLabel}>{t('Non-Fuel')}</span></div>
+      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><SlidersHorizontal size={16}/></span><strong>{ready ? summary.transactions.length : '—'}</strong><span className={styles.statLabel}>{t('Transacciones')}</span></div>
+      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><strong>{ready ? money(totalGastos) : '—'}</strong><span className={styles.statLabel}>{t('Total Gastos')}</span></div>
     </div>
     <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
       <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
       <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
-    <div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones de combustible') : t('Gastos operativos')}</h2><div className={styles.actions}>{tab === 'transacciones' && <button disabled={!ready || busy} onClick={openImport}>{t('Importar statement (PDF)')}</button>}<button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Registrar gasto')}</button></div></div>
+
+    <div className={styles.toolbarRow}>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={tab === 'transacciones' ? t('Buscar por chofer, estación, etc...') : t('Categoría, chofer, camión o método')} /></label>
+      <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
+      {tab === 'transacciones' && <button disabled={!ready || busy} onClick={openImport}>{t('Importar PDF')}</button>}
+      <button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Agregar Gasto')}</button>
+    </div>
 
     {importOpen && <div id="fuel-import" className={styles.form}>
       <h3>{t('Importar statement de Mudflap')}</h3>
@@ -187,32 +199,37 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
 
-    <div className={styles.filters}>
-      <label>{t('Buscar')}<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'transacciones' ? t('Estación, chofer, camión o referencia') : t('Categoría, chofer, camión o método')} /></label>
-    </div>
+    <div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones Recientes') : t('Gastos Recientes')}</h2></div>
 
-    {tab === 'transacciones' ? <div className={styles.cards}>{pageTx.map(t2 => <article className={styles.card} key={t2.id}>
-      <strong>{t2.station || t('Estación sin indicar')}</strong>
-      <span>{dayLabel(t2.date)} · {t2.city}{t2.city && t2.state ? ', ' : ''}{t2.state}</span>
-      <span>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')} · {t2.truckId ? truckUnit(t2.truckId) : t('Sin camión')}</span>
-      <p><b>{t('Fuel:')}</b> {money(t2.fuelAmount)} · <b>{t('Non-Fuel:')}</b> {money(t2.nonFuelAmount)} · <b>{t('Total:')}</b> {money(txTotal(t2))}</p>
-      {t2.externalRef && <span>{t('Ref:')} {t2.externalRef}</span>}
-      <div className={styles.actions}>
-        <button onClick={() => open('transaction', 'transaction', t2.id)}>{t('Editar')}</button>
-        <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'transaction', t2.id); }}>{t('Eliminar')}</button>
-      </div>
-    </article>)}</div> : <div className={styles.cards}>{pageExpenses.map(e => <article className={styles.card} key={e.id}>
-      <strong>{t(e.category)}</strong>
-      <span>{dayLabel(e.date)} · {money(e.amount)}</span>
-      <span>{e.driverId ? driverName(e.driverId) : t('Sin chofer')} · {e.truckId ? truckUnit(e.truckId) : t('Sin camión')}</span>
-      {e.paymentMethod && <span>{t('Pago:')} {e.paymentMethod}</span>}
-      {e.receiptFilename && <p>{t('Recibo:')} {e.receiptFilename}</p>}
-      <div className={styles.actions}>
-        <button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>
-        {e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Descargar recibo')}</button>}
-        <button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button>
-      </div>
-    </article>)}</div>}
+    <div className={styles.tableWrap}>
+      <table className={styles.dataTable}>
+        {tab === 'transacciones' ? <>
+          <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Estación')}</th><th>{t('Tipo')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
+          <tbody>{pageTx.map(t2 => { const isFuel = t2.fuelAmount >= t2.nonFuelAmount; return <tr key={t2.id}>
+            <td className={styles.tableSub}>{dayLabel(t2.date)}</td>
+            <td>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')}</td>
+            <td className={styles.tableSub}>{t2.station || t('Estación sin indicar')}{t2.externalRef && <span> · {t('Ref:')} {t2.externalRef}</span>}</td>
+            <td><span className={`${styles.badge} ${isFuel ? styles.badgeFuel : styles.badgeNonFuel}`}>{isFuel ? t('Fuel') : t('Non-Fuel')}</span></td>
+            <td><strong>{money(txTotal(t2))}</strong></td>
+            <td className={styles.tableActions}>
+              <button className={styles.moreBtn} onClick={() => open('transaction', 'transaction', t2.id)} aria-label={t('Editar')}><MoreVertical size={16}/></button>
+            </td>
+          </tr>; })}</tbody>
+        </> : <>
+          <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Categoría')}</th><th>{t('Pago')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
+          <tbody>{pageExpenses.map(e => <tr key={e.id}>
+            <td className={styles.tableSub}>{dayLabel(e.date)}</td>
+            <td>{e.driverId ? driverName(e.driverId) : t('Sin chofer')}</td>
+            <td>{t(e.category)}{e.receiptFilename && <span className={styles.tableSub}>{t('Recibo:')} {e.receiptFilename}</span>}</td>
+            <td className={styles.tableSub}>{e.paymentMethod || '—'}</td>
+            <td><strong>{money(e.amount)}</strong></td>
+            <td className={styles.tableActions}>
+              <div className={styles.actions}><button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>{e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Recibo')}</button>}<button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button></div>
+            </td>
+          </tr>)}</tbody>
+        </>}
+      </table>
+    </div>
     {ready && !rows.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
     {rows.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} {t('de')} {rows.length}</span>
@@ -221,6 +238,21 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         {Array.from({ length: pageCount }, (_, i) => i + 1).map(n => <button key={n} aria-pressed={pageSafe === n} onClick={() => setPage(n)}>{n}</button>)}
         <button disabled={pageSafe >= pageCount} onClick={() => setPage(p => Math.min(pageCount, p + 1))} aria-label={t('Siguiente')}>›</button>
       </div>
+    </div>}
+
+    {tab === 'transacciones' && <div className={styles.summaryGrid}>
+      <section className={styles.summaryPanel}>
+        <h3>{t('Resumen por Tipo')}</h3>
+        <ul>
+          <li><span className={styles.dot} data-tone="fuel"/> {t('Combustible')} <b>{money(summary.fuel)}</b></li>
+          <li><span className={styles.dot} data-tone="nonfuel"/> {t('Non-Fuel')} <b>{money(summary.nonFuel)}</b></li>
+          <li><span className={styles.dot} data-tone="other"/> {t('Otros Gastos')} <b>{money(summary.expenseTotal)}</b></li>
+        </ul>
+      </section>
+      <section className={styles.summaryPanel}>
+        <h3>{t('Top 5 Choferes (Combustible)')}</h3>
+        {topDrivers.length ? <ol>{topDrivers.map(([driverId, amount], i) => <li key={driverId}>{i + 1}. {driverName(driverId) || t('Sin chofer')} <b>{money(amount)}</b></li>)}</ol> : <p className={styles.empty}>{t('Sin datos en este rango.')}</p>}
+      </section>
     </div>}
 
     <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <ul>{state.events.slice(0, 15).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
