@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { emptySnapshot, summarize, type LoadStatus } from "../lib/dashboard";
 import { useFleet } from "../lib/use-fleet";
-import { fleetAlerts, driverStatus, DRIVER_STATUS_VALUES } from "../lib/fleet";
+import { fleetAlerts } from "../lib/fleet";
 import { useFuel } from "../lib/use-fuel";
-import { summarizeFuel } from "../lib/fuel";
 import { useLoads } from "../lib/use-loads";
-import { toDashboardLoad, summarizeLoads } from "../lib/loads";
+import { toDashboardLoad } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
 import { roleLabel } from "../lib/users";
-import { money, dateLabel, today } from "../lib/format";
+import { today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
 import { Menu, X, Bell, ChevronDown, Truck, Crown } from "lucide-react";
 import FleetModule from "./fleet-module";
@@ -22,7 +20,6 @@ import ReportsModule from "./reports-module";
 import UsersModule from "./users-module";
 import AuthGate from "./auth-gate";
 
-const statuses: LoadStatus[] = ['Programado','Cargando','En tránsito','Entregada','Cancelada','Reemplazada'];
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
   {name:'Choferes y Flota',id:'choferes',icon:'02'},
@@ -32,53 +29,28 @@ const nav = [
   {name:'Chat',id:'comunicacion',icon:'06'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'07'},
 ];
-function currentWeek() {
-  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
-  const part = (type: string) => parts.find(p => p.type === type)!.value;
-  const date = new Date(`${part('year')}-${part('month')}-${part('day')}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - (date.getUTCDay()+6)%7);
-  return date.toISOString().slice(0,10);
-}
-function weekEnd(start: string) { const date = new Date(`${start}T12:00:00Z`); date.setUTCDate(date.getUTCDate()+7); return date.toISOString().slice(0,10); }
 
 export default function Home() {
   const [activeModule,setActiveModule] = useState<string|null>(null);
-  const [week,setWeek] = useState('');
-  const [filter,setFilter] = useState('Por revisar');
-  const [fleetTab,setFleetTab] = useState<'drivers'|'trucks'|'trailers'|'assignments'|'actividad'>('drivers');
   const lang: Lang = 'es';
   const t = (es:string) => translate(lang,es);
   const auth = useAuth();
   const role = auth.profile?.role;
   const isOwner = role === 'owner';
   const isDispatcher = role === 'dispatcher';
-  const hasFullAccess = role === 'owner' || role === 'admin';
-  const homeModule = isDispatcher ? 'cargas' : 'dashboard';
+  // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
+  // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas.
+  const homeModule = 'cargas';
   const displayName = auth.profile?.name || auth.email || '';
   const initials = (displayName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || 'U').toUpperCase();
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
   const settlementsCtl = useSettlements();
-  const fleetReady = fleet.ready;
-  const data = {
-    ...emptySnapshot,
-    connected: loadsCtl.ready,
-    loads: loadsCtl.state.loads.map(toDashboardLoad),
-    drivers: fleet.state.drivers.filter(d=>d.group==='Mario').map(d=>({id:d.id,name:d.name,status:driverStatus(d)})),
-    alerts: fleet.ready ? fleetAlerts(fleet.state,today()) : [],
-    activity: fleet.state.events.map(e=>({id:e.id,at:e.at,actor:e.actor,detail:e.detail})),
-  };
-  const start = week || currentWeek();
-  const summary = summarize(data,start,weekEnd(start));
-  const fuelSummary = summarizeFuel(fuel.state,start,weekEnd(start));
-  const loadsSummary = summarizeLoads(loadsCtl.state,start,weekEnd(start));
-  const value = (n:number, currency=false) => data.connected ? currency ? money(n) : n : '—';
-  const alerts = [...data.alerts.map(a=>({...a, onClick:()=>openFleet('drivers')})),
-    ...summary.official.filter(l=>l.missingPod).map(l=>({id:`pod-${l.id}`,title:'Falta POD',detail:`${l.id} · Documento de entrega pendiente`,onClick:()=>viewLoads('Activas')})),
-    ...summary.official.filter(l=>['Cancelada','Reemplazada'].includes(l.status)).map(l=>({id:`cancel-${l.id}`,title:`Carga ${l.status.toLowerCase()}`,detail:`${l.id}${l.replacedBy ? ` · Relacionada con ${l.replacedBy}` : ''}`,onClick:()=>viewLoads(l.status)})),
-    ...summary.payments.map(p=>({id:`payment-${p.id}`,title:'Pago pendiente',detail:`${p.id} · ${p.direction} ${money(p.amount-p.paid)} · Vence ${p.due}`,onClick:()=>go('pagos')}))];
-  const moduleNames: Record<string,string> = { dashboard: 'Dashboard', ...Object.fromEntries(nav.map(item=>[item.id,item.name])) };
+  // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
+  const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
+  const alertsCount = fleet.ready ? fleetAlerts(fleet.state,today()).length : 0;
+  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
   // La dispatcher solo tiene acceso a Cargas (pedido explícito de la dueña) —
   // se oculta del menú, y si por cualquier vía activeModule queda en otro
   // valor, este efecto lo corrige solo — no depende de acordarse de filtrar
@@ -87,7 +59,7 @@ export default function Home() {
   useEffect(() => {
     if (auth.status!=='ready' || !activeModule) return;
     if (isDispatcher && activeModule!=='cargas') setActiveModule('cargas');
-    else if (!isOwner && activeModule==='usuarios') setActiveModule('dashboard');
+    else if (!isOwner && activeModule==='usuarios') setActiveModule('cargas');
   }, [auth.status, isDispatcher, isOwner, activeModule]);
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
@@ -145,17 +117,13 @@ export default function Home() {
   }
 
   function go(id:string) {
-    const target = id==='pagos'?'finanzas':['alertas','actividad'].includes(id)?'dashboard':id;
-    navigateTo(target);
+    navigateTo(id);
     requestAnimationFrame(()=>{
-      const element = document.getElementById(['alertas','actividad'].includes(id)?id:'main-content');
+      const element = document.getElementById('main-content');
       element?.scrollIntoView({behavior:'instant',block:'start'});
       element?.focus({preventScroll:true});
     });
   }
-  function viewLoads(next:string) {setFilter(next); go('cargas');}
-  function openFleet(tab:typeof fleetTab='drivers') {setFleetTab(tab); go('choferes');}
-  const unavailable = t('Pendiente de conexión. Aquí aparecerá la información del módulo correspondiente.');
   return <AuthGate auth={auth} lang={lang} t={t}><main className="shell">
     <a className="skipLink" href="#main-content">{t('Saltar al contenido')}</a>
 
@@ -188,7 +156,7 @@ export default function Home() {
           </span>
         </button>
         <div className="navSpacer" />
-        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><Bell size={18}/>{alerts.length>0 && <span className="navBellBadge">{alerts.length}</span>}</button>
+        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><Bell size={18}/>{alertsCount>0 && <span className="navBellBadge">{alertsCount}</span>}</button>
         <div className="navDivider" aria-hidden="true" />
         <button className="navUser" onClick={()=>void auth.signOut()} title={t('Salir del sistema')}><span className="avatar">{initials}</span><span className="navUserInfo"><strong>{displayName}</strong><span>{t(role?roleLabel(role):'')}</span></span><ChevronDown size={14}/></button>
       </header>
@@ -197,32 +165,7 @@ export default function Home() {
         <div className="breadcrumb"><span>trucking.platform</span><b>/</b><strong>{t(moduleNames[activeModule])}</strong></div>
         <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
       </header>
-      {activeModule==='dashboard' ? <>
-      <div className="pageIntro">
-        <span className="pageIntroTag">{t('TRUCK SERVICE')}</span>
-        <div className="sourceNotice pageIntroNotice" role="status"><div><strong>{fleet.ready?t('Flota conectada'):t('Cargando registros de flota')}</strong><p>{t('Choferes, Cargas y Combustible ya usan datos reales. Contabilidad y Reportes siguen pendientes de conexión.')}</p></div></div>
-      </div>
-      <button className="reviewBanner" onClick={()=>viewLoads('Por revisar')}><div><span className="eyebrow">{t('TU APROBACIÓN ES NECESARIA')}</span><h2>{t('Cargas por revisar')}</h2><p>{t('La IA prepara. Tú revisas y confirmas antes de que sean oficiales.')}</p></div><div className="reviewNumber">{value(summary.review.length)}<span>{t('Revisar cargas →')}</span></div></button>
-      <section className="panel sectionSpace" id="cargas" tabIndex={-1}>
-        <div className="panelHeader"><div><h2>{t('Estado de cargas')}</h2><p>{t('Toca un estado para verlo en Cargas.')}</p></div></div>
-        <div className="statusGrid">{statuses.map(status=><button key={status} onClick={()=>viewLoads(status)}><strong>{value(summary.official.filter(l=>l.status===status).length)}</strong><span>{status==='Programado'?t('Próximas a recoger'):t(status)}</span></button>)}</div>
-      </section>
-      <div className="bottomGrid">
-        <section className="panel" id="choferes" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Estado de choferes')}</h2><p>{t('Activo no significa disponible para una carga.')}</p></div></div><div className="driverSummary">{DRIVER_STATUS_VALUES.map(s=><div key={s}><strong>{fleetReady?data.drivers.filter(d=>d.status===s).length:'—'}</strong><span>{t(s)}</span></div>)}</div>{data.drivers.length?<div className="panelLinkWrap"><button className="selectButton" onClick={()=>openFleet('drivers')}>{t('Ver todos los choferes →')}</button></div>:<p className="emptyState">{fleetReady?t('Todavía no hay choferes registrados.'):unavailable}</p>}</section>
-        <section className="panel" id="alertas" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Requiere atención')}</h2><p>{t('Documentos de equipo, POD, cancelaciones y pagos.')}</p></div><span className="alertCount">{fleetReady?alerts.length:'—'}</span></div>{alerts.length?<div className="attentionScroll"><ul className="plainList">{alerts.map(a=><li key={a.id}><button className="alertLine" onClick={a.onClick}><strong>{a.title}</strong><span>{a.detail}</span></button></li>)}</ul></div>:<p className="emptyState">{fleetReady?t('No hay alertas de flota. Las demás fuentes están pendientes.'):unavailable}</p>}</section>
-      </div>
-      <section className="panel sectionSpace" id="finanzas" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Resumen financiero')}</h2><p>{t('Semana desde')} {start} · USD · America/Chicago</p></div><label className="filterLabel">{t('Semana desde')}<input type="date" value={start} onChange={e=>setWeek(e.target.value)}/></label></div><div className="financeGrid">
-        <div><span>{t('Total bruto')}</span><strong>{loadsCtl.ready?money(loadsSummary.gross):'—'}</strong></div>
-        <div><span>{t('Fuel')}</span><strong>{fuel.ready?money(fuelSummary.fuel):'—'}</strong></div>
-        <div><span>{t('Non-Fuel')}</span><strong>{fuel.ready?money(fuelSummary.nonFuel):'—'}</strong></div>
-        <div><span>{t('Otros gastos')}</span><strong>{fuel.ready?money(fuelSummary.expenseTotal):'—'}</strong></div>
-        <div><span>{t('Salarios')}</span><strong>—</strong></div>
-        <div className="profit"><span>{t('Ganancia estimada')}</span><strong>—</strong><small>{t('Pendiente de reglas contables completas')}</small></div>
-      </div><p className="detailNote financeNote">{t('El bruto no equivale a dinero cobrado. Los seguros, el 6%, descuentos y ajustes se integrarán desde contabilidad antes de mostrar una ganancia. Las cargas pendientes no generan ingresos oficiales.')}</p></section>
-      <section className="panel sectionSpace" id="pagos" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Pagos pendientes')}</h2><p>{t('Saldos abiertos de todos los períodos, después de pagos parciales.')}</p></div></div><div className="driverSummary"><div><span>{t('Por cobrar')}</span><strong>{value(summary.receivable,true)}</strong></div><div><span>{t('Por pagar')}</span><strong>{value(summary.payable,true)}</strong></div></div>{summary.payments.length?<ul className="plainList">{summary.payments.map(p=><li key={p.id}><strong>{p.id} · {p.direction}</strong><span>{money(p.amount-p.paid)} · {t('Vence')} {p.due}</span></li>)}</ul>:<p className="emptyState">{data.connected?t('No hay pagos pendientes.'):unavailable}</p>}</section>
-      <section className="panel sectionSpace" id="actividad" tabIndex={-1}><div className="panelHeader"><div><h2>{t('Actividad reciente')}</h2><p>{t('Quién hizo cada cambio y cuándo.')}</p></div></div>{data.activity.length?<><div className="activityScroll"><ol className="plainList">{[...data.activity].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,20).map(a=><li key={a.id} className="alertLine"><strong>{a.detail}</strong><span>{dateLabel(a.at)} · {a.actor}</span></li>)}</ol></div><div className="panelLinkWrap"><button className="selectButton" onClick={()=>openFleet('actividad')}>{t('Ver toda la actividad →')}</button></div></>:<p className="emptyState">{fleetReady?t('Todavía no hay actividad de flota.'):unavailable}</p>}</section>
-      <section className="sectionSpace" id="accesos" tabIndex={-1}><h2>{t('Accesos rápidos')}</h2><div className="quickGrid">{[{label:'Revisar cargas',id:'cargas',filter:'Por revisar'},{label:'Cargas activas',id:'cargas',filter:'Activas'},{label:'Choferes',id:'choferes'},{label:'Pagos pendientes',id:'pagos'},{label:'Resumen financiero',id:'finanzas'},{label:'Alertas e historial',id:'actividad'}].map(a=><button className="selectButton" key={a.label} onClick={()=>a.filter?viewLoads(a.filter):a.id==='choferes'?openFleet('drivers'):go(a.id)}>{t(a.label)} →</button>)}</div><p className="emptyState integrationNote">{t('Mensajería, combustible, contabilidad completa y gestión de cargas: pendientes de integración. Los accesos abren cada módulo en el panel derecho.')}</p></section>
-      </> : <div className="moduleView">
+      <div className="moduleView">
         <div className="moduleHero">
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
@@ -232,9 +175,8 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter={filter}/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={data.loads} onOpenLoads={()=>go('cargas')} lang={lang} t={t} initialTab={fleetTab}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.'} as Record<string,string>)[activeModule])}</p></section>}
-        <button className="selectButton sectionSpace" onClick={()=>go('dashboard')}>{t('← Volver al Dashboard')}</button>
-      </div>}
+        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter="Por revisar"/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={dashboardLoads} onOpenLoads={()=>go('cargas')} lang={lang} t={t} initialTab="drivers"/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.'} as Record<string,string>)[activeModule])}</p></section>}
+      </div>
     </section>}
 
 <style jsx>{`
