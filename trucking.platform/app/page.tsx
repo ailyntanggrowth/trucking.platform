@@ -37,6 +37,9 @@ const nav = [
   {name:'Mis Cargas',id:'miscargas',icon:'01'},
 ];
 const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
+// Saludo de bienvenida (pedido explícito): nombre fijo de la marca, no el
+// nombre de la cuenta que inició sesión.
+const WELCOME_NAME = 'MARIOYANE';
 
 export default function Home() {
   const [activeModule,setActiveModule] = useState<string|null>(null);
@@ -50,7 +53,6 @@ export default function Home() {
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
   // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
   const homeModule = isDriver ? 'miscargas' : 'cargas';
-  const displayName = auth.profile?.name || auth.email || '';
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
@@ -70,7 +72,6 @@ export default function Home() {
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
   const myActiveLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).filter(isActive).length : 0;
   const myTotalLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).length : 0;
-  const firstName = displayName.trim().split(/\s+/)[0] || '';
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, isDriver && item.id==='comunicacion' ? 'Mi Chat' : item.name]));
   // Cada rol ve solo los módulos que le tocan — 'owner' y 'admin' ven lo
   // mismo (se ven idénticos en toda la interfaz, incluyendo Usuarios y
@@ -175,7 +176,7 @@ export default function Home() {
       <div className="landingHeroInner">
         <p className="eyebrow">{t('TRUCK SERVICE · PANEL PRINCIPAL')}</p>
         <h1>M&amp;A KING</h1>
-        <p className="heroGreeting">{t('Hola,')} {displayName}</p>
+        <p className="heroGreeting">{t('Hola,')} {WELCOME_NAME}</p>
         <p className="subtitle">{t('Tus cargas, tu equipo y tus números en un solo lugar.')}</p>
         <button className="heroCta" onClick={()=>navigateTo(homeModule)}>{t('START')}</button>
         <p className="heroHint">{t('Desliza desde el borde izquierdo para abrir el menú.')}</p>
@@ -190,7 +191,7 @@ export default function Home() {
       </header>
       <section className="heroBanner">
         <div className="heroBannerText">
-          <h1>{t('Bienvenido,')} {firstName} 👋</h1>
+          <h1>{t('Bienvenido,')} {WELCOME_NAME} 👋</h1>
           <p>{t('Todo en movimiento, siempre hacia adelante.')}</p>
         </div>
         <div className="heroStats">
