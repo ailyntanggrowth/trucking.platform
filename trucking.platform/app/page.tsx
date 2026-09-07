@@ -288,7 +288,7 @@ export default function Home() {
                 @media(max-width:760px) { .pageIntro h1 { font-size:34px; }.pageIntro .eyebrow { font-size:12px; letter-spacing:.6px; } }
 
                 /* Pantalla de bienvenida a pantalla completa (antes de elegir un módulo) */
-                .landingHero { position:relative; isolation:isolate; min-height:100dvh; display:flex; align-items:center; padding:0 clamp(24px,6vw,72px); }
+                .landingHero { position:relative; isolation:isolate; min-height:100svh; display:flex; align-items:center; padding:0 clamp(24px,6vw,72px); }
                 .landingHero::before { content:""; position:absolute; inset:0; z-index:-2; background:url('/truck-dusk.png') center 59% / cover no-repeat; }
                 .landingHero::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(32,13,22,.95) 0%,rgba(40,15,24,.85) 42%,rgba(40,15,24,.25) 75%,rgba(40,15,24,.08) 100%); }
                 .landingHeroInner { max-width:640px; animation:enterPanel 520ms ease-out; }
