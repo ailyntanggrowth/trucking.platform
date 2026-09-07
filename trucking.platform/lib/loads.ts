@@ -24,7 +24,11 @@ export type Load = {
   pickupCity: string; pickupState: string; pickupDate: string;
   deliveryCity: string; deliveryState: string; deliveryDate: string;
   amount: number; status: LoadStatus; missingPod: boolean;
-  paymentStatus: PaymentStatus; amountReceived: number;
+  // paidAt: se pone sola en cuanto paymentStatus pasa a 'Pagada' (pedido
+  // explícito) — la comisión del despachador de una semana solo cuenta las
+  // cargas pagadas DENTRO de esa semana; si Summar no la pagó a tiempo, la
+  // carga simplemente aparece en el invoice de la semana en que sí se pague.
+  paymentStatus: PaymentStatus; amountReceived: number; paidAt: string;
   notes: string;
   // Controladas SOLO por sus propias acciones (approve/reject/cancel/replace);
   // 'load' (crear/editar) nunca las toca directamente — ver applyLoadAction.
@@ -88,11 +92,17 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     requireValue(incoming.driverId || incoming.truckId || incoming.broker || incoming.loadNumber, 'Indica al menos chofer, camión, broker o número de carga.');
     const old = state.loads.find(l => l.id === incoming.id); before = old || null;
     requireValue(!old || action.reason.trim(), 'Escribe el motivo del cambio.');
+    // paidAt se calcula aquí, nunca lo manda el cliente: si ya estaba pagada
+    // y sigue pagada, se conserva la fecha original; si acaba de pasar a
+    // pagada, es hoy; si deja de estar pagada, se borra.
+    const paidAt = incoming.paymentStatus === 'Pagada'
+      ? (old && old.paymentStatus === 'Pagada' ? old.paidAt : now.slice(0, 10))
+      : '';
     // La cancelación/reemplazo nunca se toca por esta vía — solo por sus
     // propias acciones. Al crear, la carga queda aprobada de una vez.
     const record: Load = old
-      ? { ...incoming, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy }
-      : { ...incoming, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '' };
+      ? { ...incoming, paidAt, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy }
+      : { ...incoming, paidAt, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '' };
     state.loads = old ? state.loads.map(l => l.id === record.id ? record : l) : [...state.loads, record];
     entityIds = [record.id]; after = record;
     detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ''}`;
@@ -119,7 +129,8 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     requireValue(action.reason.trim(), 'Escribe el motivo del reemplazo.');
     const original = state.loads.find(l => l.id === action.id); requireValue(original, 'No se encontró la carga original.');
     const replacement: Load = {
-      ...action.replacement, id: action.replacement.id, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
+      ...action.replacement, id: action.replacement.id, paidAt: action.replacement.paymentStatus === 'Pagada' ? now.slice(0, 10) : '',
+      approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
       cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: original!.id, replacedBy: '',
     };
     const wasCancelled = Boolean(original!.cancelledAt);

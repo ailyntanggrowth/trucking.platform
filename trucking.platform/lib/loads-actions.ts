@@ -17,7 +17,7 @@ function mapRow(r: Record<string, any>): Load {
     pickupCity: r.pickup_city, pickupState: r.pickup_state, pickupDate: r.pickup_date,
     deliveryCity: r.delivery_city, deliveryState: r.delivery_state, deliveryDate: r.delivery_date ?? '',
     amount: Number(r.amount), status: r.status as LoadStatus, missingPod: r.missing_pod,
-    paymentStatus: r.payment_status as PaymentStatus, amountReceived: Number(r.amount_received), notes: r.notes,
+    paymentStatus: r.payment_status as PaymentStatus, amountReceived: Number(r.amount_received), paidAt: r.paid_at ?? '', notes: r.notes,
     approval: r.approval as ApprovalStatus, approvedBy: r.approved_by, approvedAt: r.approved_at ?? '',
     rejectedReason: r.rejected_reason, cancelReason: r.cancel_reason, cancelledAt: r.cancelled_at ?? '',
     cancelledBy: r.cancelled_by, replacesId: r.replaces_id ?? '', replacedBy: r.replaced_by ?? '',
@@ -68,7 +68,7 @@ function loadPayload(l: Load) {
     pickup_city: l.pickupCity, pickup_state: l.pickupState, pickup_date: l.pickupDate,
     delivery_city: l.deliveryCity, delivery_state: l.deliveryState, delivery_date: l.deliveryDate || null,
     amount: l.amount, status: l.status, missing_pod: l.missingPod,
-    payment_status: l.paymentStatus, amount_received: l.amountReceived, notes: l.notes,
+    payment_status: l.paymentStatus, amount_received: l.amountReceived, paid_at: l.paidAt || null, notes: l.notes,
   };
 }
 

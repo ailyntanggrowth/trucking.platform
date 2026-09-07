@@ -166,6 +166,11 @@ export function computeOwnerOperatorSettlements(
 // de la semana, todo junto en un solo número (pedido explícito). Es un pago
 // aparte — nunca se resta del salario del chofer.
 //
+// Una carga solo entra en el invoice de LA SEMANA EN QUE SE PAGÓ, nunca la
+// semana en que se recogió/entregó (pedido explícito): si el broker ("Summar")
+// no la paga a tiempo, no se pierde — simplemente cae sola en el invoice de
+// la semana en que sí llegue el pago, gracias a que se agrupa por paidAt.
+//
 // La dispatcher no tiene acceso a Contabilidad y Pagos (solo Cargas, Chat y
 // su Invoice) — por eso este detalle por carga vive aquí también: sin él no
 // tendría cómo comprobar que el total de su comisión es correcto más que
@@ -175,7 +180,7 @@ export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], wee
   const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
-    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd))
+    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && inRange(l.paidAt, weekStart, weekEnd))
     .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
     // Agrupado por chofer (pedido explícito: todas las cargas de Agnel juntas,
     // luego las de Dixon, etc.) — dentro de cada chofer, la más grande primero.

@@ -63,7 +63,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
           pickupCity: '', pickupState: text('pickupState'), pickupDate: text('pickupDate'),
           deliveryCity: '', deliveryState: text('deliveryState'), deliveryDate: text('deliveryDate'),
           amount: num('amount'), status: text('status') as LoadStatus, missingPod: false,
-          paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), notes: text('notes'),
+          paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), paidAt: '', notes: text('notes'),
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
         };
         action = editor.type === 'load' ? { type: 'load', record, reason: text('reason') } : { type: 'replace', id: editor.id, replacement: record, reason: text('reason') };
