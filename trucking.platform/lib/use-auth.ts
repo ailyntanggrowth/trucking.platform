@@ -23,11 +23,25 @@ export function useAuth() {
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    supabase.auth.getSession().then(({ data }) => {
+    async function init() {
+      // El link mágico vuelve con ?code=... (flujo PKCE, el default de supabase-js
+      // desde hace varias versiones) — hay que canjearlo por la sesión a mano; a
+      // diferencia del viejo flujo #access_token=..., esto NUNCA pasa solo. Sin
+      // este paso, la persona "entraba" pero no quedaba sesión guardada en el
+      // navegador, y por eso el correo se pedía otra vez cada vez.
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get('code');
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+        url.searchParams.delete('code');
+        window.history.replaceState({}, '', url.toString());
+      }
+      const { data } = await supabase.auth.getSession();
       const session = data.session;
       if (session) void loadProfile(session.access_token, session.user.email || '');
       else setStatus('signedOut');
-    });
+    }
+    void init();
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) void loadProfile(session.access_token, session.user.email || '');
       else { setProfile(null); setEmail(''); setStatus('signedOut'); }
