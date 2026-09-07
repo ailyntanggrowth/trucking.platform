@@ -29,7 +29,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
 
     <div className={styles.invoiceCard}>
       <span className={styles.invoiceIcon}><DollarSign size={22} /></span>
-      <span className={styles.invoiceLabel}>{t('Tu comisión de esta semana (4% del bruto de Mario + Owner Operators)')}</span>
+      <span className={styles.invoiceLabel}>{t('Tu comisión de esta semana (4% del bruto de Mario + Owner Operators + Lázaro)')}</span>
       <strong className={styles.invoiceAmount}>{ready ? money(result.commission) : '—'}</strong>
       <span className={styles.invoiceSub}>{t('Bruto de la semana:')} {ready ? money(result.gross) : '—'}</span>
     </div>

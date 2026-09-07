@@ -102,6 +102,16 @@ export function weekRange(weekStart: string) {
   return { start: weekStart, end: fmt(end), prevWeek: fmt(prev), nextWeek: fmt(next) };
 }
 
+// El invoice de una semana se cierra el lunes de la semana siguiente a las
+// 9pm (pedido explícito: hay que esperar a que lleguen los rate-cons del
+// lunes — a veces hasta las 6-7pm — antes de dar la semana por cerrada).
+// Antes de esa hora la semana todavía se puede marcar/editar.
+export function isWeekLocked(weekEnd: string, now: Date = new Date()): boolean {
+  const [y, m, d] = weekEnd.split('-').map(Number);
+  const lockAt = new Date(y, m - 1, d, 21, 0, 0);
+  return now >= lockAt;
+}
+
 const inRange = (date: string, start: string, end: string) => date >= start && date < end;
 const fuelAndExpenses = (driverId: string, transactions: FuelTransaction[], expenses: Expense[], start: string, end: string) =>
   transactions.filter(t => t.driverId === driverId && t.status === 'Final' && inRange(t.date, start, end)).reduce((s, t) => s + t.fuelAmount + t.nonFuelAmount, 0)
@@ -152,10 +162,23 @@ export function computeOwnerOperatorSettlements(
   }).sort((a, b) => b.gross - a.gross);
 }
 
-// Comisión del despachador: 4% sobre el bruto de Mario + Owner Operators de la
-// semana (spec 9.4). Es un pago aparte — nunca se resta del salario del chofer.
+// Comisión del despachador: 4% sobre el bruto de Mario + Owner Operators + Lázaro
+// de la semana, todo junto en un solo número (pedido explícito). Es un pago
+// aparte — nunca se resta del salario del chofer.
 export function dispatcherCommission(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
-  const eligibleIds = new Set(drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators').map(d => d.id));
+  const eligibleIds = new Set(drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro').map(d => d.id));
   const gross = loads.filter(l => eligibleIds.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).reduce((s, l) => s + l.amount, 0);
   return { gross, commission: gross * config.dispatcherCommissionPct };
+}
+
+// Grupo Lázaro: reporte angosto solo para ver su bruto (entra en la comisión
+// del despachador de arriba). Lázaro les paga aparte, fuera de este sistema —
+// los choferes de este grupo que no cargan (ej. los que solo aparecen en el
+// statement de combustible) simplemente no tienen cargas y salen en cero.
+export type LazaroSettlement = { driverId: string; driverName: string; loadsCount: number; gross: number };
+export function computeLazaroSettlements(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string): LazaroSettlement[] {
+  return drivers.filter(d => d.group === 'Lázaro').map(d => {
+    const loadsCount = loads.filter(l => l.driverId === d.id && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).length;
+    return { driverId: d.id, driverName: d.name, loadsCount, gross: grossFor(d.id, loads, weekStart, weekEnd) };
+  }).sort((a, b) => b.gross - a.gross);
 }

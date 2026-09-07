@@ -1,12 +1,14 @@
 // Módulo 2 (Cargas y Operaciones). Mismo patrón que lib/fleet.ts y lib/fuel.ts:
 // estado puro + reductor validado + historial de eventos.
 //
-// REGLA CRÍTICA (spec §4, la más importante del sistema): ninguna carga es
-// oficial solo por haberse creado. Debe pasar por aprobación humana explícita
-// (approve/reject) antes de contar como activa o como ingreso. Las cargas
-// canceladas NUNCA se borran — quedan en el historial con motivo, quién y
-// cuándo, y enlazadas a su reemplazo si aplica (replace crea una carga nueva
-// y marca la original como Reemplazada, sin sobrescribirla).
+// Toda carga registrada queda oficial de inmediato (pedido explícito: se quitó
+// el paso de aprobación manual — quien la registra ya confía en sus propios
+// datos, no hace falta que se autoapruebe aparte). approve/reject se
+// mantienen por si alguna carga vieja quedó pendiente, pero ninguna carga
+// nueva pasa por ahí. Las cargas canceladas NUNCA se borran — quedan en el
+// historial con motivo, quién y cuándo, y enlazadas a su reemplazo si aplica
+// (replace crea una carga nueva y marca la original como Reemplazada, sin
+// sobrescribirla).
 import type { Load as DashboardLoad, LoadStatus as DashboardLoadStatus } from './dashboard';
 
 export type LoadStatus = 'Programado' | 'Cargando' | 'En tránsito' | 'Entregada' | 'Pendiente de documentos' | 'Completada' | 'Cancelada' | 'Reemplazada';
@@ -86,14 +88,14 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     requireValue(incoming.driverId || incoming.truckId || incoming.broker || incoming.loadNumber, 'Indica al menos chofer, camión, broker o número de carga.');
     const old = state.loads.find(l => l.id === incoming.id); before = old || null;
     requireValue(!old || action.reason.trim(), 'Escribe el motivo del cambio.');
-    // La aprobación/cancelación/reemplazo nunca se toca por esta vía — solo por
-    // sus propias acciones. Al crear, la carga siempre entra en revisión.
+    // La cancelación/reemplazo nunca se toca por esta vía — solo por sus
+    // propias acciones. Al crear, la carga queda aprobada de una vez.
     const record: Load = old
       ? { ...incoming, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy }
-      : { ...incoming, approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '' };
+      : { ...incoming, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '' };
     state.loads = old ? state.loads.map(l => l.id === record.id ? record : l) : [...state.loads, record];
     entityIds = [record.id]; after = record;
-    detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ' — pendiente de revisión'}`;
+    detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ''}`;
   } else if (action.type === 'approve') {
     const load = state.loads.find(l => l.id === action.id); requireValue(load, 'No se encontró la carga.');
     requireValue(load!.approval !== 'Aprobada', 'Esta carga ya está aprobada.');
@@ -117,7 +119,7 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     requireValue(action.reason.trim(), 'Escribe el motivo del reemplazo.');
     const original = state.loads.find(l => l.id === action.id); requireValue(original, 'No se encontró la carga original.');
     const replacement: Load = {
-      ...action.replacement, id: action.replacement.id, approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '',
+      ...action.replacement, id: action.replacement.id, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
       cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: original!.id, replacedBy: '',
     };
     const wasCancelled = Boolean(original!.cancelledAt);

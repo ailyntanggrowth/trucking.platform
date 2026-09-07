@@ -108,7 +108,7 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
       <div className={styles.fields}>
         <label>{t('Nombre *')}<input name="name" required maxLength={100} /></label>
         <label>{t('Correo *')}<input name="email" type="email" required maxLength={200} /></label>
-        <label>{t('Acceso *')}<select name="role" value={formRole} onChange={e => setFormRole(e.target.value as Role)}>{ROLE_VALUES.filter(r => r !== 'owner').map(r => <option key={r} value={r}>{t(roleLabel(r))}</option>)}</select></label>
+        <label>{t('Acceso *')}<select name="role" value={formRole} onChange={e => setFormRole(e.target.value as Role)}>{ROLE_VALUES.map(r => <option key={r} value={r}>{t(roleLabel(r))}</option>)}</select></label>
         {formRole === 'driver' && <label>{t('Chofer (Choferes y Flota) *')}<select name="driverId" required defaultValue="">
           <option value="" disabled>{t('Elige un chofer…')}</option>
           {unlinkedDrivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -142,7 +142,7 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
                 <select value={p.role} disabled={busy} onChange={e => void changeRole(p.id, e.target.value as Role)}>{ROLE_VALUES.map(r => <option key={r} value={r}>{t(roleLabel(r))}</option>)}</select>
                 <button disabled={busy} onClick={() => void toggleActive(p.id, !p.active)}>{p.active ? t('Desactivar') : t('Activar')}</button>
                 <button disabled={busy} onClick={() => void remove(p.id, p.name || p.email)}>{t('Eliminar')}</button>
-              </div> : <span className={styles.tableSub}>{isMe ? t('Tú') : t('Dueño')}</span>}
+              </div> : <span className={styles.tableSub}>{isMe ? t('Tú') : t('Cuenta protegida')}</span>}
             </td>
           </tr>; })}</tbody>
       </table>

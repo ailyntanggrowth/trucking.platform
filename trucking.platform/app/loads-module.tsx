@@ -3,42 +3,40 @@ import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
-import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
+import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { AlertTriangle, Clock, Truck, ClipboardList, XCircle, Search, SlidersHorizontal } from 'lucide-react';
+import { Truck, ClipboardList, XCircle, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
-type Editor = { type: 'load' | 'reject' | 'cancel' | 'replace'; id: string; revision: number };
+type Editor = { type: 'load' | 'cancel' | 'replace'; id: string; revision: number };
+const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 
 export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
-  const [filter, setFilter] = useState(initialFilter || 'Por revisar'), [query, setQuery] = useState('');
+  const [filter, setFilter] = useState(initialFilter || 'Todas'), [query, setQuery] = useState('');
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
+  const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active).length;
 
-  // Solo Mario necesita revisión/aprobación humana en este sistema — Owner Operators,
-  // Lázaro y Dionisio están fuera de alcance salvo para combustible (spec 7.3a).
-  const review = state.loads.filter(l => l.approval === 'Pendiente' && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && (!l.driverId || driverGroup(l.driverId) === 'Mario'));
-  const official = state.loads.filter(isOfficial);
+  // Grupos de la flota (pedido explícito): Mario, Owner Operators y Lázaro —
+  // al elegir uno se ve solo sus choferes y sus cargas.
+  const groupLoads = groupFilter ? state.loads.filter(l => driverGroup(l.driverId) === groupFilter) : state.loads;
+  const official = groupLoads.filter(isOfficial);
   const active = official.filter(isActive);
-  const delivered = state.loads.filter(l => l.status === 'Entregada' || l.status === 'Completada');
-  const cancelled = state.loads.filter(l => l.status === 'Cancelada');
-  const visible = filter === 'Activas' ? active : filter === 'Todas' ? state.loads : filter === 'Por revisar' ? review : filter === 'Entregada' ? delivered : filter === 'Cancelada' ? cancelled : official.filter(l => l.status === filter);
+  const delivered = groupLoads.filter(l => l.status === 'Entregada' || l.status === 'Completada');
+  const cancelled = groupLoads.filter(l => l.status === 'Cancelada');
+  const visible = filter === 'Activas' ? active : filter === 'Todas' ? groupLoads : filter === 'Entregada' ? delivered : filter === 'Cancelada' ? cancelled : official.filter(l => l.status === filter);
   const filtered = visible.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${truckUnit(l.truckId)} ${l.pickupCity} ${l.deliveryCity}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageSafe = Math.min(page, pageCount);
   const pageRows = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
-  async function quickApprove(id: string) {
-    if (busy) return; setError(''); setNotice(''); setBusy(true);
-    try { const next = await loads.commit({ type: 'approve', id, reason: '' }, state.revision); setNotice(next.events[0].detail); }
-    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
-  }
   const editLoad = editor?.type === 'load' ? state.loads.find(l => l.id === editor.id) : undefined;
   const target = editor ? state.loads.find(l => l.id === editor.id) : undefined;
 
@@ -59,30 +57,28 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
         };
         action = editor.type === 'load' ? { type: 'load', record, reason: text('reason') } : { type: 'replace', id: editor.id, replacement: record, reason: text('reason') };
-      } else if (editor.type === 'reject') action = { type: 'reject', id: editor.id, reason: text('reason') };
-      else action = { type: 'cancel', id: editor.id, reason: text('reason') };
+      } else action = { type: 'cancel', id: editor.id, reason: text('reason') };
       const next = await loads.commit(action, editor.revision);
       setEditor(null); setNotice(next.events[0].detail);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 
   const changeFilter = (next: string) => { setFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); setPage(1); };
+  const changeGroup = (next: string | null) => { setGroupFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); setPage(1); };
   const dateRange = (l: Load) => `${dayLabel(l.pickupDate)}${l.deliveryDate ? ` → ${dayLabel(l.deliveryDate)}` : ''}`;
-  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'reject' ? t('Rechazar carga') : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
-  const statusBadgeClass = (l: Load) => l.approval === 'Pendiente' ? styles.badgeReview : l.approval === 'Rechazada' ? styles.badgeCancelled : l.status === 'Cancelada' ? styles.badgeCancelled : l.status === 'En tránsito' ? styles.badgeTransit : styles.badgeApproved;
+  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
+  const statusBadgeClass = (l: Load) => l.status === 'Cancelada' ? styles.badgeCancelled : l.status === 'En tránsito' ? styles.badgeTransit : styles.badgeApproved;
 
   return <div className={styles.loads}>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
     {!ready && !loads.error && <p role="status">{t('Abriendo los registros de cargas…')}</p>}
 
-    <div className={styles.alertBanner}>
-      <div className={styles.alertBannerIcon} aria-hidden="true"><AlertTriangle size={18} strokeWidth={2.5}/></div>
-      <div className={styles.alertBannerText}><strong>{ready ? review.length : '—'} {t('cargas requieren tu aprobación')}</strong><span>{t('Revisa y confirma para continuar con el proceso.')}</span></div>
-      <button className={styles.alertBannerBtn} onClick={() => changeFilter('Por revisar')}>{t('Revisar ahora →')}</button>
-    </div>
+    <nav className={styles.tabs} aria-label={t('Grupos de la flota')}>
+      <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos los grupos')}</button>
+      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
+    </nav>
 
     <div className={styles.statCards}>
-      <button className={styles.statCard} data-tone="amber" aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}><span className={styles.statIcon} aria-hidden="true"><Clock size={16}/></span><span className={styles.statLabel}>{t('Por revisar')}</span><strong>{ready ? review.length : '—'}</strong><small>{t('Cargas pendientes')}</small></button>
       <button className={styles.statCard} data-tone="green" aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></button>
       <button className={styles.statCard} data-tone="blue" aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></button>
       <button className={styles.statCard} data-tone="red" aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}><span className={styles.statIcon} aria-hidden="true"><XCircle size={16}/></span><span className={styles.statLabel}>{t('Canceladas')}</span><strong>{ready ? cancelled.length : '—'}</strong><small>{t('Cargas canceladas')}</small></button>
@@ -97,7 +93,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
 
     <nav className={styles.tabs} aria-label={t('Secciones de cargas')}>
       <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}>{t('Todas')} ({state.loads.length})</button>
-      <button aria-pressed={filter === 'Por revisar'} onClick={() => changeFilter('Por revisar')}>{t('Por revisar')} ({review.length})</button>
       <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}>{t('Activas')} ({active.length})</button>
       <button aria-pressed={filter === 'Entregada'} onClick={() => changeFilter('Entregada')}>{t('Entregadas')} ({delivered.length})</button>
       <button aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}>{t('Canceladas')} ({cancelled.length})</button>
@@ -125,7 +120,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editor.type === 'load' ? editLoad?.notes : ''} /></label>
         {(editor.type === 'replace' || editor.id) && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
       </div>}
-      {editor.type === 'reject' && <><p>{t('La carga queda en el historial marcada como rechazada — nunca cuenta como ingreso.')}</p><label>{t('Motivo del rechazo *')}<input name="reason" required maxLength={500} /></label></>}
       {editor.type === 'cancel' && <><p>{t('La carga no se borra: queda cancelada en el historial con el motivo.')}</p><label>{t('Motivo de la cancelación *')}<input name="reason" required maxLength={500} /></label></>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
@@ -133,21 +127,18 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
 
     <div className={styles.cards}>{pageRows.map(l => <article className={styles.card} key={l.id}>
       <div className={styles.badgeRow}>
-        <span className={`${styles.badge} ${statusBadgeClass(l)}`}>{l.approval === 'Pendiente' ? t('Por revisar') : l.approval === 'Rechazada' ? t('Rechazada') : t(l.status)}</span>
+        <span className={`${styles.badge} ${statusBadgeClass(l)}`}>{t(l.status)}</span>
         {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
       </div>
       <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
       <span>{[l.pickupCity, l.pickupState].filter(Boolean).join(', ') || '—'} → {[l.deliveryCity, l.deliveryState].filter(Boolean).join(', ') || '—'}</span>
       <span>{dateRange(l)}</span>
-      <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')} · {l.truckId ? truckUnit(l.truckId) : t('Sin camión')}</span>
+      <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')} · {l.truckId ? truckUnit(l.truckId) : t('Sin camión')}{!groupFilter && l.driverId && driverGroup(l.driverId) && ` · ${driverGroup(l.driverId)}`}</span>
       <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
       {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
       {l.replacesId && <span>{t('Reemplaza a:')} {state.loads.find(x => x.id === l.replacesId)?.loadNumber || l.replacesId}</span>}
-      {l.approval === 'Rechazada' && l.rejectedReason && <p className={styles.empty}>{t('Motivo del rechazo:')} {l.rejectedReason}</p>}
       {l.status === 'Cancelada' && l.cancelReason && <p className={styles.empty}>{t('Motivo de cancelación:')} {l.cancelReason}</p>}
       <div className={styles.actions}>
-        {l.approval === 'Pendiente' && <button disabled={busy} onClick={() => quickApprove(l.id)}>{t('Aprobar')}</button>}
-        {l.approval === 'Pendiente' && <button onClick={() => open('reject', l.id)}>{t('Rechazar')}</button>}
         <button onClick={() => open('load', l.id)}>{t('Editar')}</button>
         {l.status !== 'Cancelada' && l.status !== 'Reemplazada' && <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>}
         {l.status === 'Cancelada' && !l.replacedBy && <button onClick={() => open('replace', l.id)}>{t('Reemplazar')}</button>}
@@ -162,7 +153,5 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <button disabled={pageSafe >= pageCount} onClick={() => setPage(p => Math.min(pageCount, p + 1))} aria-label={t('Siguiente')}>›</button>
       </div>
     </div>}
-
-    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <div className={styles.historyScroll}><ul>{state.events.slice(0, 30).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul></div> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
 }

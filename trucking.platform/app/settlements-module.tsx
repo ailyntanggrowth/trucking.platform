@@ -1,8 +1,8 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import {
-  computeMarioSettlements, computeOwnerOperatorSettlements, dispatcherCommission,
-  weekStartOf, weekRange, type SettlementConfig,
+  computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommission,
+  weekStartOf, weekRange, isWeekLocked, type SettlementConfig,
 } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -14,7 +14,7 @@ import { DollarSign, Fuel as FuelIcon, Percent, TrendingUp, ChevronLeft, Chevron
 import { Donut, DonutLegend } from './mini-charts';
 import styles from './settlements.module.css';
 
-type Tab = 'mario' | 'ownerOperators' | 'config';
+type Tab = 'mario' | 'ownerOperators' | 'lazaro' | 'config';
 const AVATAR_TONES = ['#8B102A', '#1e4e8c', '#8a5a00', '#1f7a4d', '#6b3fa0', '#a12b2b'];
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 function Avatar({ name, index }: { name: string; index: number }) {
@@ -32,8 +32,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
+  const locked = isWeekLocked(weekEnd);
   const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks);
   const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config);
+  const lazaro = computeLazaroSettlements(fleet.state.drivers, loads.state.loads, weekStart, weekEnd);
   const dispatcher = dispatcherCommission(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config);
   const totalGross = mario.reduce((s, m) => s + m.gross, 0);
   const totalFuel = mario.reduce((s, m) => s + m.fuel, 0);
@@ -53,14 +55,14 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const distributionTotal = distribution.reduce((s, d) => s + d.value, 0);
 
   async function toggleMark(driverId: string, driverName: string, current: 'Pendiente' | 'Pagada') {
-    if (busy) return; setError(''); setNotice(''); setBusy(true); setOpenRow(null);
+    if (busy || locked) return; setError(''); setNotice(''); setBusy(true); setOpenRow(null);
     try {
       const next = await settlements.commit({ type: 'mark', driverId, driverName, weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
       setNotice(next.events[0].detail);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function saveInsurance(driverId: string, amount: number) {
-    if (busy) return; setError(''); setNotice(''); setBusy(true);
+    if (busy || locked) return; setError(''); setNotice(''); setBusy(true);
     try { const next = await settlements.commit({ type: 'insurance', driverId, amount }); setNotice(next.events[0].detail); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -87,6 +89,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
     </div>
+    {locked && <p className={styles.note}>{t('Esta semana ya cerró (el invoice se bloquea el lunes siguiente después de las 9pm) — los montos son finales y no se pueden editar.')}</p>}
 
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(totalGross) : '—'}</strong></div>
@@ -94,11 +97,12 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Comisión despachador (4%)')}</span><strong>{ready2 ? money(dispatcher.commission) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><TrendingUp size={16} /></span><span className={styles.statLabel}>{t('Ganancia estimada')}</span><strong>{ready2 ? money(totalProfit) : '—'}</strong></div>
     </div>
-    <p className={styles.note}>{t('La comisión del despachador es un pago aparte: se calcula sobre el bruto de Mario + Owner Operators de la semana y no afecta el salario del chofer.')}</p>
+    <p className={styles.note}>{t('La comisión del despachador es un pago aparte: se calcula sobre el bruto de Mario + Owner Operators + Lázaro de la semana, todo junto, y no afecta el salario del chofer.')}</p>
 
     <nav className={styles.tabs} aria-label={t('Secciones de contabilidad')}>
       <button aria-pressed={tab === 'mario'} onClick={() => setTab('mario')}>{t('Choferes de Mario')} <span className={styles.count}>{mario.length}</span></button>
       <button aria-pressed={tab === 'ownerOperators'} onClick={() => setTab('ownerOperators')}>{t('Owner Operators')} <span className={styles.count}>{ownerOperators.length}</span></button>
+      <button aria-pressed={tab === 'lazaro'} onClick={() => setTab('lazaro')}>{t('Grupo Lázaro')} <span className={styles.count}>{lazaro.length}</span></button>
       <button aria-pressed={tab === 'config'} onClick={() => setTab('config')}><Settings size={14} /> {t('Configuración')}</button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
@@ -130,11 +134,11 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           <b>{t('Descuento 6%:')}</b> {money(m.companyDeduction)} · <b>{t('Combustible:')}</b> {money(m.fuel)} · <b>{t('Seguro:')}</b> {money(m.insurance)}
         </p>
         <form className={styles.insuranceForm} onSubmit={e => { e.preventDefault(); const v = Number(new FormData(e.currentTarget).get('insurance') || 0); void saveInsurance(m.driverId, v); }}>
-          <label>{t('Seguro semanal')}<input name="insurance" type="number" min="0" step="0.01" defaultValue={m.insurance} /></label>
-          <button type="submit" disabled={busy}>{t('Guardar')}</button>
+          <label>{t('Seguro semanal')}<input name="insurance" type="number" min="0" step="0.01" defaultValue={m.insurance} disabled={locked} /></label>
+          <button type="submit" disabled={busy || locked}>{t('Guardar')}</button>
         </form>
         <div className={styles.actions}>
-          <button disabled={busy} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>
+          <button disabled={busy || locked} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>
           <button onClick={() => setOpenRow(null)}>{t('Cerrar')}</button>
         </div>
       </div>;
@@ -155,6 +159,21 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           </tr>)}</tbody>
         </table>
         {ready2 && !ownerOperators.length && <p className={styles.empty}>{t('No hay choferes del grupo Owner Operators todavía.')}</p>}
+      </div>
+    </>}
+
+    {tab === 'lazaro' && <>
+      <p className={styles.note}>{t('Lázaro les paga a sus choferes aparte, fuera de este sistema. Aquí solo se ve su bruto de la semana, que entra junto con Mario y Owner Operators en la comisión del despachador de arriba.')}</p>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Bruto')}</th></tr></thead>
+          <tbody>{lazaro.map((l, i) => <tr key={l.driverId}>
+            <td><span className={styles.who}><Avatar name={l.driverName} index={i} />{l.driverName}</span></td>
+            <td className={styles.tableSub}>{l.loadsCount}</td>
+            <td>{money(l.gross)}</td>
+          </tr>)}</tbody>
+        </table>
+        {ready2 && !lazaro.length && <p className={styles.empty}>{t('No hay choferes del grupo Lázaro todavía.')}</p>}
       </div>
     </>}
 
@@ -181,7 +200,5 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <DonutLegend data={distribution} format={money} />
       </div>
     </section>}
-
-    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <div className={styles.historyScroll}><ul>{state.events.slice(0, 30).map(ev => <li key={ev.id}>{ev.detail}</li>)}</ul></div> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
 }

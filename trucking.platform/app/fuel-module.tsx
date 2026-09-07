@@ -4,7 +4,7 @@ import { EXPENSE_CATEGORIES, summarizeFuel, txTotal, type Expense, type ExpenseC
 import type { FuelController } from '../lib/use-fuel';
 import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
-import { money, dateLabel as dateTime, dayLabel, today } from '../lib/format';
+import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical } from 'lucide-react';
 import styles from './fuel.module.css';
@@ -298,7 +298,5 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         {topDrivers.length ? <ol>{topDrivers.map(([driverId, amount], i) => <li key={driverId}>{i + 1}. {driverName(driverId) || t('Sin chofer')} <b>{money(amount)}</b></li>)}</ol> : <p className={styles.empty}>{t('Sin datos en este rango.')}</p>}
       </section>
     </div>}
-
-    <section className={styles.profile}><div className={styles.toolbar}><h2>{t('Historial de cambios')}</h2></div>{state.events.length ? <ul>{state.events.slice(0, 15).map(ev => <li key={ev.id}>{dateTime(ev.at)} — {ev.detail}</li>)}</ul> : <p className={styles.empty}>{t('Todavía no hay actividad.')}</p>}</section>
   </div>;
 }

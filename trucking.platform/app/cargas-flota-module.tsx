@@ -17,11 +17,14 @@ import styles from './cargas-flota.module.css';
 // completo; un clic en "Ver flota completa" abre Choferes y Flota entero
 // (camiones, trailers, asignaciones, documentos) sin perder nada de eso.
 // La dispatcher no tiene ninguna de las dos cosas de flota (spec: solo Cargas).
+const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
+
 export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSeeFleet, lang, t }: {
   loads: LoadsController; fleet: FleetController; dashboardLoads: Load[]; canSeeFleet: boolean; lang: Lang; t: (es: string) => string;
 }) {
   const [showFleet, setShowFleet] = useState(false);
-  const activeDrivers = fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators'));
+  const activeByGroup = FLEET_GROUPS.map(g => ({ group: g, drivers: fleet.state.drivers.filter(d => d.active && d.group === g) }));
+  const activeDrivers = activeByGroup.flatMap(g => g.drivers);
 
   if (canSeeFleet && showFleet) return <div className={styles.wrap}>
     <button className={styles.backLink} onClick={() => setShowFleet(false)}>{t('← Volver a Cargas')}</button>
@@ -34,9 +37,12 @@ export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSee
         <h3><Users size={16} /> {t('Choferes activos')}</h3>
         <button className={styles.fleetLink} onClick={() => setShowFleet(true)}>{t('Ver flota completa →')}</button>
       </div>
-      {activeDrivers.length ? <div className={styles.driverList}>{activeDrivers.map(d => <span className={styles.driverChip} key={d.id}>{d.name} <small>{t(driverStatus(d))}</small></span>)}</div>
+      {activeDrivers.length ? activeByGroup.filter(g => g.drivers.length).map(g => <div className={styles.driverGroup} key={g.group}>
+        <span className={styles.driverGroupLabel}>{g.group === 'Mario' ? t('Grupo Mario') : g.group === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({g.drivers.length})</span>
+        <div className={styles.driverList}>{g.drivers.map(d => <span className={styles.driverChip} key={d.id}>{d.name} <small>{t(driverStatus(d))}</small></span>)}</div>
+      </div>)
         : <p className={styles.empty}>{fleet.ready ? t('No hay choferes activos todavía.') : t('Cargando…')}</p>}
     </section>}
-    <LoadsModule loads={loads} fleet={fleet} lang={lang} t={t} initialFilter="Por revisar" />
+    <LoadsModule loads={loads} fleet={fleet} lang={lang} t={t} />
   </div>;
 }

@@ -2,9 +2,8 @@
 // El navegador nunca tiene la clave service-role, así que estas funciones
 // reciben el access_token de la sesión del que llama y lo validan aquí mismo
 // contra Supabase Auth (auth.getUser) antes de hacer nada. Usuarios y Permisos
-// es para 'owner' y 'admin' (pedido explícito: el Administrador tiene acceso
-// completo) — la única cuenta protegida contra un 'admin' es la del propio
-// 'owner' (no se le puede cambiar el rol, desactivar ni borrar).
+// es para 'owner' y 'admin' — la única protección es que un 'admin' no puede
+// tocar la cuenta del 'owner' (cambiarle el rol, desactivarla ni borrarla).
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
 import type { Profile, Role } from './users';
 
@@ -32,7 +31,7 @@ async function guardTargetNotOwner(supabase: ReturnType<typeof supabaseServer>, 
   if (caller.role === 'owner') return;
   const { data, error } = await supabase.from('profiles').select('role').eq('id', targetId).maybeSingle();
   if (error) throw new Error(error.message);
-  if (data?.role === 'owner') throw new Error('Un administrador no puede modificar la cuenta del dueño.');
+  if (data?.role === 'owner') throw new Error('No puedes modificar esta cuenta.');
 }
 
 export async function getMyProfile(accessToken: string): Promise<Profile | null> {
@@ -120,7 +119,7 @@ export async function inviteProfile(accessToken: string, email: string, name: st
 
 export async function updateProfileRole(accessToken: string, targetId: string, role: Role): Promise<Profile> {
   const caller = await requireManageUsers(accessToken);
-  if (caller.id === targetId) throw new Error('No puedes cambiar tu propio rol. Pídeselo a otro dueño o administrador.');
+  if (caller.id === targetId) throw new Error('No puedes cambiar tu propio rol. Pídeselo a otro administrador.');
   const supabase = supabaseServer();
   await guardTargetNotOwner(supabase, caller, targetId);
   const { data, error } = await supabase.from('profiles').update({ role }).eq('id', targetId).select('*').single();

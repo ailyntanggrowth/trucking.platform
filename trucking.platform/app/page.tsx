@@ -11,7 +11,7 @@ import { useAuth } from "../lib/use-auth";
 import { useChat } from "../lib/use-chat";
 import { money, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
-import { Menu, X, Truck, Bell, MessageCircle, DollarSign, Users, Fuel as FuelIcon, FileText, BarChart3, ChevronRight, LogOut } from "lucide-react";
+import { Truck, MessageCircle, DollarSign, Users, Fuel as FuelIcon, FileText, BarChart3, ChevronRight, LogOut } from "lucide-react";
 import CargasFlotaModule from "./cargas-flota-module";
 import FuelModule from "./fuel-module";
 import SettlementsModule from "./settlements-module";
@@ -45,7 +45,7 @@ export default function Home() {
   const auth = useAuth();
   const role = auth.profile?.role;
   const isDriver = role === 'driver';
-  const canSeeFleet = role !== 'dispatcher' && role !== 'consulta' && !isDriver;
+  const canSeeFleet = role !== 'dispatcher' && !isDriver;
   // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
   // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
@@ -65,24 +65,21 @@ export default function Home() {
   const activeLoadsCount = loadsCtl.ready ? officialLoads.filter(isActive).length : 0;
   const monthKey = today().slice(0, 7);
   const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.pickupDate.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
-  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators')).length : 0;
+  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
   const myActiveLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).filter(isActive).length : 0;
   const myTotalLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).length : 0;
   const firstName = displayName.trim().split(/\s+/)[0] || '';
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, isDriver && item.id==='comunicacion' ? 'Mi Chat' : item.name]));
-  // Cada rol ve solo los módulos que le tocan (pedido explícito de la dueña
-  // para Dueño/Administrador/Dispatcher, extendido igual para los roles
-  // nuevos) — si por cualquier vía activeModule queda en un módulo que el
+  // Cada rol ve solo los módulos que le tocan — 'owner' y 'admin' ven lo
+  // mismo (se ven idénticos en toda la interfaz, incluyendo Usuarios y
+  // Permisos) — si por cualquier vía activeModule queda en un módulo que el
   // rol actual no puede ver, este efecto lo corrige solo.
   const moduleAccessByRole: Record<string,string[]> = {
     owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
     admin: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
-    contabilidad: ['cargas','combustible','finanzas','reportes','comunicacion'],
-    gerente: ['cargas','combustible','reportes','comunicacion'],
     dispatcher: ['cargas','comunicacion','miinvoice'],
-    consulta: ['cargas','reportes'],
     driver: ['miscargas','comunicacion'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
@@ -185,14 +182,11 @@ export default function Home() {
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="mainNav">
-        <button className="navMenuBtn" onClick={()=>setDrawerOpen(o=>!o)} aria-expanded={drawerOpen} aria-controls="main-navigation" aria-label={drawerOpen?t('Cerrar menú'):t('Abrir menú')}>{drawerOpen?<X size={16}/>:<Menu size={16}/>}</button>
         <span className="navBrand" aria-hidden="true">
           <Truck size={26} strokeWidth={1.75} className="navBrandIcon"/>
           <span className="navBrandText"><strong>M&amp;A <span className="navBrandKing">KING</span></strong><span>TRUCKING SERVICE</span></span>
         </span>
         <div className="navSpacer"/>
-        <button className="navIconBtn" onClick={()=>go(homeModule)} aria-label={t('Notificaciones')}><Bell size={19}/>{(isDriver?myActiveLoadsCount:activeLoadsCount)>0 && <span className="navIconBadge">{isDriver?myActiveLoadsCount:activeLoadsCount}</span>}</button>
-        <button className="navIconBtn" onClick={()=>go('comunicacion')} aria-label={t('Chat')}><MessageCircle size={19}/></button>
       </header>
       <section className="heroBanner">
         <div className="heroBannerText">
