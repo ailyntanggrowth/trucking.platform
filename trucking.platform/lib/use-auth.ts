@@ -50,24 +50,30 @@ export function useAuth() {
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
-  async function sendMagicLink(targetEmail: string) {
+  // useCallback con deps [] es crítico aquí: use-chat.ts y use-my-loads.ts
+  // reciben accessToken como dependencia de sus propios useEffect/useCallback.
+  // Si esta función cambiara de referencia en cada render (como antes, al
+  // ser una función plana redefinida cada vez), esos efectos se disparan de
+  // nuevo en cada render → nuevo estado → nuevo render → loop infinito de
+  // peticiones al servidor (justo lo que pasó al agregar useMyLoads).
+  const sendMagicLink = useCallback(async (targetEmail: string) => {
     setError('');
     const supabase = supabaseBrowser();
     const { error: err } = await supabase.auth.signInWithOtp({ email: targetEmail.trim().toLocaleLowerCase(), options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined } });
     if (err) throw new Error(err.message);
-  }
+  }, []);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     const supabase = supabaseBrowser();
     await supabase.auth.signOut();
-  }
+  }, []);
 
-  async function accessToken(): Promise<string> {
+  const accessToken = useCallback(async (): Promise<string> => {
     const supabase = supabaseBrowser();
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw new Error('Sesión inválida o vencida. Vuelve a entrar.');
     return data.session.access_token;
-  }
+  }, []);
 
   return { status, email, profile, error, sendMagicLink, signOut, accessToken };
 }
