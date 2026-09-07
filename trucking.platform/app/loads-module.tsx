@@ -37,11 +37,13 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const entregadasTodas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
   const pendientesPago = entregadasTodas.filter(l => l.paymentStatus !== 'Pagada');
   const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
+  // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
+  // distingue de un vistazo sin tener que leer la etiqueta.
   const rails = [
-    { key: 'Programado', label: t('Programadas'), rows: programadas },
-    { key: 'En tránsito', label: t('En tránsito'), rows: enTransito },
-    { key: 'Pendiente', label: t('Pendientes de pago'), rows: pendientesPago },
-    { key: 'Entregada', label: t('Entregadas'), rows: entregadas },
+    { key: 'Programado', label: t('Programadas'), badge: t('Programada'), rows: programadas, tone: 'gray' },
+    { key: 'En tránsito', label: t('En tránsito'), badge: t('En tránsito'), rows: enTransito, tone: 'blue' },
+    { key: 'Pendiente', label: t('Pendientes de pago'), badge: t('Pendiente de pago'), rows: pendientesPago, tone: 'orange' },
+    { key: 'Pagada', label: t('Pagadas'), badge: t('Pagada'), rows: entregadas, tone: 'green' },
   ];
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
@@ -74,7 +76,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const changeGroup = (next: string | null) => { setGroupFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
   const dateRange = (l: Load) => `${dayLabel(l.pickupDate)}${l.deliveryDate ? ` → ${dayLabel(l.deliveryDate)}` : ''}`;
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
-  const statusBadgeClass = (l: Load) => l.status === 'Cancelada' ? styles.badgeCancelled : l.status === 'En tránsito' ? styles.badgeTransit : styles.badgeApproved;
 
   return <div className={styles.loads}>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
@@ -121,9 +122,9 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
 
     {rails.map(rail => <section className={styles.rail} key={rail.key}>
       <h3 className={styles.railTitle}>{rail.label} <span className={styles.count}>{rail.rows.length}</span></h3>
-      {rail.rows.length ? <div className={styles.railScroll}>{rail.rows.map(l => <article className={styles.card} key={l.id}>
+      {rail.rows.length ? <div className={styles.railScroll}>{rail.rows.map(l => <article className={styles.card} data-tone={rail.tone} key={l.id}>
         <div className={styles.badgeRow}>
-          <span className={`${styles.badge} ${statusBadgeClass(l)}`}>{t(l.status)}</span>
+          <span className={styles.badge} data-tone={rail.tone}>{rail.badge}</span>
           {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
         </div>
         <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
