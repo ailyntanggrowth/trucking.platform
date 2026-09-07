@@ -24,6 +24,23 @@ function mapRow(r: Record<string, any>): Load {
   };
 }
 
+// Solo para el rol 'driver': cada chofer ve ÚNICAMENTE sus propias cargas.
+// El driver_id nunca sale del cliente — se resuelve aquí mismo a partir de
+// la sesión (auth.getUser) y del profiles.driver_id ya guardado, así que ni
+// modificando la URL, parámetros o llamando esta función a mano se puede
+// pedir/leer la carga de otro chofer.
+export async function listMyLoads(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Load[]> {
+  const supabase = supabaseServer();
+  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+  if (userError || !userData.user) throw new Error('Sesión inválida o vencida. Vuelve a entrar.');
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('role,driver_id').eq('id', userData.user.id).eq('company_id', companyId).maybeSingle();
+  if (profileError) throw new Error(profileError.message);
+  if (!profile || profile.role !== 'driver' || !profile.driver_id) throw new Error('Tu cuenta no tiene un chofer vinculado.');
+  const { data, error } = await supabase.from('loads').select('*').eq('company_id', companyId).eq('driver_id', profile.driver_id).order('pickup_date', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapRow);
+}
+
 export async function getLoadsState(companyId = DEFAULT_COMPANY_ID): Promise<LoadState> {
   const supabase = supabaseServer();
   const [meta, loads, events] = await Promise.all([

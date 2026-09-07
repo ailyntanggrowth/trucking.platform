@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { listProfiles, inviteProfile, updateProfileRole, setProfileActive, removeProfile } from '../lib/users-actions';
+import { listProfiles, inviteProfile, updateProfileRole, setProfileActive, removeProfile, listUnlinkedDrivers, type UnlinkedDriver } from '../lib/users-actions';
 import { ROLE_VALUES, roleLabel, roleDescription, roleTone, type Profile, type Role } from '../lib/users';
 import type { AuthController } from '../lib/use-auth';
 import type { Lang } from '../lib/i18n';
@@ -18,13 +18,18 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [formRole, setFormRole] = useState<Role>('dispatcher');
+  const [unlinkedDrivers, setUnlinkedDrivers] = useState<UnlinkedDriver[]>([]);
   const [tab, setTab] = useState<Tab>('todos');
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<Role | 'todos'>('todos');
 
   async function refresh() {
-    try { const token = await auth.accessToken(); setProfiles(await listProfiles(token)); }
-    catch (e) { setError((e as Error).message); }
+    try {
+      const token = await auth.accessToken();
+      const [list, drivers] = await Promise.all([listProfiles(token), listUnlinkedDrivers(token)]);
+      setProfiles(list); setUnlinkedDrivers(drivers);
+    } catch (e) { setError((e as Error).message); }
   }
   useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -32,13 +37,14 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
     event.preventDefault(); if (busy) return;
     const fields = new FormData(event.currentTarget);
     const email = String(fields.get('email') || ''), name = String(fields.get('name') || ''), role = fields.get('role') as Role;
+    const driverId = role === 'driver' ? String(fields.get('driverId') || '') || null : null;
     setError(''); setNotice(''); setBusy(true);
     try {
       const token = await auth.accessToken();
-      await inviteProfile(token, email, name, role);
+      await inviteProfile(token, email, name, role, driverId);
       setNotice(`${t('Listo — se le envió un link de acceso a')} ${email}.`);
       event.currentTarget.reset();
-      setFormOpen(false);
+      setFormOpen(false); setFormRole('dispatcher');
       await refresh();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -101,8 +107,13 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
       <div className={styles.fields}>
         <label>{t('Nombre *')}<input name="name" required maxLength={100} /></label>
         <label>{t('Correo *')}<input name="email" type="email" required maxLength={200} /></label>
-        <label>{t('Acceso *')}<select name="role" defaultValue="dispatcher">{ROLE_VALUES.filter(r => r !== 'owner').map(r => <option key={r} value={r}>{t(roleLabel(r))}</option>)}</select></label>
+        <label>{t('Acceso *')}<select name="role" value={formRole} onChange={e => setFormRole(e.target.value as Role)}>{ROLE_VALUES.filter(r => r !== 'owner').map(r => <option key={r} value={r}>{t(roleLabel(r))}</option>)}</select></label>
+        {formRole === 'driver' && <label>{t('Chofer (Choferes y Flota) *')}<select name="driverId" required defaultValue="">
+          <option value="" disabled>{t('Elige un chofer…')}</option>
+          {unlinkedDrivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select></label>}
       </div>
+      {formRole === 'driver' && !unlinkedDrivers.length && <p className={styles.note}>{t('Todos los choferes de Choferes y Flota ya tienen cuenta, o todavía no has agregado ninguno.')}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Enviando…') : t('Enviar acceso')}</button><button type="button" onClick={() => setFormOpen(false)}>{t('Cancelar')}</button></div>
       <p className={styles.note}>{t('Le llega un correo con un link para entrar — no necesita crear ninguna contraseña.')}</p>
     </form>}

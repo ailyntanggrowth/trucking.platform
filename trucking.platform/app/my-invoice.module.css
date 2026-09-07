@@ -1,0 +1,14 @@
+.wrap { color:#30282a; padding-top:8px; }
+.wrap button { font:inherit; font-size:14px; min-height:34px; padding:6px 10px; border:1px solid #d6c6cb; border-radius:9px; background:white; cursor:pointer; }
+.wrap button:hover { background:#f5ebed; }
+
+.weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; }
+.weekBar span { font-weight:700; color:#11151B; font-size:14px; }
+
+.invoiceCard { display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; background:linear-gradient(135deg,#3a0d17,#8B102A); color:white; border-radius:16px; padding:32px 20px; margin:14px 0; }
+.invoiceIcon { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.15); display:grid; place-items:center; color:#F0DEE3; }
+.invoiceLabel { font-size:13px; color:#F0DEE3; max-width:340px; }
+.invoiceAmount { font-size:40px; font-weight:800; }
+.invoiceSub { font-size:13px; color:#F0DEE3; }
+
+.note { font-size:13px; color:#59616D; text-align:center; }

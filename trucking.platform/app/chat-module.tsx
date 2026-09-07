@@ -15,7 +15,7 @@ function Avatar({ name, isGroup }: { name: string; isGroup?: boolean }) {
   return <span className={styles.avatar} style={{ background: tone }}>{isGroup ? <Users size={16} /> : initials(name)}</span>;
 }
 
-export default function ChatModule({ chat, myId, lang, t }: { chat: ChatController; myId: string; lang: Lang; t: (es: string) => string }) {
+export default function ChatModule({ chat, myId, canStartConversations = true, lang, t }: { chat: ChatController; myId: string; canStartConversations?: boolean; lang: Lang; t: (es: string) => string }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +63,7 @@ export default function ChatModule({ chat, myId, lang, t }: { chat: ChatControll
     {!chat.ready && !chat.error && <p role="status">{t('Abriendo el chat…')}</p>}
     <div className={`${styles.layout} ${styles[`view-${mobileView}`]}`}>
       <aside className={styles.sidebar}>
-        <button type="button" className={styles.newBtn} onClick={() => { setNewOpen(v => !v); setNewError(''); }}><Plus size={16} /> {t('Nueva Conversación')}</button>
+        {canStartConversations && <button type="button" className={styles.newBtn} onClick={() => { setNewOpen(v => !v); setNewError(''); }}><Plus size={16} /> {t('Nueva Conversación')}</button>}
         {newOpen && <form className={styles.newForm} onSubmit={submitNew}>
           <p className={styles.newHint}>{t('Elige una o más personas. Si eliges más de una, se crea un grupo.')}</p>
           <div className={styles.contactList}>

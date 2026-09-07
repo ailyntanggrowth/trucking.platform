@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFleet } from "../lib/use-fleet";
 import { useFuel } from "../lib/use-fuel";
 import { useLoads } from "../lib/use-loads";
+import { useMyLoads } from "../lib/use-my-loads";
 import { toDashboardLoad, isOfficial, isActive } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
@@ -17,10 +18,14 @@ import SettlementsModule from "./settlements-module";
 import ReportsModule from "./reports-module";
 import UsersModule from "./users-module";
 import ChatModule from "./chat-module";
+import MyLoadsModule from "./my-loads-module";
+import MyInvoiceModule from "./my-invoice-module";
 import AuthGate from "./auth-gate";
 
 // Cargas y Choferes y Flota se fusionaron en una sola entrada de menú (pedido
-// directo de la dueña) — ver app/cargas-flota-module.tsx.
+// directo de la dueña) — ver app/cargas-flota-module.tsx. "Mis Cargas" y
+// "Mi Invoice" son módulos aparte (no la misma pantalla con datos filtrados
+// visualmente) — cada uno pide sus propios datos ya acotados del servidor.
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
   {name:'Combustible y Gastos',id:'combustible',icon:'02'},
@@ -28,8 +33,10 @@ const nav = [
   {name:'Reportes',id:'reportes',icon:'04'},
   {name:'Chat',id:'comunicacion',icon:'05'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
+  {name:'Mi Invoice',id:'miinvoice',icon:'07'},
+  {name:'Mis Cargas',id:'miscargas',icon:'01'},
 ];
-const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users };
+const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
 
 export default function Home() {
   const [activeModule,setActiveModule] = useState<string|null>(null);
@@ -37,14 +44,17 @@ export default function Home() {
   const t = (es:string) => translate(lang,es);
   const auth = useAuth();
   const role = auth.profile?.role;
-  const canSeeFleet = role !== 'dispatcher' && role !== 'consulta';
+  const isDriver = role === 'driver';
+  const canSeeFleet = role !== 'dispatcher' && role !== 'consulta' && !isDriver;
   // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
-  // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas.
-  const homeModule = 'cargas';
+  // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
+  // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
+  const homeModule = isDriver ? 'miscargas' : 'cargas';
   const displayName = auth.profile?.name || auth.email || '';
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
+  const myLoads = useMyLoads(auth.accessToken);
   const settlementsCtl = useSettlements();
   const chat = useChat(auth.accessToken);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
@@ -57,27 +67,31 @@ export default function Home() {
   const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.pickupDate.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
   const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
+  // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
+  const myActiveLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).filter(isActive).length : 0;
+  const myTotalLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).length : 0;
   const firstName = displayName.trim().split(/\s+/)[0] || '';
-  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
+  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, isDriver && item.id==='comunicacion' ? 'Mi Chat' : item.name]));
   // Cada rol ve solo los módulos que le tocan (pedido explícito de la dueña
   // para Dueño/Administrador/Dispatcher, extendido igual para los roles
   // nuevos) — si por cualquier vía activeModule queda en un módulo que el
   // rol actual no puede ver, este efecto lo corrige solo.
   const moduleAccessByRole: Record<string,string[]> = {
     owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
-    admin: ['cargas','combustible','finanzas','reportes','comunicacion'],
+    admin: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
     contabilidad: ['cargas','combustible','finanzas','reportes','comunicacion'],
     gerente: ['cargas','combustible','reportes','comunicacion'],
-    dispatcher: ['cargas','comunicacion'],
+    dispatcher: ['cargas','comunicacion','miinvoice'],
     consulta: ['cargas','reportes'],
+    driver: ['miscargas','comunicacion'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
-  const visibleNav = nav.filter(item=>allowedModules.includes(item.id));
+  const visibleNav = nav.filter(item=>allowedModules.includes(item.id)).map(item=>isDriver && item.id==='comunicacion' ? {...item,name:'Mi Chat'} : item);
   useEffect(() => {
     if (auth.status!=='ready' || !activeModule) return;
-    if (!allowedModules.includes(activeModule)) setActiveModule('cargas');
+    if (!allowedModules.includes(activeModule)) setActiveModule(homeModule);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.status, activeModule, allowedModules.join(',')]);
+  }, [auth.status, activeModule, allowedModules.join(','), homeModule]);
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
   // (mouse o dedo, vía Pointer Events) o tocando el botón. Antes era un sidebar
@@ -177,7 +191,7 @@ export default function Home() {
           <span className="navBrandText"><strong>M&amp;A <span className="navBrandKing">KING</span></strong><span>TRUCKING SERVICE</span></span>
         </span>
         <div className="navSpacer"/>
-        <button className="navIconBtn" onClick={()=>go('cargas')} aria-label={t('Notificaciones')}><Bell size={19}/>{activeLoadsCount>0 && <span className="navIconBadge">{activeLoadsCount}</span>}</button>
+        <button className="navIconBtn" onClick={()=>go(homeModule)} aria-label={t('Notificaciones')}><Bell size={19}/>{(isDriver?myActiveLoadsCount:activeLoadsCount)>0 && <span className="navIconBadge">{isDriver?myActiveLoadsCount:activeLoadsCount}</span>}</button>
         <button className="navIconBtn" onClick={()=>go('comunicacion')} aria-label={t('Chat')}><MessageCircle size={19}/></button>
       </header>
       <section className="heroBanner">
@@ -186,16 +200,21 @@ export default function Home() {
           <p>{t('Todo en movimiento, siempre hacia adelante.')}</p>
         </div>
         <div className="heroStats">
-          <div className="heroStat"><Truck size={16}/><div><strong>{activeLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
-          <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span></div></div>
-          <div className="heroStat"><Users size={16}/><div><strong>{activeDriversCount}</strong><span>{t('Choferes')}</span></div></div>
-          <div className="heroStat"><FuelIcon size={16}/><div><strong>{transactionsCount}</strong><span>{t('Transacciones')}</span></div></div>
+          {isDriver ? <>
+            <div className="heroStat"><Truck size={16}/><div><strong>{myActiveLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
+            <div className="heroStat"><Truck size={16}/><div><strong>{myTotalLoadsCount}</strong><span>{t('Total de mis cargas')}</span></div></div>
+          </> : <>
+            <div className="heroStat"><Truck size={16}/><div><strong>{activeLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
+            <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span></div></div>
+            <div className="heroStat"><Users size={16}/><div><strong>{activeDriversCount}</strong><span>{t('Choferes')}</span></div></div>
+            <div className="heroStat"><FuelIcon size={16}/><div><strong>{transactionsCount}</strong><span>{t('Transacciones')}</span></div></div>
+          </>}
         </div>
         <span className="heroBannerTag" aria-hidden="true">Keep Trucking</span>
       </section>
       <nav className="miniNav" aria-label={t('Acceso rápido')}>
-        <button className={`miniNavItem ${activeModule==='cargas'?'active':''}`} onClick={()=>go('cargas')}>{t('Inicio')}</button>
-        <button className={`miniNavItem ${activeModule==='comunicacion'?'active':''}`} onClick={()=>go('comunicacion')}><MessageCircle size={15}/> {t('Chat')}</button>
+        <button className={`miniNavItem ${activeModule===homeModule?'active':''}`} onClick={()=>go(homeModule)}>{t('Inicio')}</button>
+        <button className={`miniNavItem ${activeModule==='comunicacion'?'active':''}`} onClick={()=>go('comunicacion')}><MessageCircle size={15}/> {isDriver?t('Mi Chat'):t('Chat')}</button>
         <div className="navSpacer"/>
         <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
       </nav>
@@ -209,7 +228,7 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} canStartConversations={!isDriver} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 

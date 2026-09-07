@@ -11,10 +11,10 @@ async function callerProfile(accessToken: string, companyId: string) {
   const supabase = supabaseServer();
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
   if (userError || !userData.user) throw new Error('Sesión inválida o vencida. Vuelve a entrar.');
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('id,name').eq('id', userData.user.id).eq('company_id', companyId).maybeSingle();
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('id,name,role').eq('id', userData.user.id).eq('company_id', companyId).maybeSingle();
   if (profileError) throw new Error(profileError.message);
   if (!profile) throw new Error('Tu cuenta no tiene acceso al chat.');
-  return profile as { id: string; name: string };
+  return profile as { id: string; name: string; role: string };
 }
 
 function mapMessage(r: Record<string, any>): Message {
@@ -29,6 +29,9 @@ async function requireMember(supabase: ReturnType<typeof supabaseServer>, conver
 
 export async function listContacts(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<ChatContact[]> {
   const me = await callerProfile(accessToken, companyId);
+  // Los choferes no arman conversaciones nuevas — solo participan en su
+  // grupo privado ya creado (spec: aislamiento total entre choferes).
+  if (me.role === 'driver') return [];
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('profiles').select('id,name').eq('company_id', companyId).neq('id', me.id).order('name', { ascending: true });
   if (error) throw new Error(error.message);
@@ -113,6 +116,7 @@ export async function markConversationRead(accessToken: string, conversationId: 
 
 export async function createConversation(accessToken: string, memberIds: string[], name: string, companyId = DEFAULT_COMPANY_ID): Promise<Conversation> {
   const me = await callerProfile(accessToken, companyId);
+  if (me.role === 'driver') throw new Error('Los choferes no pueden iniciar conversaciones nuevas.');
   const uniqueOthers = Array.from(new Set(memberIds.filter(id => id !== me.id)));
   if (!uniqueOthers.length) throw new Error('Elige al menos una persona.');
   const isGroup = uniqueOthers.length > 1 || Boolean(name.trim());

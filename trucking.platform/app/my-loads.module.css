@@ -1,0 +1,26 @@
+.wrap { color:#30282a; padding-top:8px; }
+.wrap button { font:inherit; cursor:pointer; }
+
+.statCards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.statCard { background:white; border:1px solid #e3dadd; border-radius:12px; padding:14px; }
+.statIcon { display:inline-flex; width:26px; height:26px; border-radius:7px; align-items:center; justify-content:center; background:#f5ebed; color:#8B102A; margin-bottom:6px; }
+.statLabel { display:block; font-size:13px; font-weight:700; color:#59616D; }
+.statCard strong { display:block; font-size:22px; color:#11151B; margin-top:4px; }
+
+.cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.card { display:flex; flex-direction:column; gap:8px; padding:16px; border:1px solid #e3dadd; border-radius:12px; background:white; }
+.cardTop { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.loadNumber { font-size:12px; font-weight:700; color:#59616D; }
+.statusPill { font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px; background:#E1EBFB; color:#1e4e8c; white-space:nowrap; }
+.status-Entregada,.status-Completada { background:#DFF5E9; color:#1f7a4d; }
+.status-Cancelada { background:#FBE3E3; color:#a12b2b; }
+.route { font-size:16px; color:#11151B; }
+.dates { display:flex; flex-direction:column; gap:2px; font-size:13px; color:#59616D; }
+.cardBottom { display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-top:4px; }
+.paymentPill { font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; background:#F7F8FA; color:#59616D; }
+.notes { margin:0; font-size:13px; color:#59616D; border-top:1px solid #f0e9e9; padding-top:8px; }
+
+.empty { color:#59616D; padding:14px 0; }
+.error { background:#fff1f0; color:#8a1c20; padding:12px 14px; border:1px solid #d89898; border-radius:9px; margin:10px 0; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+
+@media(max-width:760px) { .cards,.statCards { grid-template-columns:1fr; } }
