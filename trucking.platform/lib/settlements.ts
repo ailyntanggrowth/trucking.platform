@@ -170,13 +170,13 @@ export function computeOwnerOperatorSettlements(
 // su Invoice) — por eso este detalle por carga vive aquí también: sin él no
 // tendría cómo comprobar que el total de su comisión es correcto más que
 // sumando a mano en Cargas (pedido explícito de la dueña).
-export type DispatcherCommissionLine = { loadId: string; loadNumber: string; driverName: string; group: string; amount: number };
+export type DispatcherCommissionLine = { loadId: string; loadNumber: string; driverName: string; group: string; amount: number; commission: number };
 export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
   const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
     .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd))
-    .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount }))
+    .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
     .sort((a, b) => b.amount - a.amount);
   const gross = rows.reduce((s, r) => s + r.amount, 0);
   return { rows, gross, commission: gross * config.dispatcherCommissionPct };

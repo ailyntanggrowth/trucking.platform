@@ -38,12 +38,13 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
-        <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Monto')}</th></tr></thead>
+        <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Bruto')}</th><th>{t('Comisión (4%)')}</th></tr></thead>
         <tbody>{result.rows.map(r => <tr key={r.loadId}>
           <td>{r.loadNumber || t('Sin número')}</td>
           <td>{r.driverName}</td>
           <td className={styles.tableSub}>{r.group}</td>
-          <td>{money(r.amount)}</td>
+          <td className={styles.tableSub}>{money(r.amount)}</td>
+          <td><strong>{money(r.commission)}</strong></td>
         </tr>)}</tbody>
       </table>
       {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
