@@ -25,6 +25,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const [preview, setPreview] = useState<MudflapParsePreview | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [rowDriverOverride, setRowDriverOverride] = useState<Record<number, string>>({});
+  type ManualUnparsedRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: string };
+  const [manualUnparsed, setManualUnparsed] = useState<Record<number, ManualUnparsedRow>>({});
+  const [openUnparsedIdx, setOpenUnparsedIdx] = useState<number | null>(null);
   const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
@@ -37,10 +40,18 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   // No se permite importar hasta que no queden filas sin leer y los totales
   // calculados coincidan al centavo con lo que el propio PDF declara — es la
-  // única forma de estar seguros de que ninguna transacción quedó afuera.
-  const reconciled = Boolean(preview) && preview!.unparsed.length === 0
-    && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - preview!.totals.fuel) < 0.01)
-    && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - preview!.totals.nonFuel) < 0.01);
+  // única forma de estar seguros de que ninguna transacción quedó afuera. Una
+  // fila que el parser no pudo leer (salto de página) se puede completar a
+  // mano abajo; una vez completa cuenta para esta reconciliación igual que
+  // cualquier otra fila.
+  const manualUnparsedRows = Object.values(manualUnparsed);
+  const manualTotals = manualUnparsedRows.reduce((acc, r) => { const amt = Number(r.amount) || 0; if (r.type === 'Fuel') acc.fuel += amt; else acc.nonFuel += amt; return acc; }, { fuel: 0, nonFuel: 0 });
+  const unresolvedUnparsedCount = preview ? preview.unparsed.length - Object.keys(manualUnparsed).length : 0;
+  const combinedFuel = (preview?.totals.fuel || 0) + manualTotals.fuel;
+  const combinedNonFuel = (preview?.totals.nonFuel || 0) + manualTotals.nonFuel;
+  const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0
+    && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - combinedFuel) < 0.01)
+    && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - combinedNonFuel) < 0.01);
 
   function openImport() { setError(''); setNotice(''); setEditor(null); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function handleParseStatement(event: FormEvent<HTMLFormElement>) {
@@ -51,20 +62,27 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       setPreview(result);
       setSelectedRows(new Set(result.rows.map((r, i) => i).filter(i => !result.rows[i].duplicate)));
       setRowDriverOverride({});
+      setManualUnparsed({}); setOpenUnparsedIdx(null);
     } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
   }
   async function confirmImport() {
     if (!preview || importBusy) return;
     setImportBusy(true); setImportError('');
     try {
-      const input = preview.rows.map((r, i) => ({ r, i })).filter(({ i }) => selectedRows.has(i)).map(({ r, i }) => ({
+      const fromPreview = preview.rows.map((r, i) => ({ r, i })).filter(({ i }) => selectedRows.has(i)).map(({ r, i }) => ({
         date: r.date, type: r.type, station: r.station, city: r.city, state: r.state,
         driverId: rowDriverOverride[i] ?? r.driverId, amount: r.amount, externalRef: r.externalRef,
         notes: `Importado de statement Mudflap${!(rowDriverOverride[i] ?? r.driverId) && r.driverNameRaw ? ` · Chofer en statement: ${r.driverNameRaw}` : ''}`,
       }));
+      const fromManual = Object.values(manualUnparsed).map(r => ({
+        date: r.date, type: r.type, station: r.station, city: r.city, state: r.state,
+        driverId: r.driverId, amount: Number(r.amount) || 0, externalRef: '',
+        notes: 'Completada a mano: el PDF no se pudo leer automáticamente en esta fila (posible salto de página).',
+      }));
+      const input = [...fromPreview, ...fromManual];
       const result = await commitStatementImportAction(input, state.revision);
       await fuel.refresh();
-      setImportOpen(false); setPreview(null); setSelectedRows(new Set());
+      setImportOpen(false); setPreview(null); setSelectedRows(new Set()); setManualUnparsed({}); setOpenUnparsedIdx(null);
       setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);
     } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
   }
@@ -141,10 +159,34 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       {preview && <>
         {preview.period && <p>{t('Período del statement:')} {dayLabel(preview.period.start)} – {dayLabel(preview.period.end)}</p>}
         <p>
-          <b>{t('Filas leídas:')}</b> {preview.rows.length} · <b>{t('Fuel:')}</b> {money(preview.totals.fuel)}{preview.declared.fuel !== null && (Math.abs(preview.declared.fuel - preview.totals.fuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.fuel)}`)}
-          {' · '}<b>{t('Non-Fuel:')}</b> {money(preview.totals.nonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - preview.totals.nonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
+          <b>{t('Filas leídas:')}</b> {preview.rows.length}{manualUnparsedRows.length > 0 ? ` + ${manualUnparsedRows.length} ${t('a mano')}` : ''} · <b>{t('Fuel:')}</b> {money(combinedFuel)}{preview.declared.fuel !== null && (Math.abs(preview.declared.fuel - combinedFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.fuel)}`)}
+          {' · '}<b>{t('Non-Fuel:')}</b> {money(combinedNonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - combinedNonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
         </p>
-        {preview.unparsed.length > 0 && <p className={styles.error} role="alert">{preview.unparsed.length} {t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — agrégalas manualmente:')} {preview.unparsed.map((u, i) => <details key={i}><summary>{t('Ver texto sin procesar')}</summary><pre>{u.raw}</pre></details>)}</p>}
+        {preview.unparsed.length > 0 && <div className={styles.unparsedBox}>
+          <p className={styles.error} role="alert">{unresolvedUnparsedCount > 0 ? `${unresolvedUnparsedCount} ${t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — complétalas a mano abajo para poder importar.')}` : t('Todas las filas sin leer ya se completaron a mano — revisa los montos antes de confirmar.')}</p>
+          {preview.unparsed.map((u, i) => {
+            const resolved = manualUnparsed[i];
+            return <div key={i} className={styles.unparsedRow}>
+              <details><summary>{t('Ver texto sin procesar')}</summary><pre>{u.raw}</pre></details>
+              {resolved ? <p className={styles.note}>✓ {t('Completada a mano:')} {dayLabel(resolved.date)} · {t(resolved.type)} · {resolved.station || t('Sin estación')} · {money(Number(resolved.amount) || 0)} <button type="button" onClick={() => setManualUnparsed(prev => { const next = { ...prev }; delete next[i]; return next; })}>{t('Quitar')}</button></p>
+                : openUnparsedIdx === i ? <form className={styles.fields} onSubmit={e => {
+                    e.preventDefault(); const f = new FormData(e.currentTarget);
+                    const row: ManualUnparsedRow = { date: String(f.get('date') || ''), type: String(f.get('type') || 'Fuel') as 'Fuel' | 'Non-Fuel', station: String(f.get('station') || ''), city: String(f.get('city') || ''), state: String(f.get('state') || ''), driverId: String(f.get('driverId') || ''), amount: String(f.get('amount') || '') };
+                    setManualUnparsed(prev => ({ ...prev, [i]: row })); setOpenUnparsedIdx(null);
+                  }}>
+                    <label>{t('Fecha *')}<input name="date" type="date" required /></label>
+                    <label>{t('Tipo *')}<select name="type" defaultValue="Fuel"><option value="Fuel">{t('Fuel')}</option><option value="Non-Fuel">{t('Non-Fuel')}</option></select></label>
+                    <label>{t('Estación')}<input name="station" maxLength={150} /></label>
+                    <label>{t('Ciudad')}<input name="city" maxLength={100} /></label>
+                    <label>{t('Estado')}<input name="state" maxLength={50} /></label>
+                    <label>{t('Chofer')}<select name="driverId" defaultValue=""><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+                    <label>{t('Monto *')}<input name="amount" type="number" step="0.01" min="0" required /></label>
+                    <div className={styles.actions}><button type="submit" className={styles.primary}>{t('Guardar fila')}</button><button type="button" onClick={() => setOpenUnparsedIdx(null)}>{t('Cancelar')}</button></div>
+                  </form>
+                : <button type="button" onClick={() => setOpenUnparsedIdx(i)}>{t('Completar esta fila a mano')}</button>}
+            </div>;
+          })}
+        </div>}
         {preview.rows.length > 0 && preview.rows.every(r => r.duplicate) && <p className={styles.error} role="alert">{t('Este statement ya fue importado antes: las')} {preview.rows.length} {t('filas ya existen en el sistema (mismo periodo, misma fecha y monto). No hay nada nuevo que agregar — por eso el botón de abajo aparece apagado con (0). Si esperabas cargas nuevas, revisa que sea el PDF de la semana correcta.')}</p>}
         {preview.rows.length > 0 && !preview.rows.every(r => r.duplicate) && preview.rows.some(r => r.duplicate) && <p className={styles.note}>{preview.rows.filter(r => r.duplicate).length} {t('de')} {preview.rows.length} {t('filas ya existían en el sistema y se destildaron solas (marcadas como "posible duplicado"). Revisa las demás y confirma para importar solo lo nuevo.')}</p>}
         {!reconciled && <p className={styles.error} role="alert">{t('No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.')}</p>}
@@ -162,7 +204,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
             </tr>)}</tbody>
           </table>
         </div>
-        <div className={styles.actions}><button className={styles.primary} disabled={importBusy || !selectedRows.size || !reconciled} onClick={confirmImport}>{importBusy ? t('Importando…') : `${t('Confirmar e importar')} (${selectedRows.size})`}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); }}>{t('Cancelar')}</button></div>
+        <div className={styles.actions}><button className={styles.primary} disabled={importBusy || (!selectedRows.size && !manualUnparsedRows.length) || !reconciled} onClick={confirmImport}>{importBusy ? t('Importando…') : `${t('Confirmar e importar')} (${selectedRows.size + manualUnparsedRows.length})`}</button><button type="button" disabled={importBusy} onClick={() => { setImportOpen(false); setPreview(null); setManualUnparsed({}); setOpenUnparsedIdx(null); }}>{t('Cancelar')}</button></div>
       </>}
     </div>}
 
