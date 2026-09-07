@@ -8,10 +8,9 @@ import { toDashboardLoad, isOfficial, isActive } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
 import { useChat } from "../lib/use-chat";
-import { roleLabel } from "../lib/users";
 import { money, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
-import { Menu, X, Truck, Bell, MessageCircle, DollarSign, Users, Fuel as FuelIcon } from "lucide-react";
+import { Menu, X, Truck, Bell, MessageCircle, DollarSign, Users, Fuel as FuelIcon, FileText, BarChart3, ChevronRight, LogOut } from "lucide-react";
 import CargasFlotaModule from "./cargas-flota-module";
 import FuelModule from "./fuel-module";
 import SettlementsModule from "./settlements-module";
@@ -30,6 +29,7 @@ const nav = [
   {name:'Chat',id:'comunicacion',icon:'05'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
 ];
+const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users };
 
 export default function Home() {
   const [activeModule,setActiveModule] = useState<string|null>(null);
@@ -43,7 +43,6 @@ export default function Home() {
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas.
   const homeModule = 'cargas';
   const displayName = auth.profile?.name || auth.email || '';
-  const initials = (displayName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || 'U').toUpperCase();
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
@@ -141,10 +140,17 @@ export default function Home() {
     <div className="edgeZone" onPointerDown={onEdgePointerDown} aria-hidden="true" />
     {(drawerOpen||dragOffset!==null) && <div className={`drawerBackdrop ${drawerOpen?'isOpen':''}`} onClick={()=>setDrawerOpen(false)} />}
     <aside ref={drawerRef} className={`drawer ${drawerOpen?'open':''}`} style={dragOffset!==null?{transform:`translateX(${dragOffset}px)`,transition:'none'}:undefined} onPointerDown={onDrawerPointerDown}>
-      <button className="brand brandButton" onClick={()=>navigateTo(homeModule)}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCK SERVICE</span></div></button>
+      <button className="brand brandButton" onClick={()=>navigateTo(homeModule)}><div className="brandMark">M&A</div><div><strong>M&A King</strong><span>TRUCKING SERVICE</span></div></button>
       <div className="workspaceLabel">{t('OPERACIONES')}</div>
-      <nav id="main-navigation" className="navList" aria-label={t('Navegación principal')}>{visibleNav.map(item=><button key={item.id} className={`navItem ${activeModule===item.id?'active':''}`} aria-current={activeModule===item.id?'page':undefined} onClick={()=>go(item.id)}><span className="navIcon" aria-hidden="true">{item.icon}</span>{t(item.name)}</button>)}</nav>
-      <button className="sidebarBottom userRow" onClick={()=>void auth.signOut()} title={t('Salir del sistema')}><div className="avatar">{initials}</div><div><strong>{displayName}</strong><span>{t(role?roleLabel(role):'')}</span></div></button>
+      <nav id="main-navigation" className="navList" aria-label={t('Navegación principal')}>{visibleNav.map(item=>{ const Icon = navIcons[item.id]; return <button key={item.id} className={`navItem ${activeModule===item.id?'active':''}`} aria-current={activeModule===item.id?'page':undefined} onClick={()=>go(item.id)}><span className="navIconWrap" aria-hidden="true"><Icon size={18}/></span><span className="navItemLabel">{t(item.name)}</span><ChevronRight size={16} className="navChevron" aria-hidden="true"/></button>; })}</nav>
+      <div className="sidebarBottom">
+        <div className="footerBrand">
+          <div className="footerBrandMark">M&amp;A</div>
+          <div><strong>M&amp;A King</strong><span>{t('TRUCKING SERVICE')}</span></div>
+        </div>
+        <p className="footerTagline">{t('DISCIPLINA EN CADA MILLA')}</p>
+        <button className="signOutBtn" onClick={()=>void auth.signOut()}><LogOut size={16}/> {t('Cerrar sesión')}</button>
+      </div>
     </aside>
 
     {activeModule===null ? <section className="landingHero" id="main-content" tabIndex={-1}>
@@ -222,8 +228,17 @@ export default function Home() {
                 .brandMark { flex: 0 0 44px; height: 44px; background: #8B102A; border: 1px solid #A85C6A; border-radius: 12px; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
                 .brand strong, .brand span { display: block; }.brand strong { font-size: 20px; }.brand span { font-size: 11px; letter-spacing: 1.5px; color: #EBD5DA; }
                 .workspaceLabel { color: #D8B7BF; font-size: 12px; letter-spacing: 1.5px; font-weight: 700; padding: 0 12px 12px; }
-                .navList { display: grid; gap: 6px; }.navItem { border: 1px solid transparent; background: transparent; color: #EBD5DA; min-height: 48px; border-radius: 8px; text-align: left; padding: 10px 12px; display: flex; align-items: center; gap: 12px; font-size: 15px; white-space:normal; transition:background 220ms ease, color 220ms ease, border-color 220ms ease, transform 180ms ease; }.navItem:hover { background: #8B102A; color: white; }.navItem.active { background:#C5A46D; color:#3A2E14; border-color:#C5A46D; font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,.2); }.navIcon { width: 20px; text-align: center; font-size: 13px !important; flex-shrink:0; }
-                .sidebarBottom { margin-top: auto; padding-top: 40px; }.userRow { width:100%; border:0; border-top: 1px solid #8F4F5B; background:transparent; cursor:pointer; padding-top: 20px; display: flex; align-items: center; gap: 10px; text-align:left; border-radius:0; transition:opacity 180ms ease; }.userRow:hover { opacity:.8; }.userRow strong, .userRow span { display: block; }.userRow strong { font-size: 14px; color: white; }.userRow span { font-size: 13px; color: #EBD5DA; }.avatar { background: #EBD5DA; color: #11151B; flex: 0 0 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+                .navList { display: grid; gap: 6px; }.navItem { border: 1px solid transparent; background: transparent; color: #EBD5DA; min-height: 52px; border-radius: 10px; text-align: left; padding: 10px 14px; display: flex; align-items: center; gap: 12px; font-size: 15px; white-space:normal; transition:background 220ms ease, color 220ms ease, border-color 220ms ease, transform 180ms ease; }.navItem:hover { background: #8B102A; color: white; }.navItem.active { background:#C5A46D; color:#3A2E14; border-color:#C5A46D; font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,.2); }
+                .navIconWrap { flex-shrink:0; display:grid; place-items:center; color:#C5A46D; }.navItem.active .navIconWrap { color:#3A2E14; }
+                .navItemLabel { flex:1; }
+                .navChevron { flex-shrink:0; opacity:.6; }
+                .sidebarBottom { margin-top: auto; padding-top: 32px; display:grid; gap:14px; }
+                .footerBrand { display:flex; align-items:center; gap:10px; border-top:1px solid #8F4F5B; padding-top:20px; }
+                .footerBrandMark { flex:0 0 40px; height:40px; border-radius:50%; border:1.5px solid #C5A46D; color:#C5A46D; display:grid; place-items:center; font-size:12px; font-weight:800; }
+                .footerBrand strong { display:block; font-size:14px; color:white; }.footerBrand span { display:block; font-size:10px; color:#D8B7BF; letter-spacing:1.5px; margin-top:1px; }
+                .footerTagline { margin:0; font-size:11px; letter-spacing:2px; color:#D8B7BF; padding-bottom:6px; border-bottom:2px solid #8B102A; display:inline-block; }
+                .signOutBtn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.06); color:#fff; border-radius:10px; font-weight:700; font-size:14px; }
+                .signOutBtn:hover { background:rgba(255,255,255,.14); }
 
                 .content { max-width: 1920px; margin: 0 auto; padding: 0 clamp(20px, 3vw, 48px) 40px; animation:enterPanel 320ms ease-out; }
                 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
@@ -241,11 +256,11 @@ export default function Home() {
                 .navMenuBtn { flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:#8B102A; color:#fff; border:0; border-radius:10px; display:grid; place-items:center; }
                 .navBrand { display:flex; align-items:center; gap:10px; }
                 .navBrandIcon { color:#C5A46D; }
-                .navBrandText { display:flex; flex-direction:column; line-height:1.25; }.navBrandText strong { font-size:17px; color:#fff; letter-spacing:.3px; font-weight:800; }.navBrandKing { color:#C5A46D; }.navBrandText span { font-size:9px; color:#D8B7BF; letter-spacing:2.5px; font-weight:700; margin-top:1px; }
+                .navBrandText { display:flex; flex-direction:column; line-height:1.25; white-space:nowrap; }.navBrandText strong { font-size:17px; color:#fff; letter-spacing:.3px; font-weight:800; }.navBrandKing { color:#C5A46D; }.navBrandSubtitle { font-size:9px; color:#D8B7BF; letter-spacing:2.5px; font-weight:700; margin-top:1px; }
                 .navIconBtn { position:relative; flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:50%; display:grid; place-items:center; }
                 .navIconBtn:hover { background:rgba(255,255,255,.18); }
                 .navIconBadge { position:absolute; top:-4px; right:-4px; background:#C0392B; color:#fff; font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:9px; display:grid; place-items:center; padding:0 3px; border:2px solid #11151B; }
-                @media(max-width:480px) { .navBrandText span { display:none; } }
+                @media(max-width:480px) { .navBrandSubtitle { display:none; } }
 
                 .heroBanner { position:relative; isolation:isolate; overflow:hidden; padding:26px clamp(20px,3vw,48px) 20px; min-height:180px; display:flex; flex-direction:column; justify-content:flex-end; gap:16px; background:#11151B url('/truck-dusk.png') center 60% / cover no-repeat; }
                 .heroBanner::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(17,21,27,.92) 0%,rgba(17,21,27,.55) 55%,rgba(17,21,27,.2) 100%); }
