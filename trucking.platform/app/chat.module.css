@@ -1,20 +1,71 @@
-.chat { display:flex; flex-direction:column; height:calc(100svh - 300px); min-height:420px; background:white; border:1px solid #e3dadd; border-radius:12px; overflow:hidden; }
+.chat { display:flex; flex-direction:column; height:calc(100svh - 300px); min-height:520px; }
+.chat button,.chat input { font:inherit; }
+.chat button.primary,.chat button[type=submit].primary { background:#8B102A; color:white; border-color:#8B102A; }
+
+.layout { flex:1; min-height:0; display:grid; grid-template-columns:320px 1fr; gap:14px; }
+.sidebar { display:flex; flex-direction:column; min-height:0; background:white; border:1px solid #e3dadd; border-radius:14px; overflow:hidden; }
+.thread { display:flex; flex-direction:column; min-height:0; background:white; border:1px solid #e3dadd; border-radius:14px; overflow:hidden; }
+
+.newBtn { margin:14px 14px 10px; min-height:44px; border-radius:10px; border:0; background:#8B102A; color:white; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; }
+.newForm { margin:0 14px 12px; padding:12px; border:1px solid #e3dadd; border-radius:10px; background:#FBF8F6; display:grid; gap:10px; }
+.newHint { font-size:12px; color:#59616D; margin:0; }
+.contactList { display:grid; gap:6px; max-height:180px; overflow-y:auto; }
+.contactRow { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; }
+.groupNameField { display:grid; gap:4px; font-size:13px; font-weight:700; color:#59616D; }
+.groupNameField input { min-height:38px; border:1px solid #d6c6cb; border-radius:8px; padding:6px 10px; }
+.newActions { display:flex; gap:8px; }
+.newActions button { min-height:36px; border-radius:8px; border:1px solid #d6c6cb; background:white; padding:6px 14px; cursor:pointer; }
+
+.searchField { margin:0 14px 10px; display:flex; align-items:center; gap:8px; min-height:40px; border:1px solid #e3dadd; border-radius:10px; padding:0 12px; background:#F7F8FA; }
+.searchField input { border:0; background:transparent; flex:1; min-height:36px; min-width:0; }
+.searchField input:focus-visible { outline:none; }
+.searchField svg { color:#59616D; flex:0 0 auto; }
+
+.chatTabs { display:flex; gap:4px; padding:0 10px 10px; border-bottom:1px solid #e3dadd; }
+.chatTabs button { flex:1; border:0; background:transparent; padding:8px 4px; font-size:12px; font-weight:700; color:#59616D; border-radius:8px; cursor:pointer; white-space:nowrap; }
+.chatTabs button[aria-pressed=true] { background:#f5ebed; color:#8B102A; }
+
+.convList { flex:1; overflow-y:auto; }
+.convItem { width:100%; display:flex; align-items:center; gap:10px; padding:10px 14px; border:0; background:transparent; text-align:left; cursor:pointer; border-bottom:1px solid #f5f0ee; }
+.convItem:hover,.convItemActive { background:#FBF8F6; }
+.convMeta { flex:1; min-width:0; display:grid; gap:2px; }
+.convTop { display:flex; justify-content:space-between; gap:8px; font-size:14px; color:#11151B; }
+.convTop strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.convTime { font-size:11px; color:#59616D; flex:0 0 auto; }
+.convBottom { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.convPreview { font-size:12px; color:#59616D; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.unreadBadge { flex:0 0 auto; min-width:18px; height:18px; border-radius:9px; background:#8B102A; color:white; font-size:11px; font-weight:700; display:grid; place-items:center; padding:0 5px; }
+
+.avatar { flex:0 0 auto; width:38px; height:38px; border-radius:50%; display:grid; place-items:center; color:white; font-size:13px; font-weight:800; }
+
+.threadHeader { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #e3dadd; }
+.backBtn { display:none; border:0; background:transparent; cursor:pointer; padding:4px; color:#11151B; }
+.threadTitle { display:flex; flex-direction:column; min-width:0; }
+.threadTitle strong { font-size:15px; color:#11151B; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.threadSub { font-size:12px; color:#59616D; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
-.bubbleRow { display:flex; }
+.bubbleRow { display:flex; gap:8px; align-items:flex-end; }
 .bubbleRow.mine { justify-content:flex-end; }
-.bubble { max-width:min(480px,80%); background:#F7F8FA; border:1px solid #e3dadd; border-radius:14px; padding:10px 14px; }
+.bubble { max-width:min(480px,78%); background:#F7F8FA; border:1px solid #e3dadd; border-radius:14px; padding:10px 14px; }
 .bubbleRow.mine .bubble { background:#8B102A; border-color:#8B102A; color:white; }
 .bubble p { margin:2px 0 4px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
 .sender { display:block; font-size:12px; color:#8B102A; margin-bottom:2px; }
 .time { display:block; font-size:11px; color:#59616D; text-align:right; }
 .bubbleRow.mine .time { color:#F0DEE3; }
-.empty { color:#59616D; text-align:center; margin:auto; }
+.empty { color:#59616D; text-align:center; margin:auto; padding:14px; }
 
 .composer { display:flex; gap:8px; padding:12px; border-top:1px solid #e3dadd; background:white; }
-.composer input { flex:1; font:inherit; font-size:14px; min-height:42px; border:1px solid #d6c6cb; border-radius:20px; padding:10px 16px; }
+.composer input { flex:1; font-size:14px; min-height:42px; border:1px solid #d6c6cb; border-radius:20px; padding:10px 16px; }
 .composer input:focus-visible { outline:3px solid #a85c6a; outline-offset:2px; }
 .sendBtn { flex:0 0 auto; width:42px; height:42px; min-height:42px; border-radius:50%; border:0; background:#8B102A; color:white; display:grid; place-items:center; cursor:pointer; }
 .sendBtn:disabled { opacity:.5; cursor:default; }
 
 .error { background:#fff1f0; color:#8a1c20; padding:10px 14px; border-bottom:1px solid #d89898; margin:0; font-size:13px; }
+
+@media(max-width:860px) {
+  .layout { grid-template-columns:1fr; }
+  .layout.view-list .thread { display:none; }
+  .layout.view-thread .sidebar { display:none; }
+  .backBtn { display:inline-flex; }
+}
