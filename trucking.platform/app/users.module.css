@@ -1,0 +1,26 @@
+.users { color:#30282a; padding-top:8px; }
+.users button,.users input,.users select { font:inherit; font-size:14px; min-height:38px; border:1px solid #d6c6cb; border-radius:9px; padding:8px 12px; background:white; color:#11151B; max-width:100%; }
+.users button { cursor:pointer; transition:background .18s,border-color .18s; }
+.users button:hover { background:#f5ebed; }.users button:disabled { opacity:.55; cursor:wait; }
+.users label { display:grid; gap:6px; font-size:14px; font-weight:600; min-width:0; }
+.users button.primary { background:#8B102A; color:white; border-color:#8B102A; }
+.users h3 { display:flex; align-items:center; gap:8px; font-size:17px; color:#11151B; margin:0 0 10px; }
+
+.form { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; margin:14px 0; border-top:4px solid #8B102A; }
+.fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.actions { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; margin-top:12px; }
+.note { font-size:12px; color:#59616D; margin:8px 0 0; }
+
+.cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.users .card { display:flex; flex-direction:column; gap:6px; padding:14px; border:1px solid #e3dadd; border-radius:12px; background:white; }
+.card strong { font-size:15px; color:#11151B; }
+.card>span { font-size:13px; color:#59616D; }
+.roleRow { display:flex; gap:8px; margin-top:6px; }
+.roleRow select { flex:1; min-height:36px; }
+.roleRow button { min-height:36px; white-space:nowrap; }
+
+.empty { color:#59616D; padding:14px 0; }
+.error { background:#fff1f0; color:#8a1c20; padding:12px 14px; border:1px solid #d89898; border-radius:9px; margin:10px 0; }
+.success { background:#edf6f1; color:#275b40; padding:12px 14px; border-radius:9px; margin:10px 0; }
+
+@media(max-width:1200px) { .fields { grid-template-columns:1fr; } .cards { grid-template-columns:1fr; } }
