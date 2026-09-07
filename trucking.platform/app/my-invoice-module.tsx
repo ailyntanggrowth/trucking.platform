@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { dispatcherCommission, weekStartOf, weekRange } from '../lib/settlements';
+import { dispatcherCommissionDetail, weekStartOf, weekRange } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -16,7 +16,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
   const ready = settlements.ready && loads.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
   const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
-  const result = dispatcherCommission(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config);
+  const result = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config);
 
   return <div className={styles.wrap}>
     {!ready && <p role="status">{t('Abriendo tu invoice…')}</p>}
@@ -34,5 +34,19 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
       <span className={styles.invoiceSub}>{t('Bruto de la semana:')} {ready ? money(result.gross) : '—'}</span>
     </div>
     <p className={styles.note}>{t('Este pago es independiente del salario de los choferes — nunca sale de lo que ellos cobran.')}</p>
+
+    <h3>{t('Cargas que forman este total')}</h3>
+    <div className={styles.tableWrap}>
+      <table className={styles.dataTable}>
+        <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Monto')}</th></tr></thead>
+        <tbody>{result.rows.map(r => <tr key={r.loadId}>
+          <td>{r.loadNumber || t('Sin número')}</td>
+          <td>{r.driverName}</td>
+          <td className={styles.tableSub}>{r.group}</td>
+          <td>{money(r.amount)}</td>
+        </tr>)}</tbody>
+      </table>
+      {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
+    </div>
   </div>;
 }

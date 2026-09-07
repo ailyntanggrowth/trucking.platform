@@ -165,10 +165,25 @@ export function computeOwnerOperatorSettlements(
 // Comisión del despachador: 4% sobre el bruto de Mario + Owner Operators + Lázaro
 // de la semana, todo junto en un solo número (pedido explícito). Es un pago
 // aparte — nunca se resta del salario del chofer.
+//
+// La dispatcher no tiene acceso a Contabilidad y Pagos (solo Cargas, Chat y
+// su Invoice) — por eso este detalle por carga vive aquí también: sin él no
+// tendría cómo comprobar que el total de su comisión es correcto más que
+// sumando a mano en Cargas (pedido explícito de la dueña).
+export type DispatcherCommissionLine = { loadId: string; loadNumber: string; driverName: string; group: string; amount: number };
+export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
+  const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
+  const eligibleById = new Map(eligible.map(d => [d.id, d]));
+  const rows: DispatcherCommissionLine[] = loads
+    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd))
+    .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount }))
+    .sort((a, b) => b.amount - a.amount);
+  const gross = rows.reduce((s, r) => s + r.amount, 0);
+  return { rows, gross, commission: gross * config.dispatcherCommissionPct };
+}
 export function dispatcherCommission(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
-  const eligibleIds = new Set(drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro').map(d => d.id));
-  const gross = loads.filter(l => eligibleIds.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).reduce((s, l) => s + l.amount, 0);
-  return { gross, commission: gross * config.dispatcherCommissionPct };
+  const { gross, commission } = dispatcherCommissionDetail(drivers, loads, weekStart, weekEnd, config);
+  return { gross, commission };
 }
 
 // Grupo Lázaro: reporte angosto solo para ver su bruto (entra en la comisión
