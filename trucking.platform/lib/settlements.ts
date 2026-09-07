@@ -112,6 +112,19 @@ export function isWeekLocked(weekEnd: string, now: Date = new Date()): boolean {
   return now >= lockAt;
 }
 
+// Reparte una carga pagada el lunes de cierre entre DOS invoices según la
+// HORA en que se pagó (pedido explícito): antes de las 9pm cae en el invoice
+// que cierra esa noche (weekEnd de ESTE período); después de las 9pm ya es
+// del invoice de la semana siguiente. paidAt trae fecha y hora completas.
+function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string): boolean {
+  if (!paidAt) return false;
+  const paidDate = paidAt.slice(0, 10);
+  if (paidDate < weekStart) return false;
+  const [y, m, d] = weekEnd.split('-').map(Number);
+  const lockAt = new Date(y, m - 1, d, 21, 0, 0);
+  return new Date(paidAt) <= lockAt;
+}
+
 const inRange = (date: string, start: string, end: string) => date >= start && date < end;
 const fuelAndExpenses = (driverId: string, transactions: FuelTransaction[], expenses: Expense[], start: string, end: string) =>
   transactions.filter(t => t.driverId === driverId && t.status === 'Final' && inRange(t.date, start, end)).reduce((s, t) => s + t.fuelAmount + t.nonFuelAmount, 0)
@@ -180,7 +193,7 @@ export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], wee
   const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
-    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && inRange(l.paidAt, weekStart, weekEnd))
+    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd))
     .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
     // Agrupado por chofer (pedido explícito: todas las cargas de Agnel juntas,
     // luego las de Dixon, etc.) — dentro de cada chofer, la más grande primero.

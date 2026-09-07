@@ -24,10 +24,12 @@ export type Load = {
   pickupCity: string; pickupState: string; pickupDate: string;
   deliveryCity: string; deliveryState: string; deliveryDate: string;
   amount: number; status: LoadStatus; missingPod: boolean;
-  // paidAt: se pone sola en cuanto paymentStatus pasa a 'Pagada' (pedido
+  // paidAt: fecha Y HORA (ISO) en que paymentStatus pasó a 'Pagada' (pedido
   // explícito) — la comisión del despachador de una semana solo cuenta las
-  // cargas pagadas DENTRO de esa semana; si Summar no la pagó a tiempo, la
+  // cargas pagadas DENTRO de ese período; si Summar no la pagó a tiempo, la
   // carga simplemente aparece en el invoice de la semana en que sí se pague.
+  // La hora importa: el lunes de cierre reparte cargas entre dos invoices
+  // según si se pagaron antes o después de las 9pm — ver dispatcherCommissionDetail.
   paymentStatus: PaymentStatus; amountReceived: number; paidAt: string;
   notes: string;
   // Controladas SOLO por sus propias acciones (approve/reject/cancel/replace);
@@ -96,7 +98,7 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     // y sigue pagada, se conserva la fecha original; si acaba de pasar a
     // pagada, es hoy; si deja de estar pagada, se borra.
     const paidAt = incoming.paymentStatus === 'Pagada'
-      ? (old && old.paymentStatus === 'Pagada' ? old.paidAt : now.slice(0, 10))
+      ? (old && old.paymentStatus === 'Pagada' ? old.paidAt : now)
       : '';
     // La cancelación/reemplazo nunca se toca por esta vía — solo por sus
     // propias acciones. Al crear, la carga queda aprobada de una vez.
@@ -129,7 +131,7 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     requireValue(action.reason.trim(), 'Escribe el motivo del reemplazo.');
     const original = state.loads.find(l => l.id === action.id); requireValue(original, 'No se encontró la carga original.');
     const replacement: Load = {
-      ...action.replacement, id: action.replacement.id, paidAt: action.replacement.paymentStatus === 'Pagada' ? now.slice(0, 10) : '',
+      ...action.replacement, id: action.replacement.id, paidAt: action.replacement.paymentStatus === 'Pagada' ? now : '',
       approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
       cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: original!.id, replacedBy: '',
     };
