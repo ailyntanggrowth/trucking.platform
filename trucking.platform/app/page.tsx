@@ -208,7 +208,6 @@ export default function Home() {
       </section>
       <nav className="miniNav" aria-label={t('Acceso rápido')}>
         <button className={`miniNavItem ${activeModule===homeModule?'active':''}`} onClick={()=>go(homeModule)}>{t('Inicio')}</button>
-        <button className={`miniNavItem ${activeModule==='comunicacion'?'active':''}`} onClick={()=>go('comunicacion')}><MessageCircle size={15}/> {isDriver?t('Mi Chat'):t('Chat')}</button>
         <div className="navSpacer"/>
         <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
       </nav>
