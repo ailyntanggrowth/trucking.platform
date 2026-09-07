@@ -8,6 +8,7 @@ import { useLoads } from "../lib/use-loads";
 import { toDashboardLoad } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
+import { useChat } from "../lib/use-chat";
 import { roleLabel } from "../lib/users";
 import { today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
@@ -17,6 +18,7 @@ import FuelModule from "./fuel-module";
 import SettlementsModule from "./settlements-module";
 import ReportsModule from "./reports-module";
 import UsersModule from "./users-module";
+import ChatModule from "./chat-module";
 import AuthGate from "./auth-gate";
 
 // Cargas y Choferes y Flota se fusionaron en una sola entrada de menú (pedido
@@ -47,18 +49,20 @@ export default function Home() {
   const fuel = useFuel();
   const loadsCtl = useLoads();
   const settlementsCtl = useSettlements();
+  const chat = useChat(auth.accessToken);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
   const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
   const alertsCount = fleet.ready ? fleetAlerts(fleet.state,today()).length : 0;
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
-  // La dispatcher solo tiene acceso a Cargas (pedido explícito de la dueña) —
-  // se oculta del menú, y si por cualquier vía activeModule queda en otro
-  // valor, este efecto lo corrige solo — no depende de acordarse de filtrar
-  // cada punto de lectura de activeModule más abajo.
-  const visibleNav = isDispatcher ? nav.filter(item=>item.id==='cargas') : isOwner ? nav : nav.filter(item=>item.id!=='usuarios');
+  // La dispatcher tiene acceso a Cargas y a Chat, nada más (pedido explícito
+  // de la dueña) — se oculta el resto del menú, y si por cualquier vía
+  // activeModule queda en otro valor, este efecto lo corrige solo — no
+  // depende de acordarse de filtrar cada punto de lectura más abajo.
+  const dispatcherModules = ['cargas','comunicacion'];
+  const visibleNav = isDispatcher ? nav.filter(item=>dispatcherModules.includes(item.id)) : isOwner ? nav : nav.filter(item=>item.id!=='usuarios');
   useEffect(() => {
     if (auth.status!=='ready' || !activeModule) return;
-    if (isDispatcher && activeModule!=='cargas') setActiveModule('cargas');
+    if (isDispatcher && !dispatcherModules.includes(activeModule)) setActiveModule('cargas');
     else if (!isOwner && activeModule==='usuarios') setActiveModule('cargas');
   }, [auth.status, isDispatcher, isOwner, activeModule]);
 
@@ -175,7 +179,7 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={!isDispatcher} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.'} as Record<string,string>)[activeModule])}</p></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={!isDispatcher} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 
