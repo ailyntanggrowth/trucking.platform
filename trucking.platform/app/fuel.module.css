@@ -26,8 +26,8 @@
 .tableActions { text-align:right; white-space:nowrap; }
 .moreBtn { min-height:32px; height:32px; width:32px; padding:0; display:inline-grid; place-items:center; background:transparent; border-color:transparent; }
 .moreBtn:hover { background:#f5ebed; border-color:#e3dadd; }
-.badgeFuel { background:#e5f4ea; color:#1f7a43; }
-.badgeNonFuel { background:#FDF0DA; color:#8a5a00; }
+.badge.badgeFuel { background:#e5f4ea; color:#1f7a43; }
+.badge.badgeNonFuel { background:#FDF0DA; color:#8a5a00; }
 .summaryGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:18px 0; }
 .summaryPanel { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; }
 .summaryPanel h3 { margin:0 0 10px; font-size:15px; }
