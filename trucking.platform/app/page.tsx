@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useFleet } from "../lib/use-fleet";
 import { useFuel } from "../lib/use-fuel";
 import { useLoads } from "../lib/use-loads";
-import { toDashboardLoad } from "../lib/loads";
+import { toDashboardLoad, isOfficial, isActive } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
 import { useChat } from "../lib/use-chat";
 import { roleLabel } from "../lib/users";
+import { money, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Truck, Bell, MessageCircle, DollarSign, Users, Fuel as FuelIcon } from "lucide-react";
 import CargasFlotaModule from "./cargas-flota-module";
 import FuelModule from "./fuel-module";
 import SettlementsModule from "./settlements-module";
@@ -50,6 +51,15 @@ export default function Home() {
   const chat = useChat(auth.accessToken);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
   const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
+  // Estadísticas reales del banner de bienvenida (spec del rediseño: "no
+  // inventes los números" — si el módulo dueño de ese dato aún no cargó, 0).
+  const officialLoads = loadsCtl.state.loads.filter(isOfficial);
+  const activeLoadsCount = loadsCtl.ready ? officialLoads.filter(isActive).length : 0;
+  const monthKey = today().slice(0, 7);
+  const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.pickupDate.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
+  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators')).length : 0;
+  const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
+  const firstName = displayName.trim().split(/\s+/)[0] || '';
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
   // La dispatcher tiene acceso a Cargas y a Chat, nada más (pedido explícito
   // de la dueña) — se oculta el resto del menú, y si por cualquier vía
@@ -149,10 +159,33 @@ export default function Home() {
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <header className="mainNav">
         <button className="navMenuBtn" onClick={()=>setDrawerOpen(o=>!o)} aria-expanded={drawerOpen} aria-controls="main-navigation" aria-label={drawerOpen?t('Cerrar menú'):t('Abrir menú')}>{drawerOpen?<X size={16}/>:<Menu size={16}/>}</button>
+        <span className="navBrand" aria-hidden="true">
+          <Truck size={26} strokeWidth={1.75} className="navBrandIcon"/>
+          <span className="navBrandText"><strong>M&amp;A <span className="navBrandKing">KING</span></strong><span>TRUCKING SERVICE</span></span>
+        </span>
+        <div className="navSpacer"/>
+        <button className="navIconBtn" onClick={()=>go('cargas')} aria-label={t('Notificaciones')}><Bell size={19}/>{activeLoadsCount>0 && <span className="navIconBadge">{activeLoadsCount}</span>}</button>
+        <button className="navIconBtn" onClick={()=>go('comunicacion')} aria-label={t('Chat')}><MessageCircle size={19}/></button>
       </header>
-      <header className="topbar">
-        <button className="backButton" onClick={goBack} disabled={!backStack.length} aria-label={t('Atrás')}>{t('← Atrás')}</button>
-      </header>
+      <section className="heroBanner">
+        <div className="heroBannerText">
+          <h1>{t('Bienvenido,')} {firstName} 👋</h1>
+          <p>{t('Todo en movimiento, siempre hacia adelante.')}</p>
+        </div>
+        <div className="heroStats">
+          <div className="heroStat"><Truck size={16}/><div><strong>{activeLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
+          <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span></div></div>
+          <div className="heroStat"><Users size={16}/><div><strong>{activeDriversCount}</strong><span>{t('Choferes')}</span></div></div>
+          <div className="heroStat"><FuelIcon size={16}/><div><strong>{transactionsCount}</strong><span>{t('Transacciones')}</span></div></div>
+        </div>
+        <span className="heroBannerTag" aria-hidden="true">Keep Trucking</span>
+      </section>
+      <nav className="miniNav" aria-label={t('Acceso rápido')}>
+        <button className={`miniNavItem ${activeModule==='cargas'?'active':''}`} onClick={()=>go('cargas')}>{t('Inicio')}</button>
+        <button className={`miniNavItem ${activeModule==='comunicacion'?'active':''}`} onClick={()=>go('comunicacion')}><MessageCircle size={15}/> {t('Chat')}</button>
+        <div className="navSpacer"/>
+        <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
+      </nav>
       <div className="moduleView">
         <div className="moduleHero">
           <div className="moduleHeroText">
@@ -203,18 +236,40 @@ export default function Home() {
                 .moduleHeroImage::before { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(90deg,#F7F8FA 0%,rgba(247,248,250,0) 30%); }
                 .moduleHeroTag { flex:0 0 auto; align-self:center; font-family:'Dancing Script',cursive; font-size:16px; color:#9AA1AB; text-align:right; line-height:1.2; padding-right:22px; }
                 @media(max-width:760px) { .moduleHero { flex-direction:column; min-height:0; }.moduleHeroText { padding:16px 16px 0; }.moduleHero h1 { font-size:20px; }.moduleHeroImage { flex-basis:80px; }.moduleHeroTag { display:none; } }
-                .topbar { min-height: 48px; border-bottom: 1px solid #E3DADD; display: flex; align-items: center; gap: 16px; padding:0 clamp(20px,3vw,48px); }
-                .backButton { border:0; background:transparent; color:#8B102A; font-size:13px; font-weight:700; padding:6px 8px; border-radius:8px; transition:background 180ms ease, color 180ms ease; }.backButton:disabled { color:#B8ADAE; }
-                .mainNav { position:relative; isolation:isolate; display:flex; align-items:center; min-height:64px; padding:12px clamp(20px,3vw,48px); background:#11151B url('/truck-dusk.png') center 55% / cover no-repeat; }
-                .mainNav::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(17,21,27,.55) 0%,rgba(17,21,27,.35) 100%); }
-                .navMenuBtn { flex:0 0 auto; width:36px; height:36px; min-height:36px; padding:0; background:#8B102A; color:#fff; border:0; border-radius:10px; display:grid; place-items:center; }
+                .dateBadge { border:1px solid #E3DADD; border-radius:16px; padding:5px 12px; font-size:12px; color:#59616D; font-weight:600; white-space:nowrap; }
+                .mainNav { display:flex; align-items:center; gap:14px; min-height:68px; padding:14px clamp(20px,3vw,48px); background:linear-gradient(120deg,#11151B 0%,#4A1420 55%,#11151B 100%); }
+                .navMenuBtn { flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:#8B102A; color:#fff; border:0; border-radius:10px; display:grid; place-items:center; }
+                .navBrand { display:flex; align-items:center; gap:10px; }
+                .navBrandIcon { color:#C5A46D; }
+                .navBrandText { display:flex; flex-direction:column; line-height:1.25; }.navBrandText strong { font-size:17px; color:#fff; letter-spacing:.3px; font-weight:800; }.navBrandKing { color:#C5A46D; }.navBrandText span { font-size:9px; color:#D8B7BF; letter-spacing:2.5px; font-weight:700; margin-top:1px; }
+                .navIconBtn { position:relative; flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:50%; display:grid; place-items:center; }
+                .navIconBtn:hover { background:rgba(255,255,255,.18); }
+                .navIconBadge { position:absolute; top:-4px; right:-4px; background:#C0392B; color:#fff; font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:9px; display:grid; place-items:center; padding:0 3px; border:2px solid #11151B; }
+                @media(max-width:480px) { .navBrandText span { display:none; } }
+
+                .heroBanner { position:relative; isolation:isolate; overflow:hidden; padding:26px clamp(20px,3vw,48px) 20px; min-height:180px; display:flex; flex-direction:column; justify-content:flex-end; gap:16px; background:#11151B url('/truck-dusk.png') center 60% / cover no-repeat; }
+                .heroBanner::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(17,21,27,.92) 0%,rgba(17,21,27,.55) 55%,rgba(17,21,27,.2) 100%); }
+                .heroBannerText h1 { margin:0 0 6px; font-size:24px; color:#fff; font-weight:800; }
+                .heroBannerText p { margin:0; color:#EBD5DA; font-size:14px; }
+                .heroStats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+                .heroStat { display:flex; align-items:center; gap:8px; background:rgba(17,21,27,.55); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:8px 10px; color:#C5A46D; min-width:0; }
+                .heroStat div { display:flex; flex-direction:column; min-width:0; }
+                .heroStat strong { font-size:14px; color:#fff; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                .heroStat span { font-size:10px; color:#D8B7BF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                .heroBannerTag { position:absolute; top:20px; right:clamp(20px,3vw,48px); font-family:'Dancing Script',cursive; font-size:22px; color:#EBD5DA; }
+                @media(max-width:600px) { .heroStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .heroBannerTag { display:none; } }
+
+                .miniNav { display:flex; align-items:center; gap:6px; padding:14px clamp(20px,3vw,48px); border-bottom:1px solid #E3DADD; background:#fff; }
+                .miniNavItem { display:inline-flex; align-items:center; gap:6px; border:0; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:#59616D; font-weight:700; font-size:14px; padding:8px 4px; margin-right:14px; min-height:auto; }
+                .miniNavItem.active { color:#8B102A; border-bottom-color:#8B102A; }
+                .miniNavItem:hover { background:transparent; color:#8B102A; }
                 .pageIntro { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 32px 0 24px; }.eyebrow { color: #8B102A; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; margin: 0 0 10px; }.pageIntro h1 { margin: 0; font-size: clamp(26px, 2.3vw, 36px); line-height: 1.2; letter-spacing: -.8px; color: #11151B; }.pageIntro h1 span { color: #8F4F5B; }.subtitle { color: #59616D; font-size: 16px; margin: 10px 0 0; }
                 .panel { min-width: 0; background: #fff; border: 1px solid #E3DADD; border-radius: 12px; box-shadow: 0 3px 14px #11151B04; }.panelHeader { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 22px; }.panelHeader h2 { margin: 0; color: #11151B; font-size: 20px; line-height: 1.3; }.panelHeader p { margin: 6px 0 0; color: #59616D; font-size: 14px; }.textButton { border: 0; background: transparent; color: #8B102A; font-size: 14px; font-weight: 700; padding: 8px; border-radius:8px; transition:background 180ms ease; }.textButton:hover { background: #F5EBED; }
                 .alertCount { background: #F5EBED; color: #8B102A; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
                 .bottomGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }.selectButton { border: 1px solid #D6C6CB; color: #59616D; background: white; border-radius: 8px; font-size: 14px; padding: 8px 12px; transition:background 200ms ease, border-color 200ms ease, color 200ms ease, transform 180ms ease; }.selectButton[aria-pressed=true] { background:#C5A46D; border-color:#C5A46D; color:#3A2E14; font-weight:700; }
                 @media (max-width: 1200px) { .bottomGrid { grid-template-columns: 1fr; } }
                 @media (max-width: 1000px) { .pageIntro { flex-wrap: wrap; } }
-                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.topbar { min-height: 64px; padding-left:52px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.panelHeader { padding: 18px 16px; } }
+                @media (max-width: 760px) { .content { padding: 0 16px 28px; }.pageIntro { align-items: stretch; gap: 20px; flex-direction: column; padding: 24px 0; }.pageIntro h1 { font-size: 28px; }.eyebrow { font-size: 12px; letter-spacing: .7px; }.panelHeader { padding: 18px 16px; } }
 
                 .sectionSpace { margin-top:24px; scroll-margin-top:20px; }
                 h2 { color:#11151B; font-size:22px; }.sourceNotice { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:1px solid #E3DADD; background:#fff; border-radius:12px; margin-bottom:20px; }.sourceNotice p { margin:4px 0 0; font-size:14px; color:#59616D; }.sourceNotice button { flex-shrink:0; }
@@ -241,7 +296,6 @@ export default function Home() {
                   .navItem:hover { transform:scale(1.03); }
                   .statusGrid button:hover { transform:scale(1.05); border-color:#C5A46D; box-shadow:0 6px 16px #11151B14; z-index:1; }
                   .selectButton:hover:not([aria-pressed=true]) { transform:scale(1.05); border-color:#C5A46D; box-shadow:0 6px 14px #11151B12; }
-                  .backButton:hover { background:#F5EBED; }
                 }
                 button:active { background-color:#C5A46D22; }
                 @media(prefers-reduced-motion:reduce) {
