@@ -35,7 +35,8 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
-    const fields = new FormData(event.currentTarget);
+    const form = event.currentTarget; // el SyntheticEvent se recicla tras un await — hay que guardar el form antes
+    const fields = new FormData(form);
     const email = String(fields.get('email') || ''), name = String(fields.get('name') || ''), role = fields.get('role') as Role;
     const driverId = role === 'driver' ? String(fields.get('driverId') || '') || null : null;
     setError(''); setNotice(''); setBusy(true);
@@ -43,7 +44,7 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
       const token = await auth.accessToken();
       await inviteProfile(token, email, name, role, driverId);
       setNotice(`${t('Listo — se le envió un link de acceso a')} ${email}.`);
-      event.currentTarget.reset();
+      form.reset();
       setFormOpen(false); setFormRole('dispatcher');
       await refresh();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
