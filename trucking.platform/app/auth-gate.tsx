@@ -31,6 +31,15 @@ export default function AuthGate({ auth, lang, t, children }: { auth: AuthContro
     </div>
   </div>;
 
+  if (auth.status === 'disabled') return <div className={styles.screen}>
+    <div className={styles.card}>
+      <div className={styles.logo} aria-hidden="true"><Truck size={26} strokeWidth={1.75} /></div>
+      <h1>{t('Cuenta desactivada')}</h1>
+      <p>{t('Tu acceso a este sistema fue desactivado. Pídele al dueño de la cuenta que te reactive desde Usuarios y Permisos.')}</p>
+      <button onClick={() => void auth.signOut()}>{t('Salir')}</button>
+    </div>
+  </div>;
+
   return <div className={styles.screen}>
     <div className={styles.card}>
       <div className={styles.logo} aria-hidden="true"><Truck size={26} strokeWidth={1.75} /></div>

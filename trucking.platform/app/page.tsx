@@ -37,8 +37,7 @@ export default function Home() {
   const t = (es:string) => translate(lang,es);
   const auth = useAuth();
   const role = auth.profile?.role;
-  const isOwner = role === 'owner';
-  const isDispatcher = role === 'dispatcher';
+  const canSeeFleet = role !== 'dispatcher' && role !== 'consulta';
   // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas.
   const homeModule = 'cargas';
@@ -60,17 +59,25 @@ export default function Home() {
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   const firstName = displayName.trim().split(/\s+/)[0] || '';
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id,item.name]));
-  // La dispatcher tiene acceso a Cargas y a Chat, nada más (pedido explícito
-  // de la dueña) — se oculta el resto del menú, y si por cualquier vía
-  // activeModule queda en otro valor, este efecto lo corrige solo — no
-  // depende de acordarse de filtrar cada punto de lectura más abajo.
-  const dispatcherModules = ['cargas','comunicacion'];
-  const visibleNav = isDispatcher ? nav.filter(item=>dispatcherModules.includes(item.id)) : isOwner ? nav : nav.filter(item=>item.id!=='usuarios');
+  // Cada rol ve solo los módulos que le tocan (pedido explícito de la dueña
+  // para Dueño/Administrador/Dispatcher, extendido igual para los roles
+  // nuevos) — si por cualquier vía activeModule queda en un módulo que el
+  // rol actual no puede ver, este efecto lo corrige solo.
+  const moduleAccessByRole: Record<string,string[]> = {
+    owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
+    admin: ['cargas','combustible','finanzas','reportes','comunicacion'],
+    contabilidad: ['cargas','combustible','finanzas','reportes','comunicacion'],
+    gerente: ['cargas','combustible','reportes','comunicacion'],
+    dispatcher: ['cargas','comunicacion'],
+    consulta: ['cargas','reportes'],
+  };
+  const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
+  const visibleNav = nav.filter(item=>allowedModules.includes(item.id));
   useEffect(() => {
     if (auth.status!=='ready' || !activeModule) return;
-    if (isDispatcher && !dispatcherModules.includes(activeModule)) setActiveModule('cargas');
-    else if (!isOwner && activeModule==='usuarios') setActiveModule('cargas');
-  }, [auth.status, isDispatcher, isOwner, activeModule]);
+    if (!allowedModules.includes(activeModule)) setActiveModule('cargas');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status, activeModule, allowedModules.join(',')]);
 
   // --- Cajón de navegación (drawer): se abre arrastrando desde el borde izquierdo
   // (mouse o dedo, vía Pointer Events) o tocando el botón. Antes era un sidebar
@@ -202,7 +209,7 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={!isDispatcher} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 

@@ -14,8 +14,8 @@ async function callerId(accessToken: string): Promise<string> {
   return data.user.id;
 }
 
-function mapRow(r: Record<string, any>): Profile {
-  return { id: r.id, email: r.email, name: r.name, role: r.role as Role };
+function mapRow(r: Record<string, any>, lastSignInAt: string | null = null): Profile {
+  return { id: r.id, email: r.email, name: r.name, role: r.role as Role, active: r.active ?? true, lastSignInAt };
 }
 
 export async function getMyProfile(accessToken: string): Promise<Profile | null> {
@@ -35,12 +35,20 @@ async function requireOwner(accessToken: string): Promise<string> {
   return id;
 }
 
+// El "último acceso" y quién nunca ha entrado (invitación pendiente) salen
+// del propio Supabase Auth (last_sign_in_at) — no se inventa ningún estado
+// nuevo, solo se cruza con la lista de perfiles por id.
 export async function listProfiles(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Profile[]> {
   await requireOwner(accessToken);
   const supabase = supabaseServer();
-  const { data, error } = await supabase.from('profiles').select('*').eq('company_id', companyId).order('created_at', { ascending: true });
+  const [{ data, error }, { data: authList, error: authError }] = await Promise.all([
+    supabase.from('profiles').select('*').eq('company_id', companyId).order('created_at', { ascending: true }),
+    supabase.auth.admin.listUsers({ perPage: 1000 }),
+  ]);
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapRow);
+  if (authError) throw new Error(authError.message);
+  const lastSignInById = new Map((authList?.users ?? []).map(u => [u.id, u.last_sign_in_at ?? null]));
+  return (data ?? []).map(r => mapRow(r, lastSignInById.get(r.id) ?? null));
 }
 
 export async function inviteProfile(accessToken: string, email: string, name: string, role: Role, companyId = DEFAULT_COMPANY_ID): Promise<Profile> {
@@ -74,6 +82,15 @@ export async function updateProfileRole(accessToken: string, targetId: string, r
   if (callerId === targetId) throw new Error('No puedes cambiar tu propio rol. Pídeselo a otro dueño.');
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('profiles').update({ role }).eq('id', targetId).select('*').single();
+  if (error) throw new Error(error.message);
+  return mapRow(data);
+}
+
+export async function setProfileActive(accessToken: string, targetId: string, active: boolean): Promise<Profile> {
+  const callerId = await requireOwner(accessToken);
+  if (callerId === targetId) throw new Error('No puedes desactivar tu propia cuenta.');
+  const supabase = supabaseServer();
+  const { data, error } = await supabase.from('profiles').update({ active }).eq('id', targetId).select('*').single();
   if (error) throw new Error(error.message);
   return mapRow(data);
 }

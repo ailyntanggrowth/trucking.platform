@@ -4,7 +4,7 @@ import { supabaseBrowser } from './supabase-browser';
 import { getMyProfile } from './users-actions';
 import type { Profile } from './users';
 
-export type AuthStatus = 'loading' | 'signedOut' | 'noProfile' | 'ready';
+export type AuthStatus = 'loading' | 'signedOut' | 'noProfile' | 'disabled' | 'ready';
 
 export function useAuth() {
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -16,7 +16,8 @@ export function useAuth() {
     try {
       const p = await getMyProfile(accessToken);
       setEmail(userEmail);
-      if (p) { setProfile(p); setStatus('ready'); }
+      if (p && p.active) { setProfile(p); setStatus('ready'); }
+      else if (p) { setProfile(p); setStatus('disabled'); }
       else { setProfile(null); setStatus('noProfile'); }
     } catch (e) { setError((e as Error).message); setStatus('noProfile'); }
   }, []);
