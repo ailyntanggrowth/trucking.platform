@@ -28,14 +28,19 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const official = groupLoads.filter(isOfficial);
   const active = official.filter(isActive);
   const searched = groupLoads.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${l.pickupState} ${l.deliveryState}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
-  // Tres carriles horizontales por estado (pedido explícito) en vez de una
-  // sola lista vertical paginada — cada uno se desliza con el dedo.
+  // Carriles horizontales por estado (pedido explícito) en vez de una sola
+  // lista vertical paginada — cada uno se desliza con el dedo. "Pendientes"
+  // son cargas ya entregadas pero que Mario todavía no ha pagado — se separan
+  // de "Entregadas" (ya cobradas) para que salte a la vista qué falta cobrar.
   const programadas = searched.filter(l => ['Programado', 'Cargando', 'Pendiente de documentos'].includes(l.status));
   const enTransito = searched.filter(l => l.status === 'En tránsito');
-  const entregadas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
+  const entregadasTodas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
+  const pendientesPago = entregadasTodas.filter(l => l.paymentStatus !== 'Pagada');
+  const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
   const rails = [
     { key: 'Programado', label: t('Programadas'), rows: programadas },
     { key: 'En tránsito', label: t('En tránsito'), rows: enTransito },
+    { key: 'Pendiente', label: t('Pendientes de pago'), rows: pendientesPago },
     { key: 'Entregada', label: t('Entregadas'), rows: entregadas },
   ];
 

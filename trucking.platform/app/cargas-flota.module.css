@@ -15,4 +15,17 @@
 .driverChip { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:600; color:#11151B; }
 .driverChip::before { content:"•"; color:#8B102A; }
 .empty { color:#59616D; font-size:13px; margin:0; }
-@media(max-width:520px) { .driverColumns { flex-direction:column; gap:16px; } .driverGroup { min-width:0; } }
+
+/* Teléfono: cada grupo como su propia tarjeta, uno debajo del otro, con más
+   espacio y letra más grande — antes se veía todo apretado en columnas. */
+@media(max-width:600px) {
+  .driverStrip { padding:16px; }
+  .driverStripHeader { flex-direction:column; align-items:flex-start; gap:8px; }
+  .driverStripHeader h3 { font-size:15px; }
+  .fleetLink { padding:0; }
+  .driverColumns { flex-direction:column; gap:14px; }
+  .driverGroup { min-width:0; background:#FAF7F5; border-radius:10px; padding:14px; }
+  .driverGroupLabel { font-size:13px; margin-bottom:10px; }
+  .driverList { gap:10px; }
+  .driverChip { font-size:15px; gap:8px; }
+}

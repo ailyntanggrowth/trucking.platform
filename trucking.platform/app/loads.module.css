@@ -45,7 +45,6 @@
 .card strong { font-size:15px; color:#11151B; }.card>span { font-size:13px; color:#59616D; }.card p { margin:0; font-size:13px; }
 .badgeRow { display:flex; gap:5px; flex-wrap:wrap; }
 @media(hover:hover) and (pointer:fine) { .card:hover { transform:scale(1.01); border-color:#C5A46D; box-shadow:0 10px 22px rgba(74,20,32,.10); } }
-@media(max-width:520px) { .loads .card { flex-basis:82vw; } }
 
 .tableWrap { overflow-x:auto; border:1px solid #e3dadd; border-radius:14px; background:white; }
 .dataTable { width:100%; border-collapse:collapse; min-width:640px; }
@@ -69,7 +68,24 @@
 
 @media(max-width:1200px) { .statCards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:760px) { .fields { grid-template-columns:1fr; }.profile,.form { padding:18px 16px; }.toolbarRow { flex-direction:column; align-items:stretch; } }
-@media(max-width:360px) { .statCards { grid-template-columns:1fr; } }
+
+/* Teléfono: menos apretado — pestañas en tira deslizable, una tarjeta grande
+   a la vez en cada carril, texto y espaciado más generosos. */
+@media(max-width:600px) {
+  .statCards { grid-template-columns:1fr; gap:10px; }
+  .statCard { padding:16px; }
+  .tabs { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:8px; margin-bottom:16px; scroll-snap-type:x proximity; }
+  .tabs button { flex:0 0 auto; scroll-snap-align:start; font-size:14px; padding:9px 15px; }
+  .rail { margin:26px 0; }
+  .railTitle { font-size:17px; margin-bottom:12px; }
+  .railScroll { gap:14px; padding-bottom:10px; }
+  .loads .card { flex-basis:88vw; padding:18px; gap:9px; }
+  .card strong { font-size:16px; }
+  .card>span { font-size:14px; }
+  .card p { font-size:14px; }
+  .badge { font-size:13px; padding:5px 12px; }
+  .actions button { flex:1; min-height:44px; }
+}
 @media(hover:hover) and (pointer:fine) {
   .statCard:hover { transform:scale(1.02); border-color:#C5A46D; box-shadow:0 10px 22px rgba(74,20,32,.10); z-index:1; }
   .tabs button:hover:not([aria-pressed=true]) { background:#f5ebed; }
