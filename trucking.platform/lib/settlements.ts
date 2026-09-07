@@ -177,7 +177,9 @@ export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], wee
   const rows: DispatcherCommissionLine[] = loads
     .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd))
     .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
-    .sort((a, b) => b.amount - a.amount);
+    // Agrupado por chofer (pedido explícito: todas las cargas de Agnel juntas,
+    // luego las de Dixon, etc.) — dentro de cada chofer, la más grande primero.
+    .sort((a, b) => a.driverName.localeCompare(b.driverName) || b.amount - a.amount);
   const gross = rows.reduce((s, r) => s + r.amount, 0);
   return { rows, gross, commission: gross * config.dispatcherCommissionPct };
 }
