@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import {
-  computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommission,
+  computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommissionDetail, invoiceNumberFor,
   weekStartOf, weekRange, isWeekLocked, type SettlementConfig,
 } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
@@ -14,7 +14,7 @@ import { DollarSign, Fuel as FuelIcon, Percent, TrendingUp, ChevronLeft, Chevron
 import { Donut, DonutLegend } from './mini-charts';
 import styles from './settlements.module.css';
 
-type Tab = 'mario' | 'ownerOperators' | 'lazaro' | 'config';
+type Tab = 'mario' | 'ownerOperators' | 'lazaro' | 'dispatcher' | 'config';
 const AVATAR_TONES = ['#8B102A', '#1e4e8c', '#8a5a00', '#1f7a4d', '#6b3fa0', '#a12b2b'];
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 function Avatar({ name, index }: { name: string; index: number }) {
@@ -36,7 +36,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks);
   const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config);
   const lazaro = computeLazaroSettlements(fleet.state.drivers, loads.state.loads, weekStart, weekEnd);
-  const dispatcher = dispatcherCommission(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config);
+  const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config);
+  const invoiceNumber = invoiceNumberFor(weekStart);
+  const dispatcherMark = state.dispatcherMarks.find(m => m.weekStart === weekStart);
+  const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
   const totalGross = mario.reduce((s, m) => s + m.gross, 0);
   const totalFuel = mario.reduce((s, m) => s + m.fuel, 0);
   const totalProfit = mario.reduce((s, m) => s + m.finalProfit, 0);
@@ -58,6 +61,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     if (busy || locked) return; setError(''); setNotice(''); setBusy(true); setOpenRow(null);
     try {
       const next = await settlements.commit({ type: 'mark', driverId, driverName, weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
+      setNotice(next.events[0].detail);
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function toggleDispatcherMark(current: 'Pendiente' | 'Pagada') {
+    if (busy) return; setError(''); setNotice(''); setBusy(true);
+    try {
+      const next = await settlements.commit({ type: 'dispatcherMark', weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
       setNotice(next.events[0].detail);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -103,6 +113,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <button aria-pressed={tab === 'mario'} onClick={() => setTab('mario')}>{t('Choferes de Mario')} <span className={styles.count}>{mario.length}</span></button>
       <button aria-pressed={tab === 'ownerOperators'} onClick={() => setTab('ownerOperators')}>{t('Owner Operators')} <span className={styles.count}>{ownerOperators.length}</span></button>
       <button aria-pressed={tab === 'lazaro'} onClick={() => setTab('lazaro')}>{t('Grupo Lázaro')} <span className={styles.count}>{lazaro.length}</span></button>
+      <button aria-pressed={tab === 'dispatcher'} onClick={() => setTab('dispatcher')}>{t('Dispatcher')} <span className={styles.count}>#{invoiceNumber}</span></button>
       <button aria-pressed={tab === 'config'} onClick={() => setTab('config')}><Settings size={14} /> {t('Configuración')}</button>
     </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
@@ -174,6 +185,30 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           </tr>)}</tbody>
         </table>
         {ready2 && !lazaro.length && <p className={styles.empty}>{t('No hay choferes del grupo Lázaro todavía.')}</p>}
+      </div>
+    </>}
+
+    {tab === 'dispatcher' && <>
+      <div className={styles.rowDetail}>
+        <h3>{t('Invoice')} #{invoiceNumber} — {t('comisión de Gleybis')}</h3>
+        <p><b>{t('Bruto:')}</b> {money(dispatcher.gross)} · <b>{t('Comisión (4%):')}</b> {money(dispatcher.commission)}</p>
+        <div className={styles.actions}>
+          <span className={`${styles.badge} ${dispatcherPaid ? styles.badgePaid : styles.badgePending}`}>{dispatcherPaid ? t('Pagada') : t('Pendiente')}</span>
+          <button disabled={busy} onClick={() => toggleDispatcherMark(dispatcherMark?.paymentStatus || 'Pendiente')}>{dispatcherPaid ? t('Marcar pendiente') : t('Marcar pagada')}</button>
+        </div>
+      </div>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Bruto')}</th><th>{t('Comisión')}</th></tr></thead>
+          <tbody>{dispatcher.rows.map(r => <tr key={r.loadId}>
+            <td>{r.loadNumber || t('Sin número')}</td>
+            <td>{r.driverName}</td>
+            <td className={styles.tableSub}>{r.group}</td>
+            <td className={styles.tableSub}>{money(r.amount)}</td>
+            <td><strong>{money(r.commission)}</strong></td>
+          </tr>)}</tbody>
+        </table>
+        {ready2 && !dispatcher.rows.length && <p className={styles.empty}>{t('No hay cargas pagadas en este invoice todavía.')}</p>}
       </div>
     </>}
 

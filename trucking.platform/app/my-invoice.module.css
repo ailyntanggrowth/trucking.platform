@@ -21,3 +21,11 @@
 .dataTable tr:last-child td { border-bottom:0; }
 .tableSub { color:#59616D; }
 .empty { color:#59616D; padding:14px; margin:0; }
+.historyRow { cursor:pointer; }
+.historyRow:hover td { background:#FBF8F6; }
+.rowActive td { background:#F5EBED; }
+
+.statusBadge { display:inline-block; font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; }
+.statusPaid { background:#DFF5E9; color:#1f7a4d; }
+.statusPending { background:#FDF0DA; color:#8a5a00; }
+.invoiceCard .statusBadge { margin-top:4px; }

@@ -28,19 +28,36 @@ export const defaultSettlementConfig: SettlementConfig = {
 };
 
 export type PaymentMark = { driverId: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string };
+// El invoice del despachador se marca aparte de los de los choferes (pedido
+// explícito): quien controla si ya se le pagó a Gleybis es un Administrador
+// — Mario/Ney Mario —, nunca ella misma desde Mi Invoice.
+export type DispatcherInvoiceMark = { weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string };
 export type SettlementEvent = { id: string; at: string; actor: string; entityIds: string[]; detail: string; before: unknown; after: unknown };
 export type SettlementState = {
   schema: 1; revision: number; config: SettlementConfig;
-  driverInsurance: Record<string, number>; marks: PaymentMark[]; events: SettlementEvent[];
+  driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; events: SettlementEvent[];
 };
 export const emptySettlements: SettlementState = {
-  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], events: [],
+  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], events: [],
 };
 
 export type SettlementAction =
   | { type: 'config'; config: SettlementConfig }
   | { type: 'insurance'; driverId: string; amount: number }
-  | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string };
+  | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
+  | { type: 'dispatcherMark'; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string };
+
+// Número de invoice del despachador (pedido explícito): invoice #41 cerró el
+// 31 de agosto de 2026 — de ahí se cuenta hacia adelante o hacia atrás, una
+// semana = un número, sin importar cuántas cargas tenga.
+const INVOICE_ANCHOR_WEEK_START = '2026-08-24';
+const INVOICE_ANCHOR_NUMBER = 41;
+export function invoiceNumberFor(weekStart: string): number {
+  const [y1, m1, d1] = INVOICE_ANCHOR_WEEK_START.split('-').map(Number);
+  const [y2, m2, d2] = weekStart.split('-').map(Number);
+  const days = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+  return INVOICE_ANCHOR_NUMBER + Math.round(days / 7);
+}
 
 const requireValue = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
 
@@ -62,7 +79,7 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     state.driverInsurance[action.driverId] = action.amount;
     after = { amount: action.amount };
     entityIds = [action.driverId]; detail = `Actualizó el seguro semanal del chofer a ${action.amount}`;
-  } else {
+  } else if (action.type === 'mark') {
     requireValue(action.driverId && action.weekStart, 'Falta el chofer o la semana.');
     const existing = state.marks.find(m => m.driverId === action.driverId && m.weekStart === action.weekStart);
     before = existing || null;
@@ -70,6 +87,14 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     state.marks = existing ? state.marks.map(m => m === existing ? mark : m) : [...state.marks, mark];
     after = mark; entityIds = [action.driverId];
     detail = `Marcó la semana del ${action.weekStart} de ${action.driverName} como ${action.paymentStatus}`;
+  } else {
+    requireValue(action.weekStart, 'Falta la semana.');
+    const existing = state.dispatcherMarks.find(m => m.weekStart === action.weekStart);
+    before = existing || null;
+    const mark: DispatcherInvoiceMark = { weekStart: action.weekStart, paymentStatus: action.paymentStatus, paidAt: action.paymentStatus === 'Pagada' ? now : '', notes: action.notes.trim() };
+    state.dispatcherMarks = existing ? state.dispatcherMarks.map(m => m === existing ? mark : m) : [...state.dispatcherMarks, mark];
+    after = mark; entityIds = ['dispatcher'];
+    detail = `Marcó el invoice #${invoiceNumberFor(action.weekStart)} del despachador (semana del ${action.weekStart}) como ${action.paymentStatus}`;
   }
 
   state.revision++; state.events.unshift({ id: `event-${id}`, at: now, actor: 'Usuario local · sin cuenta autenticada', entityIds, detail, before, after });

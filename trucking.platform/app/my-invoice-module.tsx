@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { dispatcherCommissionDetail, weekStartOf, weekRange } from '../lib/settlements';
+import { dispatcherCommissionDetail, invoiceNumberFor, weekStartOf, weekRange } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -25,6 +25,25 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     if (last && last.driverName === row.driverName) last.rows.push(row);
     else byDriver.push({ driverName: row.driverName, group: row.group, rows: [row] });
   }
+  const invoiceNumber = invoiceNumberFor(weekStart);
+  // Solo un Administrador marca si ya se le pagó el invoice (pedido explícito
+  // de la dueña) — aquí es de solo lectura.
+  const mark = settlements.state.dispatcherMarks.find(m => m.weekStart === weekStart);
+  const invoicePaid = mark?.paymentStatus === 'Pagada';
+
+  // Historial: últimas semanas con cargas o marca de pago, para que vea todo
+  // su trabajo (no solo la semana actual).
+  const history: { weekStart: string; invoiceNumber: number; label: string; commission: number; paid: boolean }[] = [];
+  for (let i = 0; i < 8; i++) {
+    const ws = i === 0 ? weekStartOf(today()) : weekRange(history[i - 1].weekStart).prevWeek;
+    const { end } = weekRange(ws);
+    const c = ready ? dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, ws, end, settlements.state.config).commission : 0;
+    const m = settlements.state.dispatcherMarks.find(x => x.weekStart === ws);
+    history.push({
+      weekStart: ws, invoiceNumber: invoiceNumberFor(ws), commission: c, paid: m?.paymentStatus === 'Pagada',
+      label: new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${ws}T12:00:00Z`)),
+    });
+  }
 
   return <div className={styles.wrap}>
     {!ready && <p role="status">{t('Abriendo tu invoice…')}</p>}
@@ -37,11 +56,12 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
 
     <div className={styles.invoiceCard}>
       <span className={styles.invoiceIcon}><DollarSign size={22} /></span>
-      <span className={styles.invoiceLabel}>{t('Tu comisión de esta semana (4% del bruto de Mario + Owner Operators + Lázaro)')}</span>
+      <span className={styles.invoiceLabel}>{t('Invoice')} #{invoiceNumber} · {t('4% del bruto de Mario + Owner Operators + Lázaro')}</span>
       <strong className={styles.invoiceAmount}>{ready ? money(result.commission) : '—'}</strong>
       <span className={styles.invoiceSub}>{t('Bruto de la semana:')} {ready ? money(result.gross) : '—'}</span>
+      <span className={`${styles.statusBadge} ${invoicePaid ? styles.statusPaid : styles.statusPending}`}>{invoicePaid ? t('Pagado') : t('Pendiente de pago')}</span>
     </div>
-    <p className={styles.note}>{t('Este pago es independiente del salario de los choferes — nunca sale de lo que ellos cobran.')}</p>
+    <p className={styles.note}>{t('Este pago es independiente del salario de los choferes — nunca sale de lo que ellos cobran. Solo un Administrador puede marcar el invoice como pagado.')}</p>
 
     <h3>{t('Cargas que forman este total, por chofer')}</h3>
     <div className={styles.tableWrap}>
@@ -62,6 +82,19 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
         </>)}</tbody>
       </table>
       {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
+    </div>
+
+    <h3>{t('Tus invoices anteriores')}</h3>
+    <div className={styles.tableWrap}>
+      <table className={styles.dataTable}>
+        <thead><tr><th>{t('Invoice')}</th><th>{t('Semana de')}</th><th>{t('Comisión')}</th><th>{t('Estado')}</th></tr></thead>
+        <tbody>{history.map(h => <tr key={h.weekStart} className={`${styles.historyRow} ${h.weekStart === weekStart ? styles.rowActive : ''}`} onClick={() => setWeekStart(h.weekStart)}>
+          <td>#{h.invoiceNumber}</td>
+          <td className={styles.tableSub}>{h.label}</td>
+          <td><strong>{money(h.commission)}</strong></td>
+          <td><span className={`${styles.statusBadge} ${h.paid ? styles.statusPaid : styles.statusPending}`}>{h.paid ? t('Pagado') : t('Pendiente')}</span></td>
+        </tr>)}</tbody>
+      </table>
     </div>
   </div>;
 }

@@ -34,7 +34,7 @@ const nav = [
   {name:'Reportes',id:'reportes',icon:'04'},
   {name:'Chat',id:'comunicacion',icon:'05'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
-  {name:'Mi Invoice',id:'miinvoice',icon:'07'},
+  {name:'Dispatcher',id:'miinvoice',icon:'07'},
   {name:'Mis Cargas',id:'miscargas',icon:'01'},
 ];
 const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
