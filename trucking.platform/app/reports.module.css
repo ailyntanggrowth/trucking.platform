@@ -4,13 +4,35 @@
 .reports h3 { font-size:17px; color:#11151B; margin:0 0 10px; }
 .reports p { line-height:1.6; }
 
-.weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; }
+.weekBar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:14px 0; }
 .weekBar span { font-weight:700; color:#11151B; font-size:14px; }
 .weekBar button { min-height:34px; padding:6px 10px; }
+.spacer { flex:1; }
 
 .tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid #e3dadd; padding-bottom:12px; margin-bottom:14px; }
 .tabs button { font-weight:700; font-size:13px; padding:7px 13px; }
 .tabs button[aria-pressed=true] { background:#8B102A; color:#fff; border-color:#8B102A; }
+
+.kpiGrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.kpiCard { background:white; border:1px solid #e3dadd; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:4px; }
+.kpiLabel { font-size:13px; font-weight:700; color:#59616D; }
+.kpiCard strong { font-size:22px; color:#11151B; }
+.kpiTrend { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; }
+.trendUp { color:#1f7a4d; }
+.trendDown { color:#a12b2b; }
+
+.chartsGrid { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin:14px 0; }
+.chartCard { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; min-width:0; }
+.chartCard h3 { margin:0 0 14px; }
+.chartRow { display:flex; flex-wrap:wrap; align-items:center; gap:20px; }
+.chartRow > ul { flex:1 1 180px; min-width:180px; }
+.legendRow { display:flex; gap:16px; justify-content:center; margin-top:8px; font-size:13px; color:#59616D; }
+.legendRow span { display:inline-flex; align-items:center; gap:6px; }
+.legendRow i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+@media print {
+  .weekBar button, .tabs { display:none; }
+}
 
 .note { font-size:13px; color:#59616D; margin:6px 0 14px; }
 .empty { color:#59616D; padding:14px 0; }
@@ -39,4 +61,5 @@
 .companyFooter span { font-size:14px; font-weight:700; color:#59616D; }
 .companyFooter strong { font-size:22px; color:#8B102A; }
 
-@media(max-width:1200px) { .cards { grid-template-columns:1fr; } }
+@media(max-width:1200px) { .cards { grid-template-columns:1fr; } .chartsGrid { grid-template-columns:1fr; } .kpiGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:360px) { .kpiGrid { grid-template-columns:1fr; } }
