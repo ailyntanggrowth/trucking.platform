@@ -41,7 +41,7 @@
 .railScroll { display:flex; gap:12px; overflow-x:auto; overflow-y:hidden; padding-bottom:6px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
 .railScroll::-webkit-scrollbar { height:6px; }
 .railScroll::-webkit-scrollbar-thumb { background:#e3dadd; border-radius:6px; }
-.loads .card { flex:0 0 260px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:6px; padding:14px; border:1px solid #e3dadd; border-radius:12px; background:white; min-width:0; overflow-wrap:anywhere; transition:background 220ms ease, border-color 220ms ease, transform 180ms ease, box-shadow 220ms ease; }
+.loads .card { flex:0 0 260px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:6px; padding:14px; padding-left:12px; border:1px solid #e3dadd; border-left:4px solid #8B102A; border-radius:12px; background:linear-gradient(180deg,#FBF6F7,#FFFFFF 60%); box-shadow:0 3px 14px rgba(139,16,42,.12); min-width:0; overflow-wrap:anywhere; transition:background 220ms ease, border-color 220ms ease, transform 180ms ease, box-shadow 220ms ease; }
 .card strong { font-size:15px; color:#11151B; }.card>span { font-size:13px; color:#59616D; }.card p { margin:0; font-size:13px; }
 .badgeRow { display:flex; gap:5px; flex-wrap:wrap; }
 @media(hover:hover) and (pointer:fine) { .card:hover { transform:scale(1.01); border-color:#C5A46D; box-shadow:0 10px 22px rgba(74,20,32,.10); } }
