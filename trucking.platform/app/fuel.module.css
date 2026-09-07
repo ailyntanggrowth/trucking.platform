@@ -53,6 +53,8 @@
 @media(max-width:1200px) { .cards { grid-template-columns:1fr; } }
 
 .tableWrap { overflow-x:auto; border:1px solid #e3dadd; border-radius:14px; background:white; }
+.tableWrapTall { max-height:480px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.tableWrapTall thead th { position:sticky; top:0; background:white; z-index:1; }
 .dataTable { width:100%; border-collapse:collapse; min-width:640px; }
 .dataTable th { text-align:left; font-size:11px; letter-spacing:.4px; text-transform:uppercase; color:#59616D; padding:10px 12px; border-bottom:1px solid #e3dadd; white-space:nowrap; }
 .dataTable td { padding:11px 12px; border-bottom:1px solid #f0e9e9; vertical-align:top; white-space:nowrap; }

@@ -124,7 +124,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const rows = tab === 'transacciones' ? filteredTx : filteredExpenses;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageSafe = Math.min(page, pageCount);
-  const pageTx = filteredTx.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
   const pageExpenses = filteredExpenses.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
   const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : t('Eliminar registro');
 
@@ -296,11 +295,11 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
 
     {tab !== 'resumen' && <><div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones Recientes') : t('Gastos Recientes')}</h2></div>
 
-    <div className={styles.tableWrap}>
+    <div className={`${styles.tableWrap} ${tab === 'transacciones' ? styles.tableWrapTall : ''}`}>
       <table className={styles.dataTable}>
         {tab === 'transacciones' ? <>
           <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Estación')}</th><th>{t('Tipo')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{pageTx.map(t2 => { const isFuel = t2.fuelAmount >= t2.nonFuelAmount; return <tr key={t2.id}>
+          <tbody>{filteredTx.map(t2 => { const isFuel = t2.fuelAmount >= t2.nonFuelAmount; return <tr key={t2.id}>
             <td className={styles.tableSub}>{dayLabel(t2.date)}</td>
             <td>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')}</td>
             <td className={styles.tableSub}>{t2.station || t('Estación sin indicar')}{t2.externalRef && <span> · {t('Ref:')} {t2.externalRef}</span>}</td>
@@ -326,7 +325,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </table>
     </div>
     {ready && !rows.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
-    {rows.length > 0 && <div className={styles.pagination}>
+    {tab === 'gastos' && rows.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} {t('de')} {rows.length}</span>
       <div className={styles.pageButtons}>
         <button disabled={pageSafe <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} aria-label={t('Anterior')}>‹</button>
