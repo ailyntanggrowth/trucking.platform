@@ -10,6 +10,13 @@ export type Driver = { id:string; name:string; phone:string; email:string; group
 // Un chofer inactivo se muestra como 'Inactivo' sin importar su disponibilidad guardada.
 // Antes esta regla se repetía en app/page.tsx y app/fleet-module.tsx por separado.
 export const driverStatus = (driver:Driver):Availability|'Inactivo' => driver.active ? driver.availability : 'Inactivo';
+// Dentro del grupo "Lázaro" hay dos personas (pedido explícito de la dueña)
+// que nunca cargan — solo existen para que el statement de Mudflap de los
+// lunes los reconozca por nombre. Se quedan en Choferes y Flota y en el
+// resumen de Combustible, pero se excluyen de cualquier vista de Cargas o
+// Contabilidad del grupo Lázaro (conteos, listas, liquidaciones).
+const FUEL_ONLY_DRIVER_NAMES = new Set(['Yunior Miguel', 'Lazaro Martínez']);
+export const isCargoDriver = (driver: Driver) => !FUEL_ONLY_DRIVER_NAMES.has(driver.name);
 export type Equipment = { id:string; unit:string; vin:string; plate:string; plateState:string; year:string; make:string; model:string; type:string; status:EquipmentStatus; notes:string };
 export type Assignment = { id:string; driverId:string; truckId:string; trailerId:string; startedAt:string; endedAt?:string; reason:string; endReason?:string };
 export type FleetDocument = { id:string; ownerKind:EntityKind; ownerId:string; type:string; issued:string; expires:string; reviewed:boolean; notes:string; filename:string; file:Blob; sizeBytes?:number; uploadedAt:string; reviewedAt?:string };

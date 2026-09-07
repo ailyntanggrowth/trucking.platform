@@ -11,7 +11,7 @@
 // no entran aquí en absoluto.
 import { isOfficial, type Load } from './loads';
 import type { FuelTransaction, Expense } from './fuel';
-import type { Driver } from './fleet';
+import { isCargoDriver, type Driver } from './fleet';
 
 export type SettlementConfig = {
   companyDeductionPct: number; // fracción, p.ej. 0.06 = 6%
@@ -177,7 +177,7 @@ export function dispatcherCommission(drivers: Driver[], loads: Load[], weekStart
 // statement de combustible) simplemente no tienen cargas y salen en cero.
 export type LazaroSettlement = { driverId: string; driverName: string; loadsCount: number; gross: number };
 export function computeLazaroSettlements(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string): LazaroSettlement[] {
-  return drivers.filter(d => d.group === 'Lázaro').map(d => {
+  return drivers.filter(d => d.group === 'Lázaro' && isCargoDriver(d)).map(d => {
     const loadsCount = loads.filter(l => l.driverId === d.id && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).length;
     return { driverId: d.id, driverName: d.name, loadsCount, gross: grossFor(d.id, loads, weekStart, weekEnd) };
   }).sort((a, b) => b.gross - a.gross);

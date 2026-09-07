@@ -6,6 +6,7 @@ import { useFuel } from "../lib/use-fuel";
 import { useLoads } from "../lib/use-loads";
 import { useMyLoads } from "../lib/use-my-loads";
 import { toDashboardLoad, isOfficial, isActive } from "../lib/loads";
+import { isCargoDriver } from "../lib/fleet";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
 import { useChat } from "../lib/use-chat";
@@ -67,7 +68,7 @@ export default function Home() {
   const activeLoadsCount = loadsCtl.ready ? officialLoads.filter(isActive).length : 0;
   const monthKey = today().slice(0, 7);
   const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.pickupDate.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
-  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
+  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && isCargoDriver(d) && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
   const myActiveLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).filter(isActive).length : 0;

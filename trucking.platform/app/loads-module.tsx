@@ -1,6 +1,7 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { isCargoDriver } from '../lib/fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dayLabel, today } from '../lib/format';
@@ -19,7 +20,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
-  const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active).length;
+  const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active && isCargoDriver(d)).length;
 
   // Grupos de la flota (pedido explícito): Mario, Owner Operators y Lázaro —
   // al elegir uno se ve solo sus choferes y sus cargas.

@@ -6,6 +6,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { Load } from '../lib/dashboard';
 import type { Lang } from '../lib/i18n';
+import { isCargoDriver } from '../lib/fleet';
 import { Users } from 'lucide-react';
 import styles from './cargas-flota.module.css';
 
@@ -22,7 +23,7 @@ export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSee
   loads: LoadsController; fleet: FleetController; dashboardLoads: Load[]; canSeeFleet: boolean; lang: Lang; t: (es: string) => string;
 }) {
   const [showFleet, setShowFleet] = useState(false);
-  const activeByGroup = FLEET_GROUPS.map(g => ({ group: g, drivers: fleet.state.drivers.filter(d => d.active && d.group === g) }));
+  const activeByGroup = FLEET_GROUPS.map(g => ({ group: g, drivers: fleet.state.drivers.filter(d => d.active && d.group === g && isCargoDriver(d)) }));
   const activeDrivers = activeByGroup.flatMap(g => g.drivers);
 
   if (canSeeFleet && showFleet) return <div className={styles.wrap}>
