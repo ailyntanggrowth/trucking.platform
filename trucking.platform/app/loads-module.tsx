@@ -5,7 +5,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, ClipboardList, XCircle, Search, SlidersHorizontal } from 'lucide-react';
+import { Truck, ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace'; id: string; revision: number };
@@ -19,7 +19,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
-  const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
   const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active).length;
 
@@ -31,7 +30,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const delivered = groupLoads.filter(l => l.status === 'Entregada' || l.status === 'Completada');
   const cancelled = groupLoads.filter(l => l.status === 'Cancelada');
   const visible = filter === 'Activas' ? active : filter === 'Todas' ? groupLoads : filter === 'Entregada' ? delivered : filter === 'Cancelada' ? cancelled : official.filter(l => l.status === filter);
-  const filtered = visible.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${truckUnit(l.truckId)} ${l.pickupCity} ${l.deliveryCity}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
+  const filtered = visible.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${l.pickupState} ${l.deliveryState}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageSafe = Math.min(page, pageCount);
   const pageRows = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
@@ -49,10 +48,10 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         const record: Load = {
           id: editor.type === 'load' ? (editor.id || crypto.randomUUID()) : crypto.randomUUID(),
           loadNumber: text('loadNumber'), broker: text('broker'),
-          driverId: text('driverId'), truckId: text('truckId'), trailerId: text('trailerId'),
-          pickupCity: text('pickupCity'), pickupState: text('pickupState'), pickupDate: text('pickupDate'),
-          deliveryCity: text('deliveryCity'), deliveryState: text('deliveryState'), deliveryDate: text('deliveryDate'),
-          amount: num('amount'), status: text('status') as LoadStatus, missingPod: text('missingPod') === 'true',
+          driverId: text('driverId'), truckId: '', trailerId: '',
+          pickupCity: '', pickupState: text('pickupState'), pickupDate: text('pickupDate'),
+          deliveryCity: '', deliveryState: text('deliveryState'), deliveryDate: text('deliveryDate'),
+          amount: num('amount'), status: text('status') as LoadStatus, missingPod: false,
           paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), notes: text('notes'),
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
         };
@@ -81,12 +80,11 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     <div className={styles.statCards}>
       <button className={styles.statCard} data-tone="green" aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></button>
       <button className={styles.statCard} data-tone="blue" aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></button>
-      <button className={styles.statCard} data-tone="red" aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}><span className={styles.statIcon} aria-hidden="true"><XCircle size={16}/></span><span className={styles.statLabel}>{t('Canceladas')}</span><strong>{ready ? cancelled.length : '—'}</strong><small>{t('Cargas canceladas')}</small></button>
     </div>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Número, broker, chofer, camión o ciudad...')} /></label>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Número, broker, chofer o estado...')} /></label>
       <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
       <button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
     </div>
@@ -95,7 +93,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       <button aria-pressed={filter === 'Todas'} onClick={() => changeFilter('Todas')}>{t('Todas')} ({state.loads.length})</button>
       <button aria-pressed={filter === 'Activas'} onClick={() => changeFilter('Activas')}>{t('Activas')} ({active.length})</button>
       <button aria-pressed={filter === 'Entregada'} onClick={() => changeFilter('Entregada')}>{t('Entregadas')} ({delivered.length})</button>
-      <button aria-pressed={filter === 'Cancelada'} onClick={() => changeFilter('Cancelada')}>{t('Canceladas')} ({cancelled.length})</button>
     </nav>
 
     {editor && <form id="loads-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
@@ -104,17 +101,12 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <label>{t('Número de carga')}<input name="loadNumber" maxLength={100} defaultValue={editor.type === 'load' ? editLoad?.loadNumber : ''} /></label>
         <label>{t('Broker / Cliente')}<input name="broker" maxLength={150} defaultValue={editor.type === 'load' ? editLoad?.broker : target?.broker} /></label>
         <label>{t('Chofer')}<select name="driverId" defaultValue={editor.type === 'load' ? editLoad?.driverId || '' : target?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label>{t('Camión')}<select name="truckId" defaultValue={editor.type === 'load' ? editLoad?.truckId || '' : target?.truckId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.trucks.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
-        <label>{t('Trailer')}<select name="trailerId" defaultValue={editor.type === 'load' ? editLoad?.trailerId || '' : target?.trailerId || ''}><option value="">{t('Sin trailer')}</option>{fleet.state.trailers.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
-        <label>{t('Ciudad de recogida')}<input name="pickupCity" maxLength={100} defaultValue={editor.type === 'load' ? editLoad?.pickupCity : ''} /></label>
         <label>{t('Estado de recogida')}<input name="pickupState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.pickupState : ''} /></label>
         <label>{t('Fecha de recogida *')}<input name="pickupDate" type="date" required defaultValue={editor.type === 'load' ? (editLoad?.pickupDate || today()) : today()} /></label>
-        <label>{t('Ciudad de entrega')}<input name="deliveryCity" maxLength={100} defaultValue={editor.type === 'load' ? editLoad?.deliveryCity : ''} /></label>
         <label>{t('Estado de entrega')}<input name="deliveryState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.deliveryState : ''} /></label>
         <label>{t('Fecha de entrega')}<input name="deliveryDate" type="date" defaultValue={editor.type === 'load' ? editLoad?.deliveryDate : ''} /></label>
         <label>{t('Tarifa (monto bruto)')}<input name="amount" type="number" step="0.01" min="0" defaultValue={editor.type === 'load' ? editLoad?.amount ?? 0 : 0} /></label>
         <label>{t('Estado operativo')}<select name="status" defaultValue={editor.type === 'load' ? editLoad?.status || 'Programado' : 'Programado'}>{LOAD_STATUS_VALUES.filter(s => s !== 'Cancelada' && s !== 'Reemplazada').map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
-        <label>{t('Falta POD')}<select name="missingPod" defaultValue={editor.type === 'load' ? String(editLoad?.missingPod ?? false) : 'false'}><option value="false">{t('No')}</option><option value="true">{t('Sí')}</option></select></label>
         <label>{t('Estado de pago')}<select name="paymentStatus" defaultValue={editor.type === 'load' ? editLoad?.paymentStatus || 'Pendiente' : 'Pendiente'}>{PAYMENT_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
         <label>{t('Monto recibido')}<input name="amountReceived" type="number" step="0.01" min="0" defaultValue={editor.type === 'load' ? editLoad?.amountReceived ?? 0 : 0} /></label>
         <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editor.type === 'load' ? editLoad?.notes : ''} /></label>
@@ -131,9 +123,9 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
       </div>
       <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
-      <span>{[l.pickupCity, l.pickupState].filter(Boolean).join(', ') || '—'} → {[l.deliveryCity, l.deliveryState].filter(Boolean).join(', ') || '—'}</span>
+      <span>{l.pickupState || '—'} → {l.deliveryState || '—'}</span>
       <span>{dateRange(l)}</span>
-      <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')} · {l.truckId ? truckUnit(l.truckId) : t('Sin camión')}{!groupFilter && l.driverId && driverGroup(l.driverId) && ` · ${driverGroup(l.driverId)}`}</span>
+      <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}{!groupFilter && l.driverId && driverGroup(l.driverId) && ` · ${driverGroup(l.driverId)}`}</span>
       <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
       {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
       {l.replacesId && <span>{t('Reemplaza a:')} {state.loads.find(x => x.id === l.replacesId)?.loadNumber || l.replacesId}</span>}
