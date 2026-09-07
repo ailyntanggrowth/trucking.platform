@@ -12,22 +12,22 @@ import { roleLabel } from "../lib/users";
 import { today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
 import { Menu, X, Bell, ChevronDown, Truck, Crown } from "lucide-react";
-import FleetModule from "./fleet-module";
+import CargasFlotaModule from "./cargas-flota-module";
 import FuelModule from "./fuel-module";
-import LoadsModule from "./loads-module";
 import SettlementsModule from "./settlements-module";
 import ReportsModule from "./reports-module";
 import UsersModule from "./users-module";
 import AuthGate from "./auth-gate";
 
+// Cargas y Choferes y Flota se fusionaron en una sola entrada de menú (pedido
+// directo de la dueña) — ver app/cargas-flota-module.tsx.
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
-  {name:'Choferes y Flota',id:'choferes',icon:'02'},
-  {name:'Combustible y Gastos',id:'combustible',icon:'03'},
-  {name:'Contabilidad y Pagos',id:'finanzas',icon:'04'},
-  {name:'Reportes',id:'reportes',icon:'05'},
-  {name:'Chat',id:'comunicacion',icon:'06'},
-  {name:'Usuarios y Permisos',id:'usuarios',icon:'07'},
+  {name:'Combustible y Gastos',id:'combustible',icon:'02'},
+  {name:'Contabilidad y Pagos',id:'finanzas',icon:'03'},
+  {name:'Reportes',id:'reportes',icon:'04'},
+  {name:'Chat',id:'comunicacion',icon:'05'},
+  {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
 ];
 
 export default function Home() {
@@ -156,7 +156,7 @@ export default function Home() {
           </span>
         </button>
         <div className="navSpacer" />
-        <button className="navBell" onClick={()=>go('choferes')} aria-label={t('Notificaciones')}><Bell size={18}/>{alertsCount>0 && <span className="navBellBadge">{alertsCount}</span>}</button>
+        <button className="navBell" onClick={()=>go('cargas')} aria-label={t('Notificaciones')}><Bell size={18}/>{alertsCount>0 && <span className="navBellBadge">{alertsCount}</span>}</button>
         <div className="navDivider" aria-hidden="true" />
         <button className="navUser" onClick={()=>void auth.signOut()} title={t('Salir del sistema')}><span className="avatar">{initials}</span><span className="navUserInfo"><strong>{displayName}</strong><span>{t(role?roleLabel(role):'')}</span></span><ChevronDown size={14}/></button>
       </header>
@@ -170,12 +170,12 @@ export default function Home() {
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
             <h1>{t(moduleNames[activeModule])}</h1>
-            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía en un solo lugar.',choferes:'Choferes, camiones, trailers y asignaciones de la flota.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
           </div>
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <LoadsModule loads={loadsCtl} fleet={fleet} lang={lang} t={t} initialFilter="Por revisar"/> : activeModule==='choferes' ? <FleetModule fleet={fleet} loads={dashboardLoads} onOpenLoads={()=>go('cargas')} lang={lang} t={t} initialTab="drivers"/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.'} as Record<string,string>)[activeModule])}</p></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} dashboardLoads={dashboardLoads} canSeeFleet={!isDispatcher} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div><p className="emptyState">{t(({comunicacion:'Mensajería interna de la compañía: conversaciones individuales y grupales, texto, notas de voz, fotos y archivos, con notificaciones de mensajes nuevos.'} as Record<string,string>)[activeModule])}</p></section>}
       </div>
     </section>}
 
