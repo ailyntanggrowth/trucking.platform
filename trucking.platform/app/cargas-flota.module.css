@@ -8,10 +8,12 @@
 .driverStripHeader h3 { display:flex; align-items:center; gap:6px; font-size:14px; color:#11151B; margin:0; }
 .fleetLink { font:inherit; font-size:13px; font-weight:700; padding:6px 10px; min-height:34px; border:0; background:transparent; color:#8B102A; cursor:pointer; }
 .fleetLink:hover { text-decoration:underline; }
-.driverGroup { margin-bottom:10px; }
-.driverGroup:last-child { margin-bottom:0; }
-.driverGroupLabel { display:block; font-size:12px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.02em; margin-bottom:6px; }
-.driverList { display:flex; flex-wrap:wrap; gap:8px; }
-.driverChip { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#11151B; background:#F7F8FA; border:1px solid #e3dadd; border-radius:20px; padding:6px 12px; }
+.driverColumns { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+.driverGroup { min-width:160px; flex:1 1 160px; }
+.driverGroupLabel { display:block; font-size:12px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #e3dadd; }
+.driverList { display:flex; flex-direction:column; gap:6px; list-style:none; margin:0; padding:0; }
+.driverChip { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:600; color:#11151B; }
+.driverChip::before { content:"•"; color:#8B102A; }
 .driverChip small { font-weight:600; color:#59616D; font-size:11px; }
 .empty { color:#59616D; font-size:13px; margin:0; }
+@media(max-width:520px) { .driverColumns { flex-direction:column; gap:16px; } .driverGroup { min-width:0; } }

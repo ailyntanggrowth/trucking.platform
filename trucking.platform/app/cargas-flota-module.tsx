@@ -37,10 +37,10 @@ export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSee
         <h3><Users size={16} /> {t('Choferes activos')}</h3>
         <button className={styles.fleetLink} onClick={() => setShowFleet(true)}>{t('Ver flota completa →')}</button>
       </div>
-      {activeDrivers.length ? activeByGroup.filter(g => g.drivers.length).map(g => <div className={styles.driverGroup} key={g.group}>
+      {activeDrivers.length ? <div className={styles.driverColumns}>{activeByGroup.filter(g => g.drivers.length).map(g => <div className={styles.driverGroup} key={g.group}>
         <span className={styles.driverGroupLabel}>{g.group === 'Mario' ? t('Grupo Mario') : g.group === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({g.drivers.length})</span>
-        <div className={styles.driverList}>{g.drivers.map(d => <span className={styles.driverChip} key={d.id}>{d.name} <small>{t(driverStatus(d))}</small></span>)}</div>
-      </div>)
+        <ul className={styles.driverList}>{g.drivers.map(d => <li className={styles.driverChip} key={d.id}>{d.name} <small>{t(driverStatus(d))}</small></li>)}</ul>
+      </div>)}</div>
         : <p className={styles.empty}>{fleet.ready ? t('No hay choferes activos todavía.') : t('Cargando…')}</p>}
     </section>}
     <LoadsModule loads={loads} fleet={fleet} lang={lang} t={t} />
