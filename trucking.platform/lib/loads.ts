@@ -46,6 +46,12 @@ export type Load = {
 };
 
 export const isOfficial = (l: Load) => l.approval === 'Aprobada' && Boolean(l.approvedBy.trim()) && Boolean(l.approvedAt);
+// Transición automática (pedido explícito): una carga se registra
+// "Programado" y, en cuanto llega o pasa su fecha de recogida, se muestra
+// como "En tránsito" sin que nadie la tenga que editar a mano — a menos que
+// se cancele o se reemplace, que son sus propias acciones explícitas.
+export const effectiveStatus = (l: Load, todayStr: string): LoadStatus =>
+  l.status === 'Programado' && l.pickupDate && l.pickupDate <= todayStr ? 'En tránsito' : l.status;
 export const isActive = (l: Load) => isOfficial(l) && ['Programado', 'Cargando', 'En tránsito', 'Pendiente de documentos'].includes(l.status);
 export const balance = (l: Load) => l.amount - l.amountReceived;
 export const routeLabel = (l: Load) => {

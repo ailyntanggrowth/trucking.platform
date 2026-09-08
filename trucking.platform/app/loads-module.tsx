@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, effectiveStatus, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { isCargoDriver } from '../lib/fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -32,8 +32,8 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   // lista vertical paginada — cada uno se desliza con el dedo. "Pendientes"
   // son cargas ya entregadas pero que Mario todavía no ha pagado — se separan
   // de "Entregadas" (ya cobradas) para que salte a la vista qué falta cobrar.
-  const programadas = searched.filter(l => ['Programado', 'Cargando', 'Pendiente de documentos'].includes(l.status));
-  const enTransito = searched.filter(l => l.status === 'En tránsito');
+  const programadas = searched.filter(l => ['Programado', 'Cargando', 'Pendiente de documentos'].includes(effectiveStatus(l, today())));
+  const enTransito = searched.filter(l => effectiveStatus(l, today()) === 'En tránsito');
   const entregadasTodas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
   const pendientesPago = entregadasTodas.filter(l => l.paymentStatus !== 'Pagada');
   const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
