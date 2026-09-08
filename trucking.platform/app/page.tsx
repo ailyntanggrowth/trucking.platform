@@ -190,7 +190,7 @@ export default function Home() {
         </span>
         <div className="navSpacer"/>
       </header>
-      <section className="heroBanner">
+      {activeModule===homeModule && <section className="heroBanner">
         <div className="heroBannerText">
           <h1>{t('Bienvenido,')} {WELCOME_NAME} 👋</h1>
           <p>{t('Todo en movimiento, siempre hacia adelante.')}</p>
@@ -207,7 +207,7 @@ export default function Home() {
           </>}
         </div>
         <span className="heroBannerTag" aria-hidden="true">Keep Trucking</span>
-      </section>
+      </section>}
       <nav className="miniNav" aria-label={t('Acceso rápido')}>
         <button className={`miniNavItem ${activeModule===homeModule?'active':''}`} onClick={()=>go(homeModule)}>{t('Inicio')}</button>
         <div className="navSpacer"/>
