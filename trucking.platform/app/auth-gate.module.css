@@ -1,4 +1,4 @@
-.screen { min-height:100svh; display:flex; align-items:center; justify-content:center; background:#F7F8FA; padding:24px; }
+.screen { min-height:100svh; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(247,248,250,.91), rgba(247,248,250,.96)), url('/truck-dusk.png') center 30% / cover no-repeat; padding:24px; }
 .card { width:100%; max-width:380px; background:white; border:1px solid #E3DADD; border-radius:16px; padding:32px 28px; text-align:center; box-shadow:0 8px 30px rgba(17,21,27,.06); }
 .logo { width:52px; height:52px; border-radius:14px; background:#8B102A; color:#C5A46D; display:grid; place-items:center; margin:0 auto 18px; }
 .card h1 { font-size:22px; color:#11151B; margin:0 0 8px; letter-spacing:-.3px; }

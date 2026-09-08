@@ -3,29 +3,39 @@
 .backLink { font:inherit; font-size:13px; font-weight:700; padding:8px 12px; min-height:38px; border:0; background:transparent; color:#8B102A; cursor:pointer; margin-bottom:10px; }
 .backLink:hover { text-decoration:underline; }
 
-.driverStrip { background:white; border:1px solid #e3dadd; border-radius:12px; padding:14px; margin-bottom:16px; }
-.driverStripHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-.driverStripHeader h3 { display:flex; align-items:center; gap:6px; font-size:14px; color:#11151B; margin:0; }
+.driverStrip { background:white; border:1px solid #e3dadd; border-radius:14px; padding:18px; margin-bottom:16px; box-shadow:0 4px 18px rgba(17,21,27,.06); }
+.driverStripHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.driverStripHeader h3 { display:flex; align-items:center; gap:8px; font-size:15px; color:#11151B; margin:0; font-weight:700; }
 .fleetLink { font:inherit; font-size:13px; font-weight:700; padding:6px 10px; min-height:34px; border:0; background:transparent; color:#8B102A; cursor:pointer; }
 .fleetLink:hover { text-decoration:underline; }
-.driverColumns { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
-.driverGroup { min-width:160px; flex:1 1 160px; }
-.driverGroupLabel { display:block; font-size:12px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #e3dadd; }
-.driverList { display:flex; flex-direction:column; gap:6px; list-style:none; margin:0; padding:0; }
-.driverChip { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:600; color:#11151B; }
-.driverChip::before { content:"•"; color:#8B102A; }
+
+.driverColumns { display:flex; flex-wrap:wrap; gap:16px; align-items:stretch; }
+.driverGroup { min-width:180px; flex:1 1 180px; background:#FAF9F7; border:1px solid #EEE6E2; border-left:4px solid #8B102A; border-radius:12px; padding:16px; transition:transform 180ms ease, box-shadow 180ms ease; }
+.driverGroup[data-tone=wine] { border-left-color:#8B102A; }
+.driverGroup[data-tone=blue] { border-left-color:#1e4e8c; }
+.driverGroup[data-tone=green] { border-left-color:#1f7a4d; }
+@media(hover:hover) and (pointer:fine) { .driverGroup:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(17,21,27,.08); } }
+
+.driverGroupLabel { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; font-weight:800; color:#59616D; text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #E3DADD; }
+.driverGroupCount { font-size:11px; font-weight:700; color:#8B102A; background:#F5EBED; border-radius:20px; padding:2px 9px; }
+.driverGroup[data-tone=blue] .driverGroupCount { color:#1e4e8c; background:#E1EBFB; }
+.driverGroup[data-tone=green] .driverGroupCount { color:#1f7a4d; background:#DFF5E9; }
+
+.driverList { display:flex; flex-direction:column; gap:8px; list-style:none; margin:0; padding:0; }
+.driverChip { display:flex; align-items:baseline; gap:8px; font-size:14px; font-weight:600; color:#11151B; }
+.driverChip::before { content:"•"; color:#8B102A; font-size:16px; line-height:1; }
+.driverGroup[data-tone=blue] .driverChip::before { color:#1e4e8c; }
+.driverGroup[data-tone=green] .driverChip::before { color:#1f7a4d; }
 .empty { color:#59616D; font-size:13px; margin:0; }
 
-/* Teléfono: cada grupo como su propia tarjeta, uno debajo del otro, con más
-   espacio y letra más grande — antes se veía todo apretado en columnas. */
+/* Teléfono: cada grupo sigue siendo su propia tarjeta, uno debajo del otro,
+   con más espacio y letra más grande. */
 @media(max-width:600px) {
   .driverStrip { padding:16px; }
   .driverStripHeader { flex-direction:column; align-items:flex-start; gap:8px; }
-  .driverStripHeader h3 { font-size:15px; }
   .fleetLink { padding:0; }
   .driverColumns { flex-direction:column; gap:14px; }
-  .driverGroup { min-width:0; background:#FAF7F5; border-radius:10px; padding:14px; }
-  .driverGroupLabel { font-size:13px; margin-bottom:10px; }
+  .driverGroup { min-width:0; }
   .driverList { gap:10px; }
   .driverChip { font-size:15px; gap:8px; }
 }

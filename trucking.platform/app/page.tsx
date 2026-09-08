@@ -232,6 +232,7 @@ export default function Home() {
                 :global(*) { box-sizing: border-box; }
                 :global(html) { color-scheme: light; }
                 :global(body) { margin: 0; background: #F7F8FA; color: #30282A; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; }
+                :global(body)::before { content:""; position:fixed; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(247,248,250,.91), rgba(247,248,250,.96)), url('/truck-dusk.png') center 30% / cover no-repeat; }
                 button { font: inherit; cursor: pointer; min-height: 44px; transition: background .15s; }
                 button:focus-visible, .skipLink:focus-visible { outline: 3px solid #A85C6A; outline-offset: 4px; }
                 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 60; background: white; color: #8B102A; padding: 12px; }
