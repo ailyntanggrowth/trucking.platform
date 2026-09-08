@@ -58,7 +58,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       if (editor.type === 'load' || editor.type === 'replace') {
         const record: Load = {
           id: editor.type === 'load' ? (editor.id || crypto.randomUUID()) : crypto.randomUUID(),
-          loadNumber: text('loadNumber'), broker: text('broker'),
+          loadNumber: text('loadNumber'), broker: '',
           driverId: text('driverId'), truckId: '', trailerId: '',
           pickupCity: '', pickupState: text('pickupState'), pickupDate: text('pickupDate'),
           deliveryCity: '', deliveryState: text('deliveryState'), deliveryDate: text('deliveryDate'),
@@ -93,7 +93,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Número, broker, chofer o estado...')} /></label>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Número, chofer o estado...')} /></label>
       <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
       <button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
     </div>
@@ -102,13 +102,12 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       <h3>{editorTitle}</h3>
       {(editor.type === 'load' || editor.type === 'replace') && <div className={styles.fields}>
         <label>{t('Número de carga')}<input name="loadNumber" maxLength={100} defaultValue={editor.type === 'load' ? editLoad?.loadNumber : ''} /></label>
-        <label>{t('Broker / Cliente')}<input name="broker" maxLength={150} defaultValue={editor.type === 'load' ? editLoad?.broker : target?.broker} /></label>
-        <label>{t('Chofer')}<select name="driverId" defaultValue={editor.type === 'load' ? editLoad?.driverId || '' : target?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label>{t('Estado de recogida')}<input name="pickupState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.pickupState : ''} /></label>
-        <label>{t('Fecha de recogida *')}<input name="pickupDate" type="date" required defaultValue={editor.type === 'load' ? (editLoad?.pickupDate || today()) : today()} /></label>
-        <label>{t('Estado de entrega')}<input name="deliveryState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.deliveryState : ''} /></label>
-        <label>{t('Fecha de entrega')}<input name="deliveryDate" type="date" defaultValue={editor.type === 'load' ? editLoad?.deliveryDate : ''} /></label>
         <label>{t('Tarifa (monto bruto)')}<input name="amount" type="number" step="0.01" min="0" defaultValue={editor.type === 'load' ? editLoad?.amount ?? 0 : 0} /></label>
+        <label>{t('Estado de recogida')}<input name="pickupState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.pickupState : ''} /></label>
+        <label>{t('Estado de entrega')}<input name="deliveryState" maxLength={50} defaultValue={editor.type === 'load' ? editLoad?.deliveryState : ''} /></label>
+        <label>{t('Fecha de recogida *')}<input name="pickupDate" type="date" required defaultValue={editor.type === 'load' ? (editLoad?.pickupDate || today()) : today()} /></label>
+        <label>{t('Fecha de entrega')}<input name="deliveryDate" type="date" defaultValue={editor.type === 'load' ? editLoad?.deliveryDate : ''} /></label>
+        <label>{t('Chofer')}<select name="driverId" defaultValue={editor.type === 'load' ? editLoad?.driverId || '' : target?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
         <label>{t('Estado operativo')}<select name="status" defaultValue={editor.type === 'load' ? editLoad?.status || 'Programado' : 'Programado'}>{LOAD_STATUS_VALUES.filter(s => s !== 'Cancelada' && s !== 'Reemplazada').map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
         <label>{t('Estado de pago')}<select name="paymentStatus" defaultValue={editor.type === 'load' ? editLoad?.paymentStatus || 'Pendiente' : 'Pendiente'}>{PAYMENT_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
         <label>{t('Monto recibido')}<input name="amountReceived" type="number" step="0.01" min="0" defaultValue={editor.type === 'load' ? editLoad?.amountReceived ?? 0 : 0} /></label>
