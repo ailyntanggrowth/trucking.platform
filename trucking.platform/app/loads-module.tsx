@@ -9,7 +9,7 @@ import type { Lang } from '../lib/i18n';
 import { Truck, ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
-type Editor = { type: 'load' | 'cancel' | 'replace'; id: string; revision: number };
+type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
 const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 
 export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
@@ -68,9 +68,14 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
           amount: num('amount'), status: text('status') as LoadStatus, missingPod: false,
           paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), paidAt: '', notes: text('notes'),
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
+          incidentNote: '', incidentCost: 0, incidentReportedAt: '',
         };
         action = editor.type === 'load' ? { type: 'load', record, reason: text('reason') } : { type: 'replace', id: editor.id, replacement: record, reason: text('reason') };
-      } else action = { type: 'cancel', id: editor.id, reason: text('reason') };
+      } else if (editor.type === 'cancel') {
+        action = { type: 'cancel', id: editor.id, reason: text('reason') };
+      } else {
+        action = { type: 'incident', id: editor.id, note: text('incidentNote'), cost: num('incidentCost') };
+      }
       const next = await loads.commit(action, editor.revision);
       setEditor(null); setNotice(next.events[0].detail);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -78,7 +83,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
 
   const changeGroup = (next: string | null) => { setGroupFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
   const dateRange = (l: Load) => `${dayLabel(l.pickupDate)}${l.deliveryDate ? ` → ${dayLabel(l.deliveryDate)}` : ''}`;
-  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : t('Reemplazar carga');
+  const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : editor?.type === 'incident' ? t('Reportar rotura de camión') : t('Reemplazar carga');
 
   return <div className={styles.loads}>
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
@@ -127,6 +132,12 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         {(editor.type === 'replace' || editor.id) && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
       </div>}
       {editor.type === 'cancel' && <><p>{t('La carga no se borra: queda cancelada en el historial con el motivo.')}</p><label>{t('Motivo de la cancelación *')}<input name="reason" required maxLength={500} /></label></>}
+      {editor.type === 'incident' && <div className={styles.fields}>
+        <p className={styles.wide}>{t('Anota qué se rompió y cuánto costó, para que quede la carga marcada como atrasada por rotura.')}</p>
+        <label className={styles.wide}>{t('¿Qué se rompió?')}<input name="incidentNote" maxLength={500} placeholder={t('Ej: se ponchó una llanta, se rompió el motor…')} defaultValue={target?.incidentNote} /></label>
+        <label>{t('Costo de la reparación')}<input name="incidentCost" type="number" step="0.01" min="0" defaultValue={target?.incidentCost ?? 0} /></label>
+        <p className={styles.wide}><small>{t('Deja "¿Qué se rompió?" vacío y guarda para quitar el reporte cuando ya esté resuelto.')}</small></p>
+      </div>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
@@ -137,16 +148,19 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         <div className={styles.badgeRow}>
           <span className={styles.badge} data-tone={rail.tone}>{rail.badge}</span>
           {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
+          {l.incidentNote && <span className={`${styles.badge} ${styles.badgeIncident}`}>🔧 {t('Rotura')}</span>}
         </div>
         <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
         <span>{l.pickupState || '—'} → {l.deliveryState || '—'}</span>
         <span>{dateRange(l)}</span>
         <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}{!groupFilter && l.driverId && driverGroup(l.driverId) && ` · ${driverGroup(l.driverId)}`}</span>
         <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
+        {l.incidentNote && <p className={styles.incidentNote}><b>🔧 {t('Rotura:')}</b> {l.incidentNote}{l.incidentCost > 0 && ` — ${money(l.incidentCost)}`}</p>}
         {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
         {l.replacesId && <span>{t('Reemplaza a:')} {state.loads.find(x => x.id === l.replacesId)?.loadNumber || l.replacesId}</span>}
         <div className={styles.actions}>
           <button onClick={() => open('load', l.id)}>{t('Editar')}</button>
+          <button onClick={() => open('incident', l.id)}>{l.incidentNote ? t('Editar rotura') : t('Reportar rotura')}</button>
           <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>
         </div>
       </article>)}</div>

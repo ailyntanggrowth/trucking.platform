@@ -32,6 +32,11 @@ export type Load = {
   // según si se pagaron antes o después de las 9pm — ver dispatcherCommissionDetail.
   paymentStatus: PaymentStatus; amountReceived: number; paidAt: string;
   notes: string;
+  // Reporte de rotura de camión (pedido explícito): qué se rompió y cuánto
+  // costó la reparación, para cuando una carga se atrasa por eso. Un solo
+  // reporte "vigente" por carga, no un historial — se sobreescribe si se
+  // vuelve a reportar, y se limpia mandando la nota vacía.
+  incidentNote: string; incidentCost: number; incidentReportedAt: string;
   // Controladas SOLO por sus propias acciones (approve/reject/cancel/replace);
   // 'load' (crear/editar) nunca las toca directamente — ver applyLoadAction.
   approval: ApprovalStatus; approvedBy: string; approvedAt: string; rejectedReason: string;
@@ -74,7 +79,8 @@ export type LoadAction =
   | { type: 'approve'; id: string; reason: string }
   | { type: 'reject'; id: string; reason: string }
   | { type: 'cancel'; id: string; reason: string }
-  | { type: 'replace'; id: string; replacement: Load; reason: string };
+  | { type: 'replace'; id: string; replacement: Load; reason: string }
+  | { type: 'incident'; id: string; note: string; cost: number };
 
 const requireValue = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
@@ -100,11 +106,12 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     const paidAt = incoming.paymentStatus === 'Pagada'
       ? (old && old.paymentStatus === 'Pagada' ? old.paidAt : now)
       : '';
-    // La cancelación/reemplazo nunca se toca por esta vía — solo por sus
-    // propias acciones. Al crear, la carga queda aprobada de una vez.
+    // La cancelación/reemplazo/reporte de rotura nunca se tocan por esta
+    // vía — solo por sus propias acciones. Al crear, la carga queda
+    // aprobada de una vez.
     const record: Load = old
-      ? { ...incoming, paidAt, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy }
-      : { ...incoming, paidAt, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '' };
+      ? { ...incoming, paidAt, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy, incidentNote: old.incidentNote, incidentCost: old.incidentCost, incidentReportedAt: old.incidentReportedAt }
+      : { ...incoming, paidAt, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '', incidentNote: '', incidentCost: 0, incidentReportedAt: '' };
     state.loads = old ? state.loads.map(l => l.id === record.id ? record : l) : [...state.loads, record];
     entityIds = [record.id]; after = record;
     detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ''}`;
@@ -127,13 +134,14 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     before = { status: load!.status }; load!.status = 'Cancelada'; load!.cancelReason = action.reason.trim(); load!.cancelledAt = now; load!.cancelledBy = 'Usuario local · sin cuenta autenticada';
     after = { status: load!.status, cancelReason: load!.cancelReason };
     entityIds = [action.id]; detail = `Canceló carga ${load!.loadNumber || load!.id}: ${action.reason.trim()}`;
-  } else {
+  } else if (action.type === 'replace') {
     requireValue(action.reason.trim(), 'Escribe el motivo del reemplazo.');
     const original = state.loads.find(l => l.id === action.id); requireValue(original, 'No se encontró la carga original.');
     const replacement: Load = {
       ...action.replacement, id: action.replacement.id, paidAt: action.replacement.paymentStatus === 'Pagada' ? now : '',
       approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
       cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: original!.id, replacedBy: '',
+      incidentNote: '', incidentCost: 0, incidentReportedAt: '',
     };
     const wasCancelled = Boolean(original!.cancelledAt);
     before = { status: original!.status }; original!.status = 'Reemplazada'; original!.replacedBy = replacement.id;
@@ -142,6 +150,23 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     after = { originalStatus: original!.status, replacementId: replacement.id };
     entityIds = [original!.id, replacement.id];
     detail = `Reemplazó carga ${original!.loadNumber || original!.id} con ${replacement.loadNumber || replacement.id}: ${action.reason.trim()}`;
+  } else {
+    // Reporte de rotura de camión (pedido explícito): qué se rompió y cuánto
+    // costó, para cuando una carga se atrasa por una avería. Mandar la nota
+    // vacía limpia el reporte (por ejemplo, ya se resolvió).
+    const load = state.loads.find(l => l.id === action.id); requireValue(load, 'No se encontró la carga.');
+    before = { incidentNote: load!.incidentNote, incidentCost: load!.incidentCost, incidentReportedAt: load!.incidentReportedAt };
+    const note = action.note.trim();
+    if (note) {
+      requireValue(action.cost >= 0, 'El costo no puede ser negativo.');
+      load!.incidentNote = note; load!.incidentCost = action.cost; load!.incidentReportedAt = now;
+      detail = `Reportó rotura en carga ${load!.loadNumber || load!.id}: ${note}${action.cost ? ` (${action.cost})` : ''}`;
+    } else {
+      load!.incidentNote = ''; load!.incidentCost = 0; load!.incidentReportedAt = '';
+      detail = `Quitó el reporte de rotura de la carga ${load!.loadNumber || load!.id}`;
+    }
+    after = { incidentNote: load!.incidentNote, incidentCost: load!.incidentCost, incidentReportedAt: load!.incidentReportedAt };
+    entityIds = [action.id];
   }
 
   state.revision++; state.events.unshift({ id: `event-${id}`, at: now, actor: 'Usuario local · sin cuenta autenticada', entityIds, detail, before, after });

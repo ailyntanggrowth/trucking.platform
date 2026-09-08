@@ -21,6 +21,7 @@ function mapRow(r: Record<string, any>): Load {
     approval: r.approval as ApprovalStatus, approvedBy: r.approved_by, approvedAt: r.approved_at ?? '',
     rejectedReason: r.rejected_reason, cancelReason: r.cancel_reason, cancelledAt: r.cancelled_at ?? '',
     cancelledBy: r.cancelled_by, replacesId: r.replaces_id ?? '', replacedBy: r.replaced_by ?? '',
+    incidentNote: r.incident_note ?? '', incidentCost: Number(r.incident_cost ?? 0), incidentReportedAt: r.incident_reported_at ?? '',
   };
 }
 
@@ -93,12 +94,18 @@ export async function commitLoadAction(action: LoadAction, expectedRevision: num
   } else if (action.type === 'cancel') {
     const l = next.loads.find(x => x.id === action.id)!;
     rpc = supabase.rpc('loads_commit_cancel', { p_company_id: companyId, p_expected_revision: expectedRevision, p_id: action.id, p_reason: l.cancelReason, p_cancelled_by: l.cancelledBy, p_cancelled_at: l.cancelledAt, p_event: event });
-  } else {
+  } else if (action.type === 'replace') {
     const original = next.loads.find(x => x.id === action.id)!;
     const replacement = next.loads.find(x => x.replacesId === action.id)!;
     rpc = supabase.rpc('loads_commit_replace', {
       p_company_id: companyId, p_expected_revision: expectedRevision, p_original_id: action.id, p_reason: original.cancelReason,
       p_cancelled_by: original.cancelledBy, p_cancelled_at: original.cancelledAt, p_replacement: loadPayload(replacement), p_event: event,
+    });
+  } else {
+    const l = next.loads.find(x => x.id === action.id)!;
+    rpc = supabase.rpc('loads_commit_incident', {
+      p_company_id: companyId, p_expected_revision: expectedRevision, p_id: action.id,
+      p_note: l.incidentNote, p_cost: l.incidentCost, p_reported_at: l.incidentReportedAt || null, p_event: event,
     });
   }
 
