@@ -16,7 +16,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
   const ready = settlements.ready && loads.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
   const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
-  const result = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config);
+  const result = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config, settlements.state.weekLocks);
   // Agrupado por chofer (pedido explícito): todas las cargas de un chofer
   // juntas, con su propio subtotal, en vez de una lista mezclada.
   const byDriver: { driverName: string; group: string; rows: typeof result.rows }[] = [];
@@ -37,7 +37,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
   for (let i = 0; i < 8; i++) {
     const ws = i === 0 ? weekStartOf(today()) : weekRange(history[i - 1].weekStart).prevWeek;
     const { end } = weekRange(ws);
-    const c = ready ? dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, ws, end, settlements.state.config).commission : 0;
+    const c = ready ? dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, ws, end, settlements.state.config, settlements.state.weekLocks).commission : 0;
     const m = settlements.state.dispatcherMarks.find(x => x.weekStart === ws);
     history.push({
       weekStart: ws, invoiceNumber: invoiceNumberFor(ws), commission: c, paid: m?.paymentStatus === 'Pagada',

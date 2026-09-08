@@ -32,11 +32,12 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
-  const locked = isWeekLocked(weekEnd);
+  const locked = isWeekLocked(weekEnd, state.weekLocks);
+  const weekLock = state.weekLocks.find(w => w.weekEnd === weekEnd);
   const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks);
   const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config);
   const lazaro = computeLazaroSettlements(fleet.state.drivers, loads.state.loads, weekStart, weekEnd);
-  const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config);
+  const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config, state.weekLocks);
   const invoiceNumber = invoiceNumberFor(weekStart);
   const dispatcherMark = state.dispatcherMarks.find(m => m.weekStart === weekStart);
   const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
@@ -76,6 +77,16 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     try { const next = await settlements.commit({ type: 'insurance', driverId, amount }); setNotice(next.events[0].detail); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
+  async function closeWeek() {
+    if (busy || locked) return; setError(''); setNotice(''); setBusy(true);
+    try { const next = await settlements.commit({ type: 'closeWeek', weekEnd }); setNotice(next.events[0].detail); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function reopenWeek() {
+    if (busy || !locked) return; setError(''); setNotice(''); setBusy(true);
+    try { const next = await settlements.commit({ type: 'reopenWeek', weekEnd }); setNotice(next.events[0].detail); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
   async function saveConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return; const fields = new FormData(event.currentTarget);
     const num = (key: string) => Number(fields.get(key) || 0);
@@ -98,8 +109,11 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <span>📅 {t('Semana')} {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
+      {locked
+        ? <button disabled={busy} onClick={reopenWeek}>{t('Reabrir semana')}</button>
+        : <button className={styles.primary} disabled={busy} onClick={closeWeek}>{t('Cerrar invoice de esta semana')}</button>}
     </div>
-    {locked && <p className={styles.note}>{t('Esta semana ya cerró (el invoice se bloquea el lunes siguiente después de las 9pm) — los montos son finales y no se pueden editar.')}</p>}
+    {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar. Ciérrala tú cuando quieras, no hay hora automática.')}</p>}
 
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(totalGross) : '—'}</strong></div>

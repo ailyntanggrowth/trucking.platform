@@ -33,19 +33,27 @@ export type PaymentMark = { driverId: string; weekStart: string; paymentStatus: 
 // — Mario/Ney Mario —, nunca ella misma desde Mi Invoice.
 export type DispatcherInvoiceMark = { weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string };
 export type SettlementEvent = { id: string; at: string; actor: string; entityIds: string[]; detail: string; before: unknown; after: unknown };
+// El cierre de la semana ya NO es automático a una hora fija (pedido
+// explícito: un feriado corre el cierre, y forzarlo por fecha/hora no
+// aguanta excepciones) — un Administrador cierra la semana a mano, cuando
+// quiera, y esa fecha/hora exacta es la que reparte cargas pagadas entre el
+// invoice que cierra y el siguiente.
+export type WeekLock = { weekEnd: string; lockedAt: string };
 export type SettlementState = {
   schema: 1; revision: number; config: SettlementConfig;
-  driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; events: SettlementEvent[];
+  driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; weekLocks: WeekLock[]; events: SettlementEvent[];
 };
 export const emptySettlements: SettlementState = {
-  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], events: [],
+  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], weekLocks: [], events: [],
 };
 
 export type SettlementAction =
   | { type: 'config'; config: SettlementConfig }
   | { type: 'insurance'; driverId: string; amount: number }
   | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
-  | { type: 'dispatcherMark'; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string };
+  | { type: 'dispatcherMark'; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
+  | { type: 'closeWeek'; weekEnd: string }
+  | { type: 'reopenWeek'; weekEnd: string };
 
 // Número de invoice del despachador (pedido explícito): invoice #41 cerró el
 // 31 de agosto de 2026 — de ahí se cuenta hacia adelante o hacia atrás, una
@@ -87,7 +95,7 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     state.marks = existing ? state.marks.map(m => m === existing ? mark : m) : [...state.marks, mark];
     after = mark; entityIds = [action.driverId];
     detail = `Marcó la semana del ${action.weekStart} de ${action.driverName} como ${action.paymentStatus}`;
-  } else {
+  } else if (action.type === 'dispatcherMark') {
     requireValue(action.weekStart, 'Falta la semana.');
     const existing = state.dispatcherMarks.find(m => m.weekStart === action.weekStart);
     before = existing || null;
@@ -95,6 +103,18 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     state.dispatcherMarks = existing ? state.dispatcherMarks.map(m => m === existing ? mark : m) : [...state.dispatcherMarks, mark];
     after = mark; entityIds = ['dispatcher'];
     detail = `Marcó el invoice #${invoiceNumberFor(action.weekStart)} del despachador (semana del ${action.weekStart}) como ${action.paymentStatus}`;
+  } else if (action.type === 'closeWeek') {
+    requireValue(action.weekEnd, 'Falta la semana.');
+    requireValue(!state.weekLocks.some(w => w.weekEnd === action.weekEnd), 'Esta semana ya está cerrada.');
+    const lock: WeekLock = { weekEnd: action.weekEnd, lockedAt: now };
+    before = null; state.weekLocks = [...state.weekLocks, lock]; after = lock;
+    entityIds = ['weekLock']; detail = `Cerró el invoice de la semana que termina el ${action.weekEnd} (${new Date(now).toLocaleString('es')})`;
+  } else {
+    requireValue(action.weekEnd, 'Falta la semana.');
+    const existing = state.weekLocks.find(w => w.weekEnd === action.weekEnd);
+    requireValue(existing, 'Esta semana no estaba cerrada.');
+    before = existing; state.weekLocks = state.weekLocks.filter(w => w !== existing); after = null;
+    entityIds = ['weekLock']; detail = `Reabrió el invoice de la semana que termina el ${action.weekEnd}`;
   }
 
   state.revision++; state.events.unshift({ id: `event-${id}`, at: now, actor: 'Usuario local · sin cuenta autenticada', entityIds, detail, before, after });
@@ -127,27 +147,33 @@ export function weekRange(weekStart: string) {
   return { start: weekStart, end: fmt(end), prevWeek: fmt(prev), nextWeek: fmt(next) };
 }
 
-// El invoice de una semana se cierra el lunes de la semana siguiente a las
-// 9pm (pedido explícito: hay que esperar a que lleguen los rate-cons del
-// lunes — a veces hasta las 6-7pm — antes de dar la semana por cerrada).
-// Antes de esa hora la semana todavía se puede marcar/editar.
-export function isWeekLocked(weekEnd: string, now: Date = new Date()): boolean {
-  const [y, m, d] = weekEnd.split('-').map(Number);
-  const lockAt = new Date(y, m - 1, d, 21, 0, 0);
-  return now >= lockAt;
+// El cierre de una semana ya no es automático a una hora fija (pedido
+// explícito: un feriado corre el cierre, y una hora fija no aguanta
+// excepciones) — un Administrador la cierra a mano, cuando quiera, desde
+// Contabilidad y Pagos. Antes de cerrarla, la semana se puede seguir
+// marcando/editando.
+export function isWeekLocked(weekEnd: string, weekLocks: WeekLock[]): boolean {
+  return weekLocks.some(w => w.weekEnd === weekEnd);
+}
+function lockedAtFor(weekEnd: string, weekLocks: WeekLock[]): string | null {
+  return weekLocks.find(w => w.weekEnd === weekEnd)?.lockedAt ?? null;
 }
 
-// Reparte una carga pagada el lunes de cierre entre DOS invoices según la
-// HORA en que se pagó (pedido explícito): antes de las 9pm cae en el invoice
-// que cierra esa noche (weekEnd de ESTE período); después de las 9pm ya es
-// del invoice de la semana siguiente. paidAt trae fecha y hora completas.
-function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string): boolean {
+// Reparte una carga pagada el mismo día del cierre entre DOS invoices según
+// la HORA exacta en que se cerró la semana (pedido explícito): lo pagado
+// antes del cierre cae en el invoice que se cerró (weekEnd de ESTE período);
+// lo pagado después ya es del invoice de la semana siguiente, todavía
+// abierta. Mientras la semana no se cierre, todo lo pagado en su rango de
+// fechas cuenta aquí — no hay una hora tope inventada.
+function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
   if (!paidAt) return false;
   const paidDate = paidAt.slice(0, 10);
   if (paidDate < weekStart) return false;
-  const [y, m, d] = weekEnd.split('-').map(Number);
-  const lockAt = new Date(y, m - 1, d, 21, 0, 0);
-  return new Date(paidAt) <= lockAt;
+  if (paidDate < weekEnd) return true;
+  if (paidDate > weekEnd) return false;
+  const lockedAt = lockedAtFor(weekEnd, weekLocks);
+  if (!lockedAt) return true;
+  return new Date(paidAt) <= new Date(lockedAt);
 }
 
 const inRange = (date: string, start: string, end: string) => date >= start && date < end;
@@ -214,11 +240,11 @@ export function computeOwnerOperatorSettlements(
 // tendría cómo comprobar que el total de su comisión es correcto más que
 // sumando a mano en Cargas (pedido explícito de la dueña).
 export type DispatcherCommissionLine = { loadId: string; loadNumber: string; driverName: string; group: string; amount: number; commission: number };
-export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
+export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig, weekLocks: WeekLock[] = []) {
   const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
-    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd))
+    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, weekLocks))
     .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
     // Agrupado por chofer (pedido explícito: todas las cargas de Agnel juntas,
     // luego las de Dixon, etc.) — dentro de cada chofer, la más grande primero.
@@ -226,8 +252,8 @@ export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], wee
   const gross = rows.reduce((s, r) => s + r.amount, 0);
   return { rows, gross, commission: gross * config.dispatcherCommissionPct };
 }
-export function dispatcherCommission(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig) {
-  const { gross, commission } = dispatcherCommissionDetail(drivers, loads, weekStart, weekEnd, config);
+export function dispatcherCommission(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig, weekLocks: WeekLock[] = []) {
+  const { gross, commission } = dispatcherCommissionDetail(drivers, loads, weekStart, weekEnd, config, weekLocks);
   return { gross, commission };
 }
 

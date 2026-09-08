@@ -28,21 +28,23 @@ function configPayload(c: SettlementConfig) {
 
 export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promise<SettlementState> {
   const supabase = supabaseServer();
-  const [meta, config, insurance, marks, dispatcherMarks, events] = await Promise.all([
+  const [meta, config, insurance, marks, dispatcherMarks, weekLocks, events] = await Promise.all([
     supabase.from('settlements_meta').select('revision').eq('company_id', companyId).single(),
     supabase.from('settlements_config').select('*').eq('company_id', companyId).single(),
     supabase.from('driver_settlement_settings').select('*').eq('company_id', companyId),
     supabase.from('settlement_marks').select('*').eq('company_id', companyId),
     supabase.from('dispatcher_invoice_marks').select('*').eq('company_id', companyId),
+    supabase.from('week_locks').select('*').eq('company_id', companyId),
     supabase.from('settlement_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }),
   ]);
-  for (const result of [meta, config, insurance, marks, dispatcherMarks, events]) if (result.error) throw new Error(result.error.message);
+  for (const result of [meta, config, insurance, marks, dispatcherMarks, weekLocks, events]) if (result.error) throw new Error(result.error.message);
   const driverInsurance: Record<string, number> = {};
   for (const row of insurance.data ?? []) driverInsurance[row.driver_id] = Number(row.weekly_insurance);
   return {
     schema: 1, revision: meta.data!.revision, config: mapConfig(config.data!), driverInsurance,
     marks: (marks.data ?? []).map(r => ({ driverId: r.driver_id, weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
     dispatcherMarks: (dispatcherMarks.data ?? []).map(r => ({ weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
+    weekLocks: (weekLocks.data ?? []).map(r => ({ weekEnd: r.week_end, lockedAt: r.locked_at })),
     events: (events.data ?? []).map(r => ({ id: r.id, at: r.at, actor: r.actor, entityIds: r.entity_ids, detail: r.detail, before: r.before, after: r.after })),
   };
 }
@@ -71,11 +73,20 @@ export async function commitSettlementAction(action: SettlementAction, expectedR
       p_company_id: companyId, p_expected_revision: expectedRevision, p_driver_id: action.driverId, p_week_start: action.weekStart,
       p_payment_status: mark.paymentStatus, p_paid_at: mark.paidAt || null, p_notes: mark.notes, p_event: event,
     });
-  } else {
+  } else if (action.type === 'dispatcherMark') {
     const mark = next.dispatcherMarks.find(m => m.weekStart === action.weekStart)!;
     rpc = supabase.rpc('settlements_commit_dispatcher_mark', {
       p_company_id: companyId, p_expected_revision: expectedRevision, p_week_start: action.weekStart,
       p_payment_status: mark.paymentStatus, p_paid_at: mark.paidAt || null, p_notes: mark.notes, p_event: event,
+    });
+  } else if (action.type === 'closeWeek') {
+    const lock = next.weekLocks.find(w => w.weekEnd === action.weekEnd)!;
+    rpc = supabase.rpc('settlements_commit_close_week', {
+      p_company_id: companyId, p_expected_revision: expectedRevision, p_week_end: action.weekEnd, p_locked_at: lock.lockedAt, p_event: event,
+    });
+  } else {
+    rpc = supabase.rpc('settlements_commit_reopen_week', {
+      p_company_id: companyId, p_expected_revision: expectedRevision, p_week_end: action.weekEnd, p_event: event,
     });
   }
 
