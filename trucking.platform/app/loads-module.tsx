@@ -1,11 +1,12 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { isCargoDriver } from '../lib/fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Search } from 'lucide-react';
+import { Truck, ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace'; id: string; revision: number };
@@ -19,18 +20,31 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
+  const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active && isCargoDriver(d)).length;
 
   // Grupos de la flota (pedido explícito): Mario, Owner Operators y Lázaro —
   // al elegir uno se ve solo sus choferes y sus cargas.
   const groupLoads = groupFilter ? state.loads.filter(l => driverGroup(l.driverId) === groupFilter) : state.loads;
+  const official = groupLoads.filter(isOfficial);
+  const active = official.filter(isActive);
   const searched = groupLoads.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${l.pickupState} ${l.deliveryState}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
-  // Una sola tabla (pedido explícito: lo anterior con carriles y colores por
-  // todos lados no se entendía) — el único filtro visible es el grupo de
-  // arriba; el estado del viaje y el cobro son solo columnas con color, no
-  // secciones separadas. Las canceladas no se muestran (pedido explícito).
-  const visible = searched.filter(l => l.status !== 'Cancelada' && l.status !== 'Reemplazada');
-  const statusTone = (s: LoadStatus) => s === 'En tránsito' ? 'blue' : (s === 'Entregada' || s === 'Completada') ? 'green' : 'gray';
-  const paymentTone = (p: PaymentStatus) => p === 'Pagada' ? 'green' : p === 'Pendiente' ? 'orange' : p === 'Disputada' ? 'red' : 'gray';
+  // Carriles horizontales por estado (pedido explícito) en vez de una sola
+  // lista vertical paginada — cada uno se desliza con el dedo. "Pendientes"
+  // son cargas ya entregadas pero que Mario todavía no ha pagado — se separan
+  // de "Entregadas" (ya cobradas) para que salte a la vista qué falta cobrar.
+  const programadas = searched.filter(l => ['Programado', 'Cargando', 'Pendiente de documentos'].includes(l.status));
+  const enTransito = searched.filter(l => l.status === 'En tránsito');
+  const entregadasTodas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
+  const pendientesPago = entregadasTodas.filter(l => l.paymentStatus !== 'Pagada');
+  const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
+  // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
+  // distingue de un vistazo sin tener que leer la etiqueta.
+  const rails = [
+    { key: 'Programado', label: t('Programadas'), badge: t('Programada'), rows: programadas, tone: 'gray' },
+    { key: 'En tránsito', label: t('En tránsito'), badge: t('En tránsito'), rows: enTransito, tone: 'blue' },
+    { key: 'Pendiente', label: t('Pendientes de pago'), badge: t('Pendiente de pago'), rows: pendientesPago, tone: 'orange' },
+    { key: 'Pagada', label: t('Pagadas'), badge: t('Pagada'), rows: entregadas, tone: 'green' },
+  ];
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   const editLoad = editor?.type === 'load' ? state.loads.find(l => l.id === editor.id) : undefined;
@@ -68,14 +82,19 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     {!ready && !loads.error && <p role="status">{t('Abriendo los registros de cargas…')}</p>}
 
     <nav className={styles.tabs} aria-label={t('Grupos de la flota')}>
-      <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos')}</button>
-      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g}</button>)}
+      <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos los grupos')}</button>
+      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
     </nav>
 
+    <div className={styles.statCards}>
+      <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></div>
+      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></div>
+    </div>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Buscar chofer, carga o broker...')} /></label>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Número, broker, chofer o estado...')} /></label>
+      <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
       <button className={styles.primary} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
     </div>
 
@@ -101,25 +120,26 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
 
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        <thead><tr><th>{t('Chofer / Carga')}</th><th>{t('Ruta')}</th><th>{t('Pickup / Delivery')}</th><th>{t('Estado del viaje')}</th><th>{t('Cobro')}</th><th aria-hidden="true"></th></tr></thead>
-        <tbody>{visible.map(l => <tr key={l.id} className={styles.clickRow} onClick={() => open('load', l.id)}>
-          <td>
-            <strong>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</strong>
-            <span className={styles.tableSub}>{l.loadNumber || t('Sin número')}{l.broker && ` · ${l.broker}`}</span>
-          </td>
-          <td className={styles.tableSub} data-label={t('Ruta')}>{l.pickupState || '—'} → {l.deliveryState || '—'}</td>
-          <td className={styles.tableSub} data-label={t('Pickup / Delivery')}>{dateRange(l)}</td>
-          <td data-label={t('Estado del viaje')}><span className={styles.badge} data-tone={statusTone(l.status)}>{t(l.status)}</span></td>
-          <td data-label={t('Cobro')}><span className={styles.badge} data-tone={paymentTone(l.paymentStatus)}>{t(l.paymentStatus)}</span></td>
-          <td className={styles.tableActions} onClick={e => e.stopPropagation()}>
-            <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>
-          </td>
-        </tr>)}</tbody>
-      </table>
-      {ready && !visible.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay cargas en esta vista. Usa el botón de arriba para comenzar.')}</p>}
-    </div>
-    {visible.length > 0 && <p className={styles.note}>{visible.length} {t('cargas en este período')}</p>}
+    {rails.map(rail => <section className={styles.rail} key={rail.key}>
+      <h3 className={styles.railTitle}>{rail.label} <span className={styles.count}>{rail.rows.length}</span></h3>
+      {rail.rows.length ? <div className={styles.railScroll}>{rail.rows.map(l => <article className={styles.card} data-tone={rail.tone} key={l.id}>
+        <div className={styles.badgeRow}>
+          <span className={styles.badge} data-tone={rail.tone}>{rail.badge}</span>
+          {l.missingPod && <span className={`${styles.badge} ${styles.badgeReview}`}>{t('Falta POD')}</span>}
+        </div>
+        <strong>{l.loadNumber || t('Sin número')} {l.broker && `· ${l.broker}`}</strong>
+        <span>{l.pickupState || '—'} → {l.deliveryState || '—'}</span>
+        <span>{dateRange(l)}</span>
+        <span>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}{!groupFilter && l.driverId && driverGroup(l.driverId) && ` · ${driverGroup(l.driverId)}`}</span>
+        <p><b>{t('Tarifa:')}</b> {money(l.amount)} · <b>{t('Pago:')}</b> {t(l.paymentStatus)} {l.amountReceived > 0 && `(${money(l.amountReceived)} ${t('recibido')})`}</p>
+        {l.replacedBy && <span>{t('Reemplazada por:')} {state.loads.find(x => x.id === l.replacedBy)?.loadNumber || l.replacedBy}</span>}
+        {l.replacesId && <span>{t('Reemplaza a:')} {state.loads.find(x => x.id === l.replacesId)?.loadNumber || l.replacesId}</span>}
+        <div className={styles.actions}>
+          <button onClick={() => open('load', l.id)}>{t('Editar')}</button>
+          <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>
+        </div>
+      </article>)}</div>
+        : <p className={styles.empty}>{ready ? t('No hay cargas aquí todavía.') : t('Cargando…')}</p>}
+    </section>)}
   </div>;
 }
