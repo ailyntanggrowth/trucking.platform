@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { isCargoDriver } from '../lib/fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -40,6 +40,10 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   // Resumen chiquito (pedido explícito): las cargas que tocan entregarse hoy,
   // para que la dueña las chequee de un vistazo — sin botones, solo lista.
   const dueToday = groupLoads.filter(l => isActive(l) && l.deliveryDate === today());
+  // Recordatorio de pago semanal (pedido explícito): cuándo salió cada
+  // chofer de FL y qué cargas ha hecho desde entonces, para saber cuándo y
+  // cuánto pagarle aunque se pase semanas sin volver.
+  const driverTrips = ready ? computeDriverTrips(fleet.state.drivers, state.loads, today()) : [];
   // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
   // distingue de un vistazo sin tener que leer la etiqueta.
   const rails = [
@@ -105,6 +109,17 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
             <strong>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</strong> — {t('Carga')} {l.loadNumber || t('sin número')} — {money(l.amount)}
           </li>)}</ul>
         : <p className={styles.empty}>{t('No hay cargas para entregar hoy.')}</p>}
+    </section>
+
+    <section className={styles.tripBox}>
+      <h3 className={styles.dueTodayTitle}>🧭 {t('Recorrido de cada chofer (desde que salió de FL)')} <span className={styles.count}>{driverTrips.length}</span></h3>
+      {driverTrips.length
+        ? <div className={styles.tripList}>{driverTrips.map(trip => <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
+            <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
+            <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
+            <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>{dayLabel(l.pickupDate)}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`}</li>)}</ul>
+          </div>)}</div>
+        : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
     </section>
 
     {notice && <p role="status" className={styles.success}>{notice}</p>}

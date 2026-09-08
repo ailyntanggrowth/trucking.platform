@@ -10,6 +10,7 @@
 // (replace crea una carga nueva y marca la original como Reemplazada, sin
 // sobrescribirla).
 import type { Load as DashboardLoad, LoadStatus as DashboardLoadStatus } from './dashboard';
+import { isCargoDriver, type Driver } from './fleet';
 
 export type LoadStatus = 'Programado' | 'Cargando' | 'En tránsito' | 'Entregada' | 'Pendiente de documentos' | 'Completada' | 'Cancelada' | 'Reemplazada';
 export const LOAD_STATUS_VALUES: LoadStatus[] = ['Programado', 'Cargando', 'En tránsito', 'Entregada', 'Pendiente de documentos', 'Completada', 'Cancelada', 'Reemplazada'];
@@ -183,4 +184,31 @@ export function summarizeLoads(state: LoadState, start: string, end: string) {
   const gross = official.filter(l => inRange(l.pickupDate) && l.status !== 'Cancelada').reduce((s, l) => s + l.amount, 0);
   const receivable = official.filter(l => l.paymentStatus !== 'Pagada' && l.paymentStatus !== 'No pagable').reduce((s, l) => s + balance(l), 0);
   return { official, review, active, gross, receivable };
+}
+
+export type DriverTrip = { driverId: string; driverName: string; group: string; tripStart: string; daysOut: number; loads: Load[] };
+
+// Recordatorio de "triángulo" (pedido explícito): un chofer sale de FL, va
+// haciendo cargas y normalmente regresa a FL en una semana — pero a veces se
+// pasa dos semanas en carretera sin volver, y de todos modos hay que pagarle
+// cada semana. Para saber cuándo le toca pago, se busca la última carga cuya
+// ENTREGA fue en FL (ahí "volvió"); todo lo que hizo después de esa entrega
+// es el viaje actual. Si nunca ha entregado en FL, el viaje empieza en su
+// primera carga registrada.
+export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: string): DriverTrip[] {
+  const trips: DriverTrip[] = [];
+  for (const driver of drivers.filter(d => d.active && isCargoDriver(d))) {
+    const driverLoads = loads
+      .filter(l => l.driverId === driver.id && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada')
+      .sort((a, b) => a.pickupDate.localeCompare(b.pickupDate));
+    if (!driverLoads.length) continue;
+    let lastFlReturnIdx = -1;
+    driverLoads.forEach((l, i) => { if (l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate) lastFlReturnIdx = i; });
+    const tripLoads = lastFlReturnIdx === -1 ? driverLoads : driverLoads.slice(lastFlReturnIdx + 1);
+    if (!tripLoads.length) continue; // ya volvió a FL, sin viaje activo todavía
+    const tripStart = tripLoads[0].pickupDate;
+    const daysOut = Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(tripStart)) / 86400000));
+    trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut, loads: tripLoads });
+  }
+  return trips.sort((a, b) => b.daysOut - a.daysOut);
 }
