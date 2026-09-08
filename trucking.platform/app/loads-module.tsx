@@ -37,6 +37,9 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   const entregadasTodas = searched.filter(l => l.status === 'Entregada' || l.status === 'Completada');
   const pendientesPago = entregadasTodas.filter(l => l.paymentStatus !== 'Pagada');
   const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
+  // Resumen chiquito (pedido explícito): las cargas que tocan entregarse hoy,
+  // para que la dueña las chequee de un vistazo — sin botones, solo lista.
+  const dueToday = groupLoads.filter(l => isActive(l) && l.deliveryDate === today());
   // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
   // distingue de un vistazo sin tener que leer la etiqueta.
   const rails = [
@@ -90,6 +93,15 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></div>
       <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></div>
     </div>
+    <section className={styles.dueTodayBox}>
+      <h3 className={styles.dueTodayTitle}>📦 {t('Cargas que se entregan hoy')} <span className={styles.count}>{dueToday.length}</span></h3>
+      {dueToday.length
+        ? <ul className={styles.dueTodayList}>{dueToday.map(l => <li key={l.id}>
+            <strong>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</strong> — {t('Carga')} {l.loadNumber || t('sin número')} — {money(l.amount)}
+          </li>)}</ul>
+        : <p className={styles.empty}>{t('No hay cargas para entregar hoy.')}</p>}
+    </section>
+
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     <div className={styles.toolbarRow}>
