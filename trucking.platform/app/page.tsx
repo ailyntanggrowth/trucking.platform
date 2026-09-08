@@ -183,13 +183,13 @@ export default function Home() {
         <p className="heroHint">{t('Desliza desde el borde izquierdo para abrir el menú.')}</p>
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
-      <header className="mainNav">
+      {activeModule===homeModule && <header className="mainNav">
         <span className="navBrand" aria-hidden="true">
           <Truck size={26} strokeWidth={1.75} className="navBrandIcon"/>
           <span className="navBrandText"><strong>M&amp;A <span className="navBrandKing">KING</span></strong><span>TRUCKING SERVICE</span></span>
         </span>
         <div className="navSpacer"/>
-      </header>
+      </header>}
       {activeModule===homeModule && <section className="heroBanner">
         <div className="heroBannerText">
           <h1>{t('Bienvenido,')} {WELCOME_NAME} 👋</h1>
