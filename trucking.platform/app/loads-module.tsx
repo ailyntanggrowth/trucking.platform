@@ -109,10 +109,10 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
             <strong>{l.driverId ? driverName(l.driverId) : t('Sin chofer')}</strong>
             <span className={styles.tableSub}>{l.loadNumber || t('Sin número')}{l.broker && ` · ${l.broker}`}</span>
           </td>
-          <td className={styles.tableSub}>{l.pickupState || '—'} → {l.deliveryState || '—'}</td>
-          <td className={styles.tableSub}>{dateRange(l)}</td>
-          <td><span className={styles.badge} data-tone={statusTone(l.status)}>{t(l.status)}</span></td>
-          <td><span className={styles.badge} data-tone={paymentTone(l.paymentStatus)}>{t(l.paymentStatus)}</span></td>
+          <td className={styles.tableSub} data-label={t('Ruta')}>{l.pickupState || '—'} → {l.deliveryState || '—'}</td>
+          <td className={styles.tableSub} data-label={t('Pickup / Delivery')}>{dateRange(l)}</td>
+          <td data-label={t('Estado del viaje')}><span className={styles.badge} data-tone={statusTone(l.status)}>{t(l.status)}</span></td>
+          <td data-label={t('Cobro')}><span className={styles.badge} data-tone={paymentTone(l.paymentStatus)}>{t(l.paymentStatus)}</span></td>
           <td className={styles.tableActions} onClick={e => e.stopPropagation()}>
             <button onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>
           </td>

@@ -42,6 +42,18 @@
 @media(max-width:600px) {
   .tabs { gap:16px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
   .tabs button { flex:0 0 auto; }
+
+  /* Teléfono: cada carga como una tarjeta con todo apilado — nada de
+     deslizar de lado para ver estado o cobro. */
+  .tableWrap { overflow-x:visible; border:0; background:transparent; }
+  .dataTable { min-width:0; }
+  .dataTable thead { display:none; }
+  .dataTable tr { display:block; background:white; border:1px solid #e3dadd; border-radius:12px; padding:14px; margin-bottom:12px; }
+  .dataTable td { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:0; white-space:normal; }
+  .dataTable td:first-child { display:block; padding-top:0; }
+  .dataTable td:not(:first-child):not(.tableActions)::before { content:attr(data-label); font-size:12px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.3px; }
+  .tableActions { text-align:left; padding-top:10px !important; }
+  .tableActions button { width:100%; }
 }
 .loads button:active { background-color:#C5A46D33; }
 @media(prefers-reduced-motion:reduce) { .loads button { transition:none; } }
