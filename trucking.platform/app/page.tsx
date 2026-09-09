@@ -67,7 +67,10 @@ export default function Home() {
   const officialLoads = loadsCtl.state.loads.filter(isOfficial);
   const activeLoadsCount = loadsCtl.ready ? officialLoads.filter(isActive).length : 0;
   const monthKey = today().slice(0, 7);
-  const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.pickupDate.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
+  // Ingresos del mes = solo lo que YA salió pagado por Summar este mes
+  // (pedido explícito) — no lo agendado/recogido, que puede seguir sin
+  // cobrarse.
+  const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
   const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && isCargoDriver(d) && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
