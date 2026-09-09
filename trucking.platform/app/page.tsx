@@ -76,9 +76,10 @@ export default function Home() {
   const driverGroupById: Record<string, string> = {};
   fleet.state.drivers.forEach(d => { driverGroupById[d.id] = d.group; });
   const ownerOperatorCutPct = settlementsCtl.ready ? settlementsCtl.state.config.ownerOperatorCutPct : 0.12;
-  const monthlyRevenue = loadsCtl.ready ? officialLoads
-    .filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey))
-    .reduce((s, l) => s + l.amount * (driverGroupById[l.driverId] === 'Mario' ? 1 : ownerOperatorCutPct), 0) : 0;
+  const paidThisMonth = loadsCtl.ready ? officialLoads.filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey)) : [];
+  const marioRevenue = paidThisMonth.filter(l => driverGroupById[l.driverId] === 'Mario').reduce((s, l) => s + l.amount, 0);
+  const otherGroupsRevenue = paidThisMonth.filter(l => driverGroupById[l.driverId] !== 'Mario').reduce((s, l) => s + l.amount * ownerOperatorCutPct, 0);
+  const monthlyRevenue = marioRevenue + otherGroupsRevenue;
   const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && isCargoDriver(d) && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
@@ -212,7 +213,7 @@ export default function Home() {
             <div className="heroStat"><Truck size={16}/><div><strong>{myTotalLoadsCount}</strong><span>{t('Total de mis cargas')}</span></div></div>
           </> : <>
             <div className="heroStat"><Truck size={16}/><div><strong>{activeLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
-            <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span></div></div>
+            <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span><span className="heroStatBreakdown">{t('Mario')} {money(marioRevenue)} · {t('OO+Lázaro (12%)')} {money(otherGroupsRevenue)}</span></div></div>
             <div className="heroStat"><Users size={16}/><div><strong>{activeDriversCount}</strong><span>{t('Choferes')}</span></div></div>
             <div className="heroStat"><FuelIcon size={16}/><div><strong>{transactionsCount}</strong><span>{t('Transacciones')}</span></div></div>
           </>}
@@ -304,6 +305,7 @@ export default function Home() {
                 .heroStat div { display:flex; flex-direction:column; min-width:0; }
                 .heroStat strong { font-size:14px; color:#fff; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
                 .heroStat span { font-size:10px; color:#D8B7BF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                .heroStatBreakdown { font-size:9px; color:#B99AA2; margin-top:1px; }
                 .heroBannerTag { position:absolute; top:20px; right:clamp(20px,3vw,48px); font-family:'Dancing Script',cursive; font-size:22px; color:#EBD5DA; }
                 @media(max-width:600px) { .heroStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .heroBannerTag { display:none; } }
 
