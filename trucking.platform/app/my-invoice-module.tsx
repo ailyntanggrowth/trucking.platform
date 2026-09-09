@@ -9,6 +9,16 @@ import type { Lang } from '../lib/i18n';
 import { ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import styles from './my-invoice.module.css';
 
+// Solo el primer nombre en la tabla (pedido explícito, para que quepa todo
+// sin tener que deslizar el dedo) — excepto los dos "Jose", que se
+// desambiguan dejando también el apellido.
+function shortName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  if (parts[0].toLowerCase() === 'jose') return `${parts[0]} ${parts[1]}`;
+  return parts[0];
+}
+
 export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: {
   settlements: SettlementsController; loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string;
 }) {
@@ -66,7 +76,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
         <thead><tr><th>{t('Chofer')}</th><th>{t('Carga')}</th><th>{t('Bruto')}</th><th>{t('Comisión (4%)')}</th></tr></thead>
         <tbody>
           {result.rows.map(r => <tr key={r.loadId}>
-            <td>{r.driverName}</td>
+            <td>{shortName(r.driverName)}</td>
             <td>{r.loadNumber || t('Sin número')}</td>
             <td className={styles.tableSub}>{money(r.amount)}</td>
             <td><strong>{money(r.commission)}</strong></td>
