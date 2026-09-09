@@ -35,10 +35,13 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
 
   // Historial: últimas semanas con cargas o marca de pago, para que vea todo
   // su trabajo (no solo la semana actual).
-  // El sistema arranca de cero desde el invoice #43 (pedido explícito) — el
-  // historial nunca muestra invoices anteriores a ese, aunque existan cargas
-  // viejas canceladas de antes del reinicio.
-  const SYSTEM_START_INVOICE = 43;
+  // El sistema arranca de cero desde el invoice #42 (la semana 1-7 de
+  // septiembre, pedido explícito) — el historial nunca muestra invoices
+  // anteriores a ese, aunque existan cargas viejas canceladas de antes del
+  // reinicio. (Corregido de #43 a #42 al arreglar el límite de semana —
+  // ver weekStartOf en lib/settlements.ts: la semana real es martes a
+  // lunes, no lunes a domingo, así que 1-7 sept cae en el invoice 42.)
+  const SYSTEM_START_INVOICE = 42;
   const history: { weekStart: string; invoiceNumber: number; label: string; commission: number; paid: boolean }[] = [];
   for (let i = 0; i < 8; i++) {
     const ws = i === 0 ? weekStartOf(today()) : weekRange(history[i - 1].weekStart).prevWeek;

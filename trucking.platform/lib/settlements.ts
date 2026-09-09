@@ -130,11 +130,14 @@ export const driverPayForGross = (gross: number, config: SettlementConfig) => {
 
 // Semana lunes→lunes (spec 9.9: aproximación de calendario para el ciclo Florida,
 // hasta que existan marcadores EMPIEZA/TERMINA reales por carga).
+// La semana del negocio va de MARTES a LUNES (pedido explícito: el invoice se
+// cierra el lunes) — no de lunes a domingo como el estándar ISO. Por eso el
+// "día 1" de la semana aquí es martes, no lunes.
 export function weekStartOf(date: string) {
   const [y, m, d] = date.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  const diffToMonday = (dt.getDay() + 6) % 7;
-  dt.setDate(dt.getDate() - diffToMonday);
+  const diffToTuesday = (dt.getDay() + 5) % 7;
+  dt.setDate(dt.getDate() - diffToTuesday);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 export function weekRange(weekStart: string) {
