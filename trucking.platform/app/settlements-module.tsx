@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, marioPaidGross, type SettlementConfig,
 } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -41,7 +41,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const invoiceNumber = invoiceNumberFor(weekStart);
   const dispatcherMark = state.dispatcherMarks.find(m => m.weekStart === weekStart);
   const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
-  const totalGross = mario.reduce((s, m) => s + m.gross, 0);
+  // "Bruto Mario" de arriba (pedido explícito): solo lo YA pagado por
+  // Summar esa semana — distinto al bruto de la tabla, que sigue por fecha
+  // de recogida para no mover el tramo de pago del chofer.
+  const marioPaidGrossTotal = marioPaidGross(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.weekLocks);
   const totalFuel = mario.reduce((s, m) => s + m.fuel, 0);
   const totalProfit = mario.reduce((s, m) => s + m.finalProfit, 0);
   const totalDriverPay = mario.reduce((s, m) => s + m.driverPay, 0);
@@ -116,7 +119,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar. Ciérrala tú cuando quieras, no hay hora automática.')}</p>}
 
     <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(totalGross) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(marioPaidGrossTotal) : '—'}</strong><small>{t('Solo lo ya pagado por Summar')}</small></div>
       <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario')}</span><strong>{ready2 ? money(totalFuel) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Comisión despachador (4%)')}</span><strong>{ready2 ? money(dispatcher.commission) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><TrendingUp size={16} /></span><span className={styles.statLabel}>{t('Ganancia estimada')}</span><strong>{ready2 ? money(totalProfit) : '—'}</strong></div>

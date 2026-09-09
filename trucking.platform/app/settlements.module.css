@@ -15,6 +15,8 @@
 .statIcon { display:inline-flex; width:26px; height:26px; border-radius:7px; align-items:center; justify-content:center; font-size:13px; margin-bottom:6px; }
 .statLabel { display:block; font-size:13px; font-weight:700; color:#59616D; }
 .statCard strong { display:block; font-size:20px; color:#11151B; margin-top:4px; }
+.statCard small { display:block; font-size:11px; color:#59616D; margin-top:2px; }
+.statCard[data-tone=primary] small { color:#D8B7BF; }
 .statCard[data-tone=blue] .statIcon { background:#E1EBFB; color:#1e4e8c; }
 .statCard[data-tone=amber] .statIcon { background:#FDF0DA; color:#8a5a00; }
 .statCard[data-tone=red] .statIcon { background:#FBE3E3; color:#a12b2b; }

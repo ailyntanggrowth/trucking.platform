@@ -198,6 +198,15 @@ function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: str
 }
 
 const inRange = (date: string, start: string, end: string) => date >= start && date < end;
+// "Bruto Mario" de arriba (pedido explícito): solo lo YA pagado por Summar
+// esa semana, no todo lo recogido — distinto al bruto por chofer de la
+// tabla (que sigue por fecha de recogida, para no mover el tramo de pago).
+export function marioPaidGross(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, weekLocks: WeekLock[]): number {
+  const marioIds = new Set(drivers.filter(d => d.group === 'Mario').map(d => d.id));
+  return loads
+    .filter(l => marioIds.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, weekLocks))
+    .reduce((s, l) => s + l.amount, 0);
+}
 const fuelAndExpenses = (driverId: string, transactions: FuelTransaction[], expenses: Expense[], start: string, end: string) =>
   transactions.filter(t => t.driverId === driverId && t.status === 'Final' && inRange(t.date, start, end)).reduce((s, t) => s + t.fuelAmount + t.nonFuelAmount, 0)
   + expenses.filter(e => e.driverId === driverId && e.status === 'Final' && inRange(e.date, start, end)).reduce((s, e) => s + e.amount, 0);
