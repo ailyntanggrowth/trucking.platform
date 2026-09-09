@@ -2,8 +2,10 @@
 import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, effectiveStatus, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { isCargoDriver } from '../lib/fleet';
+import { driverPayForGross } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
+import type { SettlementsController } from '../lib/use-settlements';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { Search, SlidersHorizontal } from 'lucide-react';
@@ -12,12 +14,19 @@ import styles from './loads.module.css';
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
 const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 
-export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
+export default function LoadsModule({ loads, fleet, settlements, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; settlements: SettlementsController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
   const [query, setQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  // Pago real del chofer de Mario por viaje (pedido explícito): puede ser
+  // distinto al salario estimado por tramos — se anota aquí mismo, en el
+  // recorrido, en vez de en Contabilidad, porque el período es el viaje
+  // (desde que sale de FL), no la semana fija del negocio.
+  const [payTrip, setPayTrip] = useState<{ driverId: string; driverName: string; tripStart: string } | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payBusy, setPayBusy] = useState(false), [payError, setPayError] = useState('');
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const driverGroup = (id: string) => fleet.state.drivers.find(d => d.id === id)?.group || '';
   const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active && isCargoDriver(d)).length;
@@ -42,7 +51,8 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   // Recordatorio de pago semanal (pedido explícito): cuándo salió cada
   // chofer de FL y qué cargas ha hecho desde entonces, para saber cuándo y
   // cuánto pagarle aunque se pase semanas sin volver.
-  const driverTrips = ready ? computeDriverTrips(fleet.state.drivers, state.loads, today()) : [];
+  const tripDrivers = groupFilter ? fleet.state.drivers.filter(d => d.group === groupFilter) : fleet.state.drivers;
+  const driverTrips = ready ? computeDriverTrips(tripDrivers, state.loads, today()) : [];
   // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
   // distingue de un vistazo sin tener que leer la etiqueta.
   const rails = [
@@ -85,6 +95,19 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   }
 
   const changeGroup = (next: string | null) => { setGroupFilter(next); setEditor(null); setQuery(''); setError(''); setNotice(''); };
+  async function submitPay(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!payTrip || payBusy) return;
+    const amount = Number(payAmount);
+    if (!(amount >= 0)) { setPayError(t('Escribe un monto válido.')); return; }
+    setPayBusy(true); setPayError('');
+    try {
+      await settlements.commit({ type: 'mark', driverId: payTrip.driverId, driverName: payTrip.driverName, weekStart: payTrip.tripStart, paymentStatus: 'Pagada', notes: '', amountPaid: amount });
+      setPayTrip(null); setPayAmount('');
+    } catch (e) { setPayError((e as Error).message); } finally { setPayBusy(false); }
+  }
+  async function reopenPay(driverId: string, driverName: string, tripStart: string) {
+    try { await settlements.commit({ type: 'mark', driverId, driverName, weekStart: tripStart, paymentStatus: 'Pendiente', notes: '' }); } catch (e) { setPayError((e as Error).message); }
+  }
   const dateRange = (l: Load) => `${dayLabel(l.pickupDate)}${l.deliveryDate ? ` → ${dayLabel(l.deliveryDate)}` : ''}`;
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : editor?.type === 'incident' ? t('Reportar rotura de camión') : t('Reemplazar carga');
 
@@ -109,11 +132,34 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     <section className={styles.tripBox}>
       <h3 className={styles.dueTodayTitle}>🧭 {t('Recorrido de cada chofer (desde que salió de FL)')} <span className={styles.count}>{driverTrips.length}</span></h3>
       {driverTrips.length
-        ? <div className={styles.tripList}>{driverTrips.map(trip => <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
+        ? <div className={styles.tripList}>{driverTrips.map(trip => {
+            const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
+            const isMario = trip.group === 'Mario';
+            const estimatedPay = isMario ? driverPayForGross(gross, settlements.state.config) : 0;
+            const mark = isMario ? settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === trip.tripStart) : undefined;
+            const isPaid = mark?.paymentStatus === 'Pagada';
+            const isPayingThis = payTrip?.driverId === trip.driverId && payTrip?.tripStart === trip.tripStart;
+            return <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
             <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
             <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>{dayLabel(l.pickupDate)}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`} — {money(l.amount)}</li>)}</ul>
-          </div>)}</div>
+            {isMario && <>
+              <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{t('Salario estimado:')}</b> {money(estimatedPay)}</p>
+              {isPaid && <p className={styles.tripPaidLine}>✅ {t('Pagado:')} {money(mark!.amountPaid)}
+                <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(String(mark!.amountPaid)); setPayError(''); }}>{t('Editar')}</button>
+                <button type="button" onClick={() => void reopenPay(trip.driverId, trip.driverName, trip.tripStart)}>{t('Marcar pendiente')}</button>
+              </p>}
+              {isPayingThis
+                ? <form onSubmit={submitPay} className={styles.payForm}>
+                    <input type="number" step="0.01" min="0" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={t('Monto pagado')} autoFocus />
+                    <button type="submit" disabled={payBusy}>{payBusy ? t('Guardando…') : t('Confirmar')}</button>
+                    <button type="button" disabled={payBusy} onClick={() => { setPayTrip(null); setPayError(''); }}>{t('Cancelar')}</button>
+                  </form>
+                : !isPaid && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(estimatedPay.toFixed(2)); setPayError(''); }}>{t('Marcar como pagado')}</button>}
+              {isPayingThis && payError && <p className={styles.error} role="alert">{payError}</p>}
+            </>}
+          </div>;
+          })}</div>
         : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
     </section>
 

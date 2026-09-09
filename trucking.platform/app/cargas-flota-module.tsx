@@ -4,6 +4,7 @@ import LoadsModule from './loads-module';
 import FleetModule from './fleet-module';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
+import type { SettlementsController } from '../lib/use-settlements';
 import type { Load } from '../lib/dashboard';
 import type { Lang } from '../lib/i18n';
 import { isCargoDriver } from '../lib/fleet';
@@ -20,8 +21,8 @@ import styles from './cargas-flota.module.css';
 const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 const GROUP_TONE: Record<string, string> = { Mario: 'wine', 'Owner Operators': 'blue', 'Lázaro': 'green' };
 
-export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSeeFleet, lang, t }: {
-  loads: LoadsController; fleet: FleetController; dashboardLoads: Load[]; canSeeFleet: boolean; lang: Lang; t: (es: string) => string;
+export default function CargasFlotaModule({ loads, fleet, settlements, dashboardLoads, canSeeFleet, lang, t }: {
+  loads: LoadsController; fleet: FleetController; settlements: SettlementsController; dashboardLoads: Load[]; canSeeFleet: boolean; lang: Lang; t: (es: string) => string;
 }) {
   const [showFleet, setShowFleet] = useState(false);
   const activeByGroup = FLEET_GROUPS.map(g => ({ group: g, drivers: fleet.state.drivers.filter(d => d.active && d.group === g && isCargoDriver(d)) }));
@@ -44,6 +45,6 @@ export default function CargasFlotaModule({ loads, fleet, dashboardLoads, canSee
       </div>)}</div>
         : <p className={styles.empty}>{fleet.ready ? t('No hay choferes activos todavía.') : t('Cargando…')}</p>}
     </section>}
-    <LoadsModule loads={loads} fleet={fleet} lang={lang} t={t} />
+    <LoadsModule loads={loads} fleet={fleet} settlements={settlements} lang={lang} t={t} />
   </div>;
 }

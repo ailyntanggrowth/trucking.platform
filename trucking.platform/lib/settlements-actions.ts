@@ -42,7 +42,7 @@ export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promi
   for (const row of insurance.data ?? []) driverInsurance[row.driver_id] = Number(row.weekly_insurance);
   return {
     schema: 1, revision: meta.data!.revision, config: mapConfig(config.data!), driverInsurance,
-    marks: (marks.data ?? []).map(r => ({ driverId: r.driver_id, weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
+    marks: (marks.data ?? []).map(r => ({ driverId: r.driver_id, weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', amountPaid: Number(r.amount_paid ?? 0), notes: r.notes })),
     dispatcherMarks: (dispatcherMarks.data ?? []).map(r => ({ weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
     weekLocks: (weekLocks.data ?? []).map(r => ({ weekEnd: r.week_end, lockedAt: r.locked_at })),
     events: (events.data ?? []).map(r => ({ id: r.id, at: r.at, actor: r.actor, entityIds: r.entity_ids, detail: r.detail, before: r.before, after: r.after })),
@@ -71,7 +71,7 @@ export async function commitSettlementAction(action: SettlementAction, expectedR
     const mark = next.marks.find(m => m.driverId === action.driverId && m.weekStart === action.weekStart)!;
     rpc = supabase.rpc('settlements_commit_mark', {
       p_company_id: companyId, p_expected_revision: expectedRevision, p_driver_id: action.driverId, p_week_start: action.weekStart,
-      p_payment_status: mark.paymentStatus, p_paid_at: mark.paidAt || null, p_notes: mark.notes, p_event: event,
+      p_payment_status: mark.paymentStatus, p_paid_at: mark.paidAt || null, p_amount_paid: mark.amountPaid, p_notes: mark.notes, p_event: event,
     });
   } else if (action.type === 'dispatcherMark') {
     const mark = next.dispatcherMarks.find(m => m.weekStart === action.weekStart)!;

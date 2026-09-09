@@ -35,6 +35,12 @@
 .tripCard[data-tone=orange] { border-color:#E8B930; background:#FFFBF0; }
 .tripCard[data-tone=red] { border-color:#E06565; background:#FEF3F3; }
 .tripLoads { list-style:none; margin:4px 0 0; padding:0; display:grid; gap:2px; font-size:13px; color:#59616D; }
+.tripTotals { margin:6px 0 0; padding-top:6px; border-top:1px dashed #e3dadd; font-size:13px; }
+.tripDivider { color:#c7bcbf; margin:0 4px; }
+.tripPaidLine { margin:4px 0 0; font-size:13px; color:#1f7a4d; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.tripPaidLine button { font-size:12px; padding:4px 8px; min-height:auto; }
+.payForm { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.payForm input { max-width:140px; }
 
 .loads button.primary { background:#8B102A; color:white; border-color:#8B102A; }
 .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:14px 0; }.toolbar h2 { margin:0; }

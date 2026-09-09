@@ -27,7 +27,11 @@ export const defaultSettlementConfig: SettlementConfig = {
   ownerOperatorCutPct: 0.12,
 };
 
-export type PaymentMark = { driverId: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string };
+// amountPaid: lo que Mario REALMENTE le pagó al chofer (pedido explícito) —
+// puede ser distinto al salario estimado por tramos (por ejemplo, le paga
+// menos y compensa el resto en efectivo por fuera del sistema), así que la
+// ganancia real de Mario se calcula con este monto, no con el estimado.
+export type PaymentMark = { driverId: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; amountPaid: number; notes: string };
 // El invoice del despachador se marca aparte de los de los choferes (pedido
 // explícito): quien controla si ya se le pagó a Gleybis es un Administrador
 // — Mario/Ney Mario —, nunca ella misma desde Mi Invoice.
@@ -50,7 +54,7 @@ export const emptySettlements: SettlementState = {
 export type SettlementAction =
   | { type: 'config'; config: SettlementConfig }
   | { type: 'insurance'; driverId: string; amount: number }
-  | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
+  | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string; amountPaid?: number }
   | { type: 'dispatcherMark'; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
   | { type: 'closeWeek'; weekEnd: string }
   | { type: 'reopenWeek'; weekEnd: string };
@@ -91,10 +95,14 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     requireValue(action.driverId && action.weekStart, 'Falta el chofer o la semana.');
     const existing = state.marks.find(m => m.driverId === action.driverId && m.weekStart === action.weekStart);
     before = existing || null;
-    const mark: PaymentMark = { driverId: action.driverId, weekStart: action.weekStart, paymentStatus: action.paymentStatus, paidAt: action.paymentStatus === 'Pagada' ? now : '', notes: action.notes.trim() };
+    // Si esta acción no manda un monto (ej. el toggle simple de Contabilidad),
+    // se conserva el que ya hubiera — así no se borra un pago real que se
+    // haya anotado desde el recorrido de chofer en Cargas.
+    const amountPaid = action.amountPaid !== undefined ? action.amountPaid : (existing?.amountPaid ?? 0);
+    const mark: PaymentMark = { driverId: action.driverId, weekStart: action.weekStart, paymentStatus: action.paymentStatus, paidAt: action.paymentStatus === 'Pagada' ? now : '', amountPaid, notes: action.notes.trim() };
     state.marks = existing ? state.marks.map(m => m === existing ? mark : m) : [...state.marks, mark];
     after = mark; entityIds = [action.driverId];
-    detail = `Marcó la semana del ${action.weekStart} de ${action.driverName} como ${action.paymentStatus}`;
+    detail = `Marcó la semana del ${action.weekStart} de ${action.driverName} como ${action.paymentStatus}${amountPaid ? ` ($${amountPaid} pagado)` : ''}`;
   } else if (action.type === 'dispatcherMark') {
     requireValue(action.weekStart, 'Falta la semana.');
     const existing = state.dispatcherMarks.find(m => m.weekStart === action.weekStart);
