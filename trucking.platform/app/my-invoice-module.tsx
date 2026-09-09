@@ -25,9 +25,14 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
 
   // Historial: últimas semanas con cargas o marca de pago, para que vea todo
   // su trabajo (no solo la semana actual).
+  // El sistema arranca de cero desde el invoice #43 (pedido explícito) — el
+  // historial nunca muestra invoices anteriores a ese, aunque existan cargas
+  // viejas canceladas de antes del reinicio.
+  const SYSTEM_START_INVOICE = 43;
   const history: { weekStart: string; invoiceNumber: number; label: string; commission: number; paid: boolean }[] = [];
   for (let i = 0; i < 8; i++) {
     const ws = i === 0 ? weekStartOf(today()) : weekRange(history[i - 1].weekStart).prevWeek;
+    if (invoiceNumberFor(ws) < SYSTEM_START_INVOICE) break;
     const { end } = weekRange(ws);
     const c = ready ? dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, ws, end, settlements.state.config, settlements.state.weekLocks).commission : 0;
     const m = settlements.state.dispatcherMarks.find(x => x.weekStart === ws);
@@ -40,7 +45,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
   return <div className={styles.wrap}>
     {!ready && <p role="status">{t('Abriendo tu invoice…')}</p>}
     <div className={styles.weekBar}>
-      <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16} /></button>
+      <button onClick={() => setWeekStart(prevWeek)} disabled={invoiceNumber <= SYSTEM_START_INVOICE} aria-label={t('Semana anterior')}><ChevronLeft size={16} /></button>
       <span>📅 {t('Semana')} {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
