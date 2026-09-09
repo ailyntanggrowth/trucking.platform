@@ -168,7 +168,7 @@ export default function Home() {
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
       <nav className="miniNav" aria-label={t('Acceso rápido')}>
-        <button className={`miniNavItem ${activeModule===homeModule?'active':''}`} onClick={()=>go(homeModule)}>{t('Inicio')}</button>
+        <button className="miniNavItem" onClick={()=>setDrawerOpen(true)}>☰ {t('Barra')}</button>
         <div className="navSpacer"/>
         <span className="dateBadge">📅 {new Intl.DateTimeFormat('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${today()}T12:00:00Z`))}</span>
       </nav>
