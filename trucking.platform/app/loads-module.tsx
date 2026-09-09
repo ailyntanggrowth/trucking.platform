@@ -145,7 +145,10 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
             return <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
             <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
-            <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>{dayLabel(l.pickupDate)}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`} — {money(l.amount)}</li>)}</ul>
+            <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>
+              {dayLabel(l.pickupDate)} → {l.deliveryDate ? dayLabel(l.deliveryDate) : t('sin fecha de entrega')}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`} — {money(l.amount)}
+              {l.paymentStatus === 'Pagada' && <span className={styles.tripPaidTag}>{t('Pagada')}</span>}
+            </li>)}</ul>
             {isMario && <>
               <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{t('Salario estimado:')}</b> {money(estimatedPay)}</p>
               {isPaid && <p className={styles.tripPaidLine}>✅ {t('Pagado:')} {money(mark!.amountPaid)}
