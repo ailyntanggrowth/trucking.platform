@@ -6,7 +6,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
+import { ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
@@ -26,7 +26,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
   // al elegir uno se ve solo sus choferes y sus cargas.
   const groupLoads = groupFilter ? state.loads.filter(l => driverGroup(l.driverId) === groupFilter) : state.loads;
   const official = groupLoads.filter(isOfficial);
-  const active = official.filter(isActive);
   const searched = groupLoads.filter(l => `${l.loadNumber} ${l.broker} ${driverName(l.driverId)} ${l.pickupState} ${l.deliveryState}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.pickupDate.localeCompare(a.pickupDate));
   // Carriles horizontales por estado (pedido explícito) en vez de una sola
   // lista vertical paginada — cada uno se desliza con el dedo. "Pendientes"
@@ -99,8 +98,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
     </nav>
 
     <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><Truck size={16}/></span><span className={styles.statLabel}>{t('Activas')}</span><strong>{ready ? active.length : '—'}</strong><small>{t('En tránsito o asignadas')}</small></div>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.length : '—'}</strong><small>{t('Todas las cargas')}</small></div>
+      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.filter(l => l.status !== 'Cancelada' && l.status !== 'Reemplazada').length : '—'}</strong><small>{t('Todas las cargas')}</small></div>
     </div>
     <section className={styles.dueTodayBox}>
       <h3 className={styles.dueTodayTitle}>📦 {t('Cargas que se entregan hoy')} <span className={styles.count}>{dueToday.length}</span></h3>
