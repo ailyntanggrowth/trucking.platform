@@ -166,14 +166,24 @@ function lockedAtFor(weekEnd: string, weekLocks: WeekLock[]): string | null {
 // la HORA exacta en que se cerró la semana (pedido explícito): lo pagado
 // antes del cierre cae en el invoice que se cerró (weekEnd de ESTE período);
 // lo pagado después ya es del invoice de la semana siguiente, todavía
-// abierta. Mientras la semana no se cierre, todo lo pagado en su rango de
-// fechas cuenta aquí — no hay una hora tope inventada.
+// abierta. Mientras la semana no se cierre, el día límite es AMBIGUO entre
+// las dos semanas que lo comparten — por defecto se lo queda la semana que
+// se está cerrando (la más vieja), nunca las dos a la vez, hasta que se
+// cierre esa semana con una hora exacta.
 function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
   if (!paidAt) return false;
   const paidDate = paidAt.slice(0, 10);
   if (paidDate < weekStart) return false;
-  if (paidDate < weekEnd) return true;
   if (paidDate > weekEnd) return false;
+  if (paidDate === weekStart) {
+    // weekStart de ESTE período = weekEnd del período anterior (que
+    // comparte ese mismo día límite). Solo cuenta aquí si esa semana
+    // anterior ya se cerró y el pago llegó DESPUÉS de esa hora de cierre.
+    const lockedAt = lockedAtFor(weekStart, weekLocks);
+    if (!lockedAt) return false;
+    return new Date(paidAt) > new Date(lockedAt);
+  }
+  if (paidDate < weekEnd) return true;
   const lockedAt = lockedAtFor(weekEnd, weekLocks);
   if (!lockedAt) return true;
   return new Date(paidAt) <= new Date(lockedAt);
