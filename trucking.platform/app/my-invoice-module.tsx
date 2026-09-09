@@ -17,14 +17,6 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
   const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
   const result = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config, settlements.state.weekLocks);
-  // Agrupado por chofer (pedido explícito): todas las cargas de un chofer
-  // juntas, con su propio subtotal, en vez de una lista mezclada.
-  const byDriver: { driverName: string; group: string; rows: typeof result.rows }[] = [];
-  for (const row of result.rows) {
-    const last = byDriver[byDriver.length - 1];
-    if (last && last.driverName === row.driverName) last.rows.push(row);
-    else byDriver.push({ driverName: row.driverName, group: row.group, rows: [row] });
-  }
   const invoiceNumber = invoiceNumberFor(weekStart);
   // Solo un Administrador marca si ya se le pagó el invoice (pedido explícito
   // de la dueña) — aquí es de solo lectura.
@@ -63,23 +55,23 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     </div>
     <p className={styles.note}>{t('Este pago es independiente del salario de los choferes — nunca sale de lo que ellos cobran. Solo un Administrador puede marcar el invoice como pagado.')}</p>
 
-    <h3>{t('Cargas que forman este total, por chofer')}</h3>
+    <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
-        <thead><tr><th>{t('Carga')}</th><th>{t('Bruto')}</th><th>{t('Comisión (4%)')}</th></tr></thead>
-        <tbody>{byDriver.map(d => <>
-          <tr key={`h-${d.driverName}`}><td colSpan={3}><strong>{d.driverName}</strong> <span className={styles.tableSub}>({d.group})</span></td></tr>
-          {d.rows.map(r => <tr key={r.loadId}>
+        <thead><tr><th>{t('Chofer')}</th><th>{t('Carga')}</th><th>{t('Bruto')}</th><th>{t('Comisión (4%)')}</th></tr></thead>
+        <tbody>
+          {result.rows.map(r => <tr key={r.loadId}>
+            <td>{r.driverName}</td>
             <td>{r.loadNumber || t('Sin número')}</td>
             <td className={styles.tableSub}>{money(r.amount)}</td>
             <td><strong>{money(r.commission)}</strong></td>
           </tr>)}
-          <tr key={`t-${d.driverName}`} className={styles.tableSub}>
-            <td><b>{t('Total')} {d.driverName}</b></td>
-            <td>{money(d.rows.reduce((s, r) => s + r.amount, 0))}</td>
-            <td><b>{money(d.rows.reduce((s, r) => s + r.commission, 0))}</b></td>
+          <tr className={styles.tableSub}>
+            <td colSpan={2}><b>{t('Total')}</b></td>
+            <td><b>{money(result.gross)}</b></td>
+            <td><b>{money(result.commission)}</b></td>
           </tr>
-        </>)}</tbody>
+        </tbody>
       </table>
       {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
     </div>
