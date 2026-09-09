@@ -28,12 +28,11 @@ import AuthGate from "./auth-gate";
 // visualmente) — cada uno pide sus propios datos ya acotados del servidor.
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
-  {name:'Combustible y Gastos',id:'combustible',icon:'02'},
-  {name:'Contabilidad y Pagos',id:'finanzas',icon:'03'},
+  {name:'Contabilidad y Pagos',id:'finanzas',icon:'02'},
+  {name:'Combustible y Gastos',id:'combustible',icon:'03'},
   {name:'Reportes',id:'reportes',icon:'04'},
-  {name:'Chat',id:'comunicacion',icon:'05'},
+  {name:'Dispatcher',id:'miinvoice',icon:'05'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
-  {name:'Dispatcher',id:'miinvoice',icon:'07'},
   {name:'Mis Cargas',id:'miscargas',icon:'01'},
 ];
 const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
@@ -67,9 +66,9 @@ export default function Home() {
   // Permisos) — si por cualquier vía activeModule queda en un módulo que el
   // rol actual no puede ver, este efecto lo corrige solo.
   const moduleAccessByRole: Record<string,string[]> = {
-    owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios','miinvoice'],
-    admin: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios','miinvoice'],
-    dispatcher: ['cargas','comunicacion','miinvoice'],
+    owner: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
+    admin: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
+    dispatcher: ['cargas','miinvoice'],
     driver: ['miscargas','comunicacion'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
