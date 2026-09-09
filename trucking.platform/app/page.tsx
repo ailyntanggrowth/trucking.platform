@@ -79,8 +79,8 @@ export default function Home() {
   // Permisos) — si por cualquier vía activeModule queda en un módulo que el
   // rol actual no puede ver, este efecto lo corrige solo.
   const moduleAccessByRole: Record<string,string[]> = {
-    owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
-    admin: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios'],
+    owner: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios','miinvoice'],
+    admin: ['cargas','combustible','finanzas','reportes','comunicacion','usuarios','miinvoice'],
     dispatcher: ['cargas','comunicacion','miinvoice'],
     driver: ['miscargas','comunicacion'],
   };
