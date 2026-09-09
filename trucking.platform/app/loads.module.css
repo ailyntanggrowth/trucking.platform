@@ -43,6 +43,8 @@
 .payForm input { max-width:140px; }
 
 .loads button.primary { background:#8B102A; color:white; border-color:#8B102A; }
+.registerBtn { font-size:16px; font-weight:800; padding:12px 22px; min-height:48px; animation:registerPulse 1.6s ease-in-out infinite; }
+@keyframes registerPulse { 0%,100% { box-shadow:0 0 0 0 rgba(139,16,42,.55); } 50% { box-shadow:0 0 0 10px rgba(139,16,42,0); } }
 .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:14px 0; }.toolbar h2 { margin:0; }
 .toolbarRow { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
 .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }.wide { grid-column:1/-1; }
