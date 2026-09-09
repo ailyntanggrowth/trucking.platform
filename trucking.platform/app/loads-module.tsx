@@ -115,7 +115,7 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
         ? <div className={styles.tripList}>{driverTrips.map(trip => <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
             <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
-            <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>{dayLabel(l.pickupDate)}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`}</li>)}</ul>
+            <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id}>{dayLabel(l.pickupDate)}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`} — {money(l.amount)}</li>)}</ul>
           </div>)}</div>
         : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
     </section>
