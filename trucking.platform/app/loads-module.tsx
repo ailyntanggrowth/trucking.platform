@@ -55,7 +55,13 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
   // chofer de FL y qué cargas ha hecho desde entonces, para saber cuándo y
   // cuánto pagarle aunque se pase semanas sin volver.
   const tripDrivers = groupFilter ? fleet.state.drivers.filter(d => d.group === groupFilter) : fleet.state.drivers;
-  const driverTrips = ready ? computeDriverTrips(tripDrivers, state.loads, today()) : [];
+  // Un viaje ya pagado (grupo Mario) sale de la lista solo — ya no hace
+  // falta seguir recordándolo (pedido explícito).
+  const driverTrips = ready ? computeDriverTrips(tripDrivers, state.loads, today()).filter(trip => {
+    if (trip.group !== 'Mario') return true;
+    const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === trip.tripStart);
+    return mark?.paymentStatus !== 'Pagada';
+  }) : [];
   // Un color por carril (pedido explícito): gris/azul/naranja/verde — así se
   // distingue de un vistazo sin tener que leer la etiqueta.
   const rails = [
