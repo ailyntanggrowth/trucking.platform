@@ -5,8 +5,7 @@ import { useFleet } from "../lib/use-fleet";
 import { useFuel } from "../lib/use-fuel";
 import { useLoads } from "../lib/use-loads";
 import { useMyLoads } from "../lib/use-my-loads";
-import { toDashboardLoad, isOfficial, isActive } from "../lib/loads";
-import { isCargoDriver } from "../lib/fleet";
+import { toDashboardLoad } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
 import { useChat } from "../lib/use-chat";
@@ -62,29 +61,6 @@ export default function Home() {
   const chat = useChat(auth.accessToken);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
   const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
-  // Estadísticas reales del banner de bienvenida (spec del rediseño: "no
-  // inventes los números" — si el módulo dueño de ese dato aún no cargó, 0).
-  const officialLoads = loadsCtl.state.loads.filter(isOfficial);
-  const activeLoadsCount = loadsCtl.ready ? officialLoads.filter(isActive).length : 0;
-  const monthKey = today().slice(0, 7);
-  // Ingresos del mes = solo lo que YA salió pagado por Summar este mes
-  // (pedido explícito) — no lo agendado/recogido, que puede seguir sin
-  // cobrarse. Del bruto pagado, el grupo Mario es 100% ingreso de la
-  // empresa; Owner Operators y Lázaro son choferes/owner-operators que se
-  // quedan con el resto — solo el % de corte de Mario (ownerOperatorCutPct,
-  // 12% por defecto) cuenta como ingreso real.
-  const driverGroupById: Record<string, string> = {};
-  fleet.state.drivers.forEach(d => { driverGroupById[d.id] = d.group; });
-  const ownerOperatorCutPct = settlementsCtl.ready ? settlementsCtl.state.config.ownerOperatorCutPct : 0.12;
-  const paidThisMonth = loadsCtl.ready ? officialLoads.filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey)) : [];
-  const marioRevenue = paidThisMonth.filter(l => driverGroupById[l.driverId] === 'Mario').reduce((s, l) => s + l.amount, 0);
-  const otherGroupsRevenue = paidThisMonth.filter(l => driverGroupById[l.driverId] !== 'Mario').reduce((s, l) => s + l.amount * ownerOperatorCutPct, 0);
-  const monthlyRevenue = marioRevenue + otherGroupsRevenue;
-  const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && isCargoDriver(d) && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
-  const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
-  // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
-  const myActiveLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).filter(isActive).length : 0;
-  const myTotalLoadsCount = myLoads.ready ? myLoads.loads.filter(isOfficial).length : 0;
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, isDriver && item.id==='comunicacion' ? 'Mi Chat' : item.name]));
   // Cada rol ve solo los módulos que le tocan — 'owner' y 'admin' ven lo
   // mismo (se ven idénticos en toda la interfaz, incluyendo Usuarios y
@@ -195,31 +171,6 @@ export default function Home() {
         <p className="heroHint">{t('Desliza desde el borde izquierdo para abrir el menú.')}</p>
       </div>
     </section> : <section className="content" id="main-content" tabIndex={-1} key={activeModule}>
-      {activeModule===homeModule && <header className="mainNav">
-        <span className="navBrand" aria-hidden="true">
-          <Truck size={26} strokeWidth={1.75} className="navBrandIcon"/>
-          <span className="navBrandText"><strong>M&amp;A <span className="navBrandKing">KING</span></strong><span>TRUCKING SERVICE</span></span>
-        </span>
-        <div className="navSpacer"/>
-      </header>}
-      {activeModule===homeModule && <section className="heroBanner">
-        <div className="heroBannerText">
-          <h1>{t('Bienvenido,')} {WELCOME_NAME} 👋</h1>
-          <p>{t('Todo en movimiento, siempre hacia adelante.')}</p>
-        </div>
-        <div className="heroStats">
-          {isDriver ? <>
-            <div className="heroStat"><Truck size={16}/><div><strong>{myActiveLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
-            <div className="heroStat"><Truck size={16}/><div><strong>{myTotalLoadsCount}</strong><span>{t('Total de mis cargas')}</span></div></div>
-          </> : <>
-            <div className="heroStat"><Truck size={16}/><div><strong>{activeLoadsCount}</strong><span>{t('Cargas activas')}</span></div></div>
-            <div className="heroStat"><DollarSign size={16}/><div><strong>{money(monthlyRevenue)}</strong><span>{t('Ingresos (Mes)')}</span><span className="heroStatBreakdown">{t('Mario')} {money(marioRevenue)} · {t('OO+Lázaro (12%)')} {money(otherGroupsRevenue)}</span></div></div>
-            <div className="heroStat"><Users size={16}/><div><strong>{activeDriversCount}</strong><span>{t('Choferes')}</span></div></div>
-            <div className="heroStat"><FuelIcon size={16}/><div><strong>{transactionsCount}</strong><span>{t('Transacciones')}</span></div></div>
-          </>}
-        </div>
-        <span className="heroBannerTag" aria-hidden="true">Keep Trucking</span>
-      </section>}
       <nav className="miniNav" aria-label={t('Acceso rápido')}>
         <button className={`miniNavItem ${activeModule===homeModule?'active':''}`} onClick={()=>go(homeModule)}>{t('Inicio')}</button>
         <div className="navSpacer"/>
@@ -286,29 +237,6 @@ export default function Home() {
                 .moduleHeroTag { flex:0 0 auto; align-self:center; font-family:'Dancing Script',cursive; font-size:16px; color:#9AA1AB; text-align:right; line-height:1.2; padding-right:22px; }
                 @media(max-width:760px) { .moduleHero { flex-direction:column; min-height:0; }.moduleHeroText { padding:16px 16px 0; }.moduleHero h1 { font-size:20px; }.moduleHeroImage { flex-basis:80px; }.moduleHeroTag { display:none; } }
                 .dateBadge { border:1px solid #E3DADD; border-radius:16px; padding:5px 12px; font-size:12px; color:#59616D; font-weight:600; white-space:nowrap; }
-                .mainNav { display:flex; align-items:center; gap:14px; min-height:68px; padding:14px clamp(20px,3vw,48px); background:linear-gradient(120deg,#11151B 0%,#4A1420 55%,#11151B 100%); }
-                .navMenuBtn { flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:#8B102A; color:#fff; border:0; border-radius:10px; display:grid; place-items:center; }
-                .navBrand { display:flex; align-items:center; gap:10px; }
-                .navBrandIcon { color:#C5A46D; }
-                .navBrandText { display:flex; flex-direction:column; line-height:1.25; white-space:nowrap; }.navBrandText strong { font-size:17px; color:#fff; letter-spacing:.3px; font-weight:800; }.navBrandKing { color:#C5A46D; }.navBrandSubtitle { font-size:9px; color:#D8B7BF; letter-spacing:2.5px; font-weight:700; margin-top:1px; }
-                .navIconBtn { position:relative; flex:0 0 auto; width:38px; height:38px; min-height:38px; padding:0; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:50%; display:grid; place-items:center; }
-                .navIconBtn:hover { background:rgba(255,255,255,.18); }
-                .navIconBadge { position:absolute; top:-4px; right:-4px; background:#C0392B; color:#fff; font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:9px; display:grid; place-items:center; padding:0 3px; border:2px solid #11151B; }
-                @media(max-width:480px) { .navBrandSubtitle { display:none; } }
-
-                .heroBanner { position:relative; isolation:isolate; overflow:hidden; padding:26px clamp(20px,3vw,48px) 20px; min-height:180px; display:flex; flex-direction:column; justify-content:flex-end; gap:16px; background:#11151B url('/truck-dusk.png') center 60% / cover no-repeat; }
-                .heroBanner::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(17,21,27,.92) 0%,rgba(17,21,27,.55) 55%,rgba(17,21,27,.2) 100%); }
-                .heroBannerText h1 { margin:0 0 6px; font-size:24px; color:#fff; font-weight:800; }
-                .heroBannerText p { margin:0; color:#EBD5DA; font-size:14px; }
-                .heroStats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
-                .heroStat { display:flex; align-items:center; gap:8px; background:rgba(17,21,27,.55); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:8px 10px; color:#C5A46D; min-width:0; }
-                .heroStat div { display:flex; flex-direction:column; min-width:0; }
-                .heroStat strong { font-size:14px; color:#fff; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-                .heroStat span { font-size:10px; color:#D8B7BF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-                .heroStatBreakdown { font-size:9px; color:#B99AA2; margin-top:1px; }
-                .heroBannerTag { position:absolute; top:20px; right:clamp(20px,3vw,48px); font-family:'Dancing Script',cursive; font-size:22px; color:#EBD5DA; }
-                @media(max-width:600px) { .heroStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .heroBannerTag { display:none; } }
-
                 .miniNav { display:flex; align-items:center; gap:6px; padding:14px clamp(20px,3vw,48px); border-bottom:1px solid #E3DADD; background:#fff; }
                 .miniNavItem { display:inline-flex; align-items:center; gap:6px; border:0; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:#59616D; font-weight:700; font-size:14px; padding:8px 4px; margin-right:14px; min-height:auto; }
                 .miniNavItem.active { color:#8B102A; border-bottom-color:#8B102A; }

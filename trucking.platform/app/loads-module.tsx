@@ -6,7 +6,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { ClipboardList, Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
@@ -97,9 +97,6 @@ export default function LoadsModule({ loads, fleet, lang, t, initialFilter }: { 
       {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
     </nav>
 
-    <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><ClipboardList size={16}/></span><span className={styles.statLabel}>{t('Total registradas')}</span><strong>{ready ? state.loads.filter(l => l.status !== 'Cancelada' && l.status !== 'Reemplazada').length : '—'}</strong><small>{t('Todas las cargas')}</small></div>
-    </div>
     <section className={styles.dueTodayBox}>
       <h3 className={styles.dueTodayTitle}>📦 {t('Cargas que se entregan hoy')} <span className={styles.count}>{dueToday.length}</span></h3>
       {dueToday.length
