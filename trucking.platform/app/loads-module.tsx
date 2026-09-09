@@ -1,7 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
-import { isCargoDriver } from '../lib/fleet';
 import { driverPayForGross } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -26,7 +25,6 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
   const [payAmount, setPayAmount] = useState('');
   const [payBusy, setPayBusy] = useState(false), [payError, setPayError] = useState('');
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
-  const groupDriverCount = (g: string) => fleet.state.drivers.filter(d => d.group === g && d.active && isCargoDriver(d)).length;
 
   // Resumen chiquito (pedido explícito): las cargas que tocan entregarse hoy,
   // para que la dueña las chequee de un vistazo — sin botones, solo lista.
@@ -109,7 +107,7 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
 
     <nav className={styles.tabs} aria-label={t('Grupos de la flota')}>
       <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos los grupos')}</button>
-      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
+      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{t(g)}</button>)}
     </nav>
 
     <section className={styles.tripBox}>
