@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, isActive, effectiveStatus, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
+import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, effectiveStatus, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { isCargoDriver } from '../lib/fleet';
 import { driverPayForGross } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -47,7 +47,10 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
   const entregadas = entregadasTodas.filter(l => l.paymentStatus === 'Pagada');
   // Resumen chiquito (pedido explícito): las cargas que tocan entregarse hoy,
   // para que la dueña las chequee de un vistazo — sin botones, solo lista.
-  const dueToday = groupLoads.filter(l => isActive(l) && l.deliveryDate === today());
+  // Este resumen no se separa por grupo (pedido explícito) — se ven todas
+  // juntas, una debajo de otra. Se quedan aquí mientras no salgan pagadas en
+  // Summar, sin importar si ya se marcaron "Entregada" operativamente.
+  const dueToday = state.loads.filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.paymentStatus !== 'Pagada' && l.deliveryDate === today());
   // Recordatorio de pago semanal (pedido explícito): cuándo salió cada
   // chofer de FL y qué cargas ha hecho desde entonces, para saber cuándo y
   // cuánto pagarle aunque se pase semanas sin volver.
