@@ -124,11 +124,6 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
     {loads.error && <div role="alert" className={styles.error}>{loads.error} <button onClick={() => void loads.refresh()}>{t('Reintentar')}</button></div>}
     {!ready && !loads.error && <p role="status">{t('Abriendo los registros de cargas…')}</p>}
 
-    <nav className={styles.tabs} aria-label={t('Grupos de la flota')}>
-      <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos los grupos')}</button>
-      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
-    </nav>
-
     <section className={styles.dueTodayBox}>
       <h3 className={styles.dueTodayTitle}>📦 {t('Cargas que se entregan hoy')} <span className={styles.count}>{dueToday.length}</span></h3>
       {dueToday.length
@@ -137,6 +132,11 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
           </li>)}</ul>
         : <p className={styles.empty}>{t('No hay cargas para entregar hoy.')}</p>}
     </section>
+
+    <nav className={styles.tabs} aria-label={t('Grupos de la flota')}>
+      <button aria-pressed={groupFilter === null} onClick={() => changeGroup(null)}>{t('Todos los grupos')}</button>
+      {FLEET_GROUPS.map(g => <button key={g} aria-pressed={groupFilter === g} onClick={() => changeGroup(g)}>{g === 'Mario' ? t('Grupo Mario') : g === 'Owner Operators' ? t('Owner Operators') : t('Grupo Lázaro')} ({groupDriverCount(g)})</button>)}
+    </nav>
 
     <section className={styles.tripBox}>
       <h3 className={styles.dueTodayTitle}>🧭 {t('Recorrido de cada chofer (desde que salió de FL)')} <span className={styles.count}>{driverTrips.length}</span></h3>
