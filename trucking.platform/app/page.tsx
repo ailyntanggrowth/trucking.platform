@@ -69,8 +69,16 @@ export default function Home() {
   const monthKey = today().slice(0, 7);
   // Ingresos del mes = solo lo que YA salió pagado por Summar este mes
   // (pedido explícito) — no lo agendado/recogido, que puede seguir sin
-  // cobrarse.
-  const monthlyRevenue = loadsCtl.ready ? officialLoads.filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey)).reduce((s, l) => s + l.amount, 0) : 0;
+  // cobrarse. Del bruto pagado, el grupo Mario es 100% ingreso de la
+  // empresa; Owner Operators y Lázaro son choferes/owner-operators que se
+  // quedan con el resto — solo el % de corte de Mario (ownerOperatorCutPct,
+  // 12% por defecto) cuenta como ingreso real.
+  const driverGroupById: Record<string, string> = {};
+  fleet.state.drivers.forEach(d => { driverGroupById[d.id] = d.group; });
+  const ownerOperatorCutPct = settlementsCtl.ready ? settlementsCtl.state.config.ownerOperatorCutPct : 0.12;
+  const monthlyRevenue = loadsCtl.ready ? officialLoads
+    .filter(l => l.paymentStatus === 'Pagada' && l.paidAt.startsWith(monthKey))
+    .reduce((s, l) => s + l.amount * (driverGroupById[l.driverId] === 'Mario' ? 1 : ownerOperatorCutPct), 0) : 0;
   const activeDriversCount = fleet.ready ? fleet.state.drivers.filter(d => d.active && isCargoDriver(d) && (d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro')).length : 0;
   const transactionsCount = fuel.ready ? fuel.state.transactions.length : 0;
   // Un chofer no ve ingresos ni cifras de la compañía en el banner — solo lo suyo.
