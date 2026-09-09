@@ -8,16 +8,14 @@ import { useMyLoads } from "../lib/use-my-loads";
 import { toDashboardLoad } from "../lib/loads";
 import { useSettlements } from "../lib/use-settlements";
 import { useAuth } from "../lib/use-auth";
-import { useChat } from "../lib/use-chat";
 import { money, today } from "../lib/format";
 import { translate, type Lang } from "../lib/i18n";
-import { Truck, MessageCircle, DollarSign, Users, Fuel as FuelIcon, FileText, BarChart3, ChevronRight, LogOut } from "lucide-react";
+import { Truck, DollarSign, Users, Fuel as FuelIcon, FileText, BarChart3, ChevronRight, LogOut } from "lucide-react";
 import CargasFlotaModule from "./cargas-flota-module";
 import FuelModule from "./fuel-module";
 import SettlementsModule from "./settlements-module";
 import ReportsModule from "./reports-module";
 import UsersModule from "./users-module";
-import ChatModule from "./chat-module";
 import MyLoadsModule from "./my-loads-module";
 import MyInvoiceModule from "./my-invoice-module";
 import AuthGate from "./auth-gate";
@@ -35,7 +33,7 @@ const nav = [
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
   {name:'Mis Cargas',id:'miscargas',icon:'01'},
 ];
-const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, comunicacion: MessageCircle, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
+const navIcons: Record<string, typeof Truck> = { cargas: Truck, combustible: FuelIcon, finanzas: FileText, reportes: BarChart3, usuarios: Users, miinvoice: DollarSign, miscargas: Truck };
 // Saludo de bienvenida (pedido explícito): nombre fijo de la marca, no el
 // nombre de la cuenta que inició sesión.
 const WELCOME_NAME = 'MARIOYANE';
@@ -57,10 +55,9 @@ export default function Home() {
   const loadsCtl = useLoads();
   const myLoads = useMyLoads(auth.accessToken);
   const settlementsCtl = useSettlements();
-  const chat = useChat(auth.accessToken);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
   const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
-  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, isDriver && item.id==='comunicacion' ? 'Mi Chat' : item.name]));
+  const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, item.name]));
   // Cada rol ve solo los módulos que le tocan — 'owner' y 'admin' ven lo
   // mismo (se ven idénticos en toda la interfaz, incluyendo Usuarios y
   // Permisos) — si por cualquier vía activeModule queda en un módulo que el
@@ -69,10 +66,10 @@ export default function Home() {
     owner: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     admin: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     dispatcher: ['cargas','miinvoice'],
-    driver: ['miscargas','comunicacion'],
+    driver: ['miscargas'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
-  const visibleNav = nav.filter(item=>allowedModules.includes(item.id)).map(item=>isDriver && item.id==='comunicacion' ? {...item,name:'Mi Chat'} : item);
+  const visibleNav = nav.filter(item=>allowedModules.includes(item.id));
   useEffect(() => {
     if (auth.status!=='ready' || !activeModule) return;
     if (!allowedModules.includes(activeModule)) setActiveModule(homeModule);
@@ -180,12 +177,12 @@ export default function Home() {
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
             <h1>{t(moduleNames[activeModule])}</h1>
-            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',comunicacion:'Mensajería interna de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
           </div>
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='comunicacion' ? <ChatModule chat={chat} myId={auth.profile?.id || ''} canStartConversations={!isDriver} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 
