@@ -25,6 +25,10 @@
 .tripCard[data-tone=red] { border-color:#E06565; background:#FEF3F3; }
 .tripLoads { list-style:none; margin:4px 0 0; padding:0; display:grid; gap:2px; font-size:13px; color:#59616D; }
 .tripPaidTag { display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#1f7a4d; background:#DFF5E9; border-radius:10px; padding:1px 8px; }
+.summaryBox { margin:22px 0; }
+.weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; flex-wrap:wrap; }
+.weekBar span { font-weight:700; color:#11151B; font-size:14px; }
+.weekBar button { min-height:34px; padding:6px 10px; }
 .tripIncidentTag { display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#8a1c20; background:#FBEAEA; border-radius:10px; padding:1px 8px; }
 .tripLoadRow { display:flex; align-items:flex-start; gap:6px; }
 .loadMenu { position:relative; flex:0 0 auto; }

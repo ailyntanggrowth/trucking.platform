@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
-import { driverPayForGross } from '../lib/settlements';
+import { driverPayForGross, weekStartOf, weekRange } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { SettlementsController } from '../lib/use-settlements';
@@ -43,6 +43,27 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === trip.tripStart);
     return mark?.paymentStatus !== 'Pagada';
   }) : [];
+
+  // Tabla semanal igual a la que la dueña hace a mano (pedido explícito),
+  // para no perderse chequeando las cargas de la semana — una carga entra
+  // en la semana según su FECHA DE ENTREGA (no la de recogida ni la de
+  // pago), confirmado explícitamente por ella.
+  const [summaryWeekStart, setSummaryWeekStart] = useState(weekStartOf(today()));
+  const { end: summaryWeekEnd, prevWeek: summaryPrevWeek, nextWeek: summaryNextWeek } = weekRange(summaryWeekStart);
+  const summaryWeekLabel = `${dayLabel(summaryWeekStart)} – ${dayLabel(new Date(new Date(`${summaryWeekEnd}T12:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10))}`;
+  const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const entregaLabel = (l: Load) => {
+    const pDay = l.pickupDate ? Number(l.pickupDate.slice(8, 10)) : null;
+    const dDay = l.deliveryDate ? Number(l.deliveryDate.slice(8, 10)) : null;
+    const weekday = l.deliveryDate ? WEEKDAYS_ES[new Date(`${l.deliveryDate}T12:00:00Z`).getUTCDay()].toUpperCase() : '';
+    return pDay != null && dDay != null ? `${pDay}-${dDay} ${weekday}` : weekday;
+  };
+  const summaryGroups = FLEET_GROUPS.map(g => ({
+    group: g,
+    rows: state.loads
+      .filter(l => fleet.state.drivers.find(d => d.id === l.driverId)?.group === g && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.deliveryDate >= summaryWeekStart && l.deliveryDate < summaryWeekEnd)
+      .sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)),
+  }));
 
   function open(type: Editor['type'], id = '') { setError(''); setNotice(''); setEditor({ type, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('loads-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   const editLoad = editor?.type === 'load' ? state.loads.find(l => l.id === editor.id) : undefined;
@@ -156,6 +177,32 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
           </div>;
           })}</div>
         : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
+    </section>
+
+    <section className={styles.summaryBox}>
+      <div className={styles.weekBar}>
+        <button onClick={() => setSummaryWeekStart(summaryPrevWeek)} aria-label={t('Semana anterior')}>←</button>
+        <span>📋 {t('Resumen semanal')} {summaryWeekLabel}</span>
+        <button onClick={() => setSummaryWeekStart(summaryNextWeek)} aria-label={t('Semana siguiente')}>→</button>
+        <button onClick={() => setSummaryWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
+      </div>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <thead><tr><th>{t('CHOFERES')}</th><th>{t('CARGAS')}</th><th>{t('PRECIOS')}</th><th>{t('DESTINOS')}</th><th>{t('ENTREGAS')}</th><th>{t('SUMMAR')}</th></tr></thead>
+          <tbody>{summaryGroups.map(g => <>
+            {g.group !== 'Mario' && <tr key={`h-${g.group}`}><td colSpan={6}><strong>{g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</strong></td></tr>}
+            {g.rows.map(l => <tr key={l.id}>
+              <td>{driverName(l.driverId).toUpperCase()}</td>
+              <td>{l.loadNumber || '—'}</td>
+              <td>{l.amount}</td>
+              <td>{l.pickupState}-{l.deliveryState}</td>
+              <td>{entregaLabel(l)}</td>
+              <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
+            </tr>)}
+          </>)}</tbody>
+        </table>
+        {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
+      </div>
     </section>
 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
