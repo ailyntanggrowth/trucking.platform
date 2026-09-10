@@ -93,7 +93,13 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
       setSummarPreview(result);
       setSummarSelected(new Set(result.actionable.map(m => m.loadId)));
       if (!result.actionable.length && !result.alreadyPaid.length && !result.denied.length && !result.other.length) setSummarError(t('No se encontró ninguna carga registrada en el sistema dentro de este PDF.'));
-    } catch (e) { setSummarError(`[${stage}] ${(e as Error).message}`); } finally { setSummarBusy(false); }
+    } catch (e) {
+      // Diagnóstico puramente temporal (pedido explícito): muestra el stack
+      // completo, no solo el mensaje recortado, para encontrar la línea real
+      // del error en Safari/iPhone. Quitar cuando ya no haga falta.
+      const err = e as Error;
+      setSummarError(`[${stage}] ${err.message}\n\n${err.stack || '(sin stack)'}`);
+    } finally { setSummarBusy(false); }
   }
   async function confirmSummar() {
     if (!summarPreview || summarBusy || !summarSelected.size) return;
@@ -337,7 +343,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
           <button type="button" disabled={summarBusy} onClick={() => { setSummarOpen(false); setSummarPreview(null); setSummarError(''); }}>{t('Cancelar')}</button>
         </div>
       </form>
-      {summarError && <p className={styles.error} role="alert">{summarError}</p>}
+      {summarError && <p className={styles.error} role="alert" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px' }}>{summarError}</p>}
       {summarPreview && <>
         {summarPreview.reportDate && <p><b>{t('Fecha del statement:')}</b> {dayLabel(summarPreview.reportDate)}</p>}
         {summarPreview.actionable.length > 0 && <>
