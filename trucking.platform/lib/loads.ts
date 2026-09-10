@@ -51,6 +51,27 @@ export type Load = {
   replacesId: string; replacedBy: string;
 };
 
+// Mapea una fila cruda de Supabase (snake_case) a Load — vive aquí (archivo
+// sin 'use server') porque tanto lib/loads-actions.ts como
+// lib/summar-actions.ts la necesitan, y una función exportada desde un
+// archivo 'use server' está obligada a ser async (si no, Next.js rechaza el
+// build entero de ese archivo).
+export function mapLoadRow(r: Record<string, any>): Load {
+  return {
+    id: r.id, loadNumber: r.load_number, broker: r.broker,
+    driverId: r.driver_id ?? '', truckId: r.truck_id ?? '', trailerId: r.trailer_id ?? '',
+    pickupCity: r.pickup_city, pickupState: r.pickup_state, pickupDate: r.pickup_date,
+    deliveryCity: r.delivery_city, deliveryState: r.delivery_state, deliveryDate: r.delivery_date ?? '',
+    amount: Number(r.amount), status: r.status as LoadStatus, missingPod: r.missing_pod,
+    paymentStatus: r.payment_status as PaymentStatus, amountReceived: Number(r.amount_received), paidAt: r.paid_at ?? '', notes: r.notes,
+    approval: r.approval as ApprovalStatus, approvedBy: r.approved_by, approvedAt: r.approved_at ?? '',
+    rejectedReason: r.rejected_reason, cancelReason: r.cancel_reason, cancelledAt: r.cancelled_at ?? '',
+    cancelledBy: r.cancelled_by, replacesId: r.replaces_id ?? '', replacedBy: r.replaced_by ?? '',
+    incidentNote: r.incident_note ?? '', incidentCost: Number(r.incident_cost ?? 0), incidentReportedAt: r.incident_reported_at ?? '',
+    dispatcherExempt: Boolean(r.dispatcher_exempt),
+  };
+}
+
 export const isOfficial = (l: Load) => l.approval === 'Aprobada' && Boolean(l.approvedBy.trim()) && Boolean(l.approvedAt);
 // Transición automática (pedido explícito): una carga se registra
 // "Programado" y, en cuanto llega o pasa su fecha de recogida, se muestra
