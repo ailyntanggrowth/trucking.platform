@@ -36,70 +36,20 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   function openSummar() { setError(''); setNotice(''); setEditor(null); setSummarError(''); setSummarPreview(null); setSummarOpen(true); requestAnimationFrame(() => document.getElementById('summar-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function submitSummar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (summarBusy) return;
-    const file = new FormData(event.currentTarget).get('statement') as File | null;
+    const fields = new FormData(event.currentTarget);
     setSummarBusy(true); setSummarError('');
-    // Cada etapa reporta su propio error (pedido explícito) — así, si algo
-    // falla otra vez, se sabe de una si fue al elegir el archivo, leerlo,
-    // extraer el texto del PDF o analizar las cargas contra la base de datos.
-    let stage = 'selección del archivo';
     try {
-      if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
-      if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
-      if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
-
-      // pdfjs-dist usa Promise.withResolvers por dentro, una función de
-      // JavaScript agregada apenas en Safari 17.4 (marzo 2024) — en un
-      // iPhone con iOS más viejo simplemente no existe, y por eso truena con
-      // "undefined is not a function" exactamente al extraer el texto del
-      // PDF, tanto en Safari real como dentro de WhatsApp (ambos usan el
-      // mismo motor). Este relleno la agrega si falta, sin afectar nada en
-      // navegadores que ya la tienen.
-      if (!(Promise as any).withResolvers) {
-        (Promise as any).withResolvers = function withResolvers<T>() {
-          let resolve!: (value: T) => void, reject!: (reason?: unknown) => void;
-          const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-          return { promise, resolve, reject };
-        };
-      }
-
-      stage = 'lectura del PDF en el navegador';
-      // Lee el PDF aquí mismo, en el navegador (no en el servidor) — pdfjs-dist
-      // necesita cosas que solo un navegador de verdad tiene; en el entorno
-      // serverless de Vercel fallaba en producción aunque funcionara en local.
-      //
-      // NO se usa un Web Worker aparte (ni local ni por CDN): Safari/iOS
-      // tiene bugs conocidos con los Worker de tipo "module" que pdfjs-dist
-      // necesita, y eso fue lo que seguía rompiendo ahí aunque el worker ya
-      // se sirviera desde el mismo dominio. En vez de eso, se importa el
-      // propio código del worker como módulo normal y se le asigna a
-      // globalThis.pdfjsWorker — pdfjs-dist detecta esto y analiza el PDF
-      // en el mismo hilo principal, sin crear ningún Worker, así que este
-      // problema no puede volver a pasar en ningún navegador.
-      const pdfjs: any = await import('pdfjs-dist/build/pdf.mjs');
-      if (!(globalThis as any).pdfjsWorker) (globalThis as any).pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
-      const data = new Uint8Array(await file.arrayBuffer());
-      const doc = await pdfjs.getDocument({ data }).promise;
-
-      stage = 'extracción del texto del PDF';
-      let text = '';
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map((it: unknown) => (it as { str?: string }).str || '').join(' ') + '\n';
-      }
-
-      stage = 'análisis de las cargas contra la base de datos';
-      const result = await parseSummarStatementAction(text);
+      // El navegador solo sube el PDF — leerlo dentro de Safari/iPhone
+      // fallaba adentro de page.getTextContent() (confirmado con stack
+      // trace real), algo específico de WebKit que no depende de la versión
+      // de iOS. La lectura y el análisis del PDF ahora son 100% del
+      // servidor (build "legacy/" de pdfjs-dist, pensada para Node — ver
+      // lib/summar-actions.ts).
+      const result = await parseSummarStatementAction(fields);
       setSummarPreview(result);
       setSummarSelected(new Set(result.actionable.map(m => m.loadId)));
       if (!result.actionable.length && !result.alreadyPaid.length && !result.denied.length && !result.other.length) setSummarError(t('No se encontró ninguna carga registrada en el sistema dentro de este PDF.'));
-    } catch (e) {
-      // Diagnóstico puramente temporal (pedido explícito): muestra el stack
-      // completo, no solo el mensaje recortado, para encontrar la línea real
-      // del error en Safari/iPhone. Quitar cuando ya no haga falta.
-      const err = e as Error;
-      setSummarError(`[${stage}] ${err.message}\n\n${err.stack || '(sin stack)'}`);
-    } finally { setSummarBusy(false); }
+    } catch (e) { setSummarError((e as Error).message); } finally { setSummarBusy(false); }
   }
   async function confirmSummar() {
     if (!summarPreview || summarBusy || !summarSelected.size) return;
