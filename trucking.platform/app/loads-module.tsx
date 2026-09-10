@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { parseSummarStatementAction, commitSummarBatchAction, type SummarStatementPreview } from '../lib/summar-actions';
 import { driverPayForGross, weekStartOf, weekRange } from '../lib/settlements';
@@ -78,6 +78,26 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   // para no perderse chequeando las cargas de la semana — una carga entra
   // en la semana según su FECHA DE ENTREGA (no la de recogida ni la de
   // pago), confirmado explícitamente por ella.
+  // El resumen ya no se muestra siempre en la pantalla (pedido explícito: se
+  // veía como un reguero de cargas apiladas, sobre todo en el móvil) — ahora
+  // vive detrás de un botón, y se abre como una vista aparte, compacta,
+  // pensada para caber completa en la pantalla de un teléfono sin tener que
+  // moverla para verla.
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryDownloadBusy, setSummaryDownloadBusy] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  async function downloadSummaryImage() {
+    if (!summaryRef.current || summaryDownloadBusy) return;
+    setSummaryDownloadBusy(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(summaryRef.current, { backgroundColor: '#FBF8F6', scale: 2 });
+      const link = document.createElement('a');
+      link.download = `resumen-semanal-${summaryWeekStart}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } finally { setSummaryDownloadBusy(false); }
+  }
   const [summaryWeekStart, setSummaryWeekStart] = useState(weekStartOf(today()));
   const { end: summaryWeekEnd, prevWeek: summaryPrevWeek, nextWeek: summaryNextWeek } = weekRange(summaryWeekStart);
   const summaryWeekLabel = `${dayLabel(summaryWeekStart)} – ${dayLabel(new Date(new Date(`${summaryWeekEnd}T12:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10))}`;
@@ -209,31 +229,43 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
         : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
     </section>
 
-    <section className={styles.summaryBox}>
-      <div className={styles.weekBar}>
-        <button onClick={() => setSummaryWeekStart(summaryPrevWeek)} aria-label={t('Semana anterior')}>←</button>
-        <span>📋 {t('Resumen semanal')} {summaryWeekLabel}</span>
-        <button onClick={() => setSummaryWeekStart(summaryNextWeek)} aria-label={t('Semana siguiente')}>→</button>
-        <button onClick={() => setSummaryWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
+    <div className={styles.toolbarRow}>
+      <button className={styles.primary} onClick={() => setSummaryOpen(true)}>📊 {t('Ver resumen semanal')}</button>
+    </div>
+
+    {summaryOpen && <div className={styles.summaryOverlay}>
+      <div className={styles.summaryPanel}>
+        <div className={styles.summaryPanelHeader}>
+          <button onClick={() => setSummaryOpen(false)} aria-label={t('Cerrar')}>‹</button>
+          <span>{t('Resumen semanal')}</span>
+          <button onClick={downloadSummaryImage} disabled={summaryDownloadBusy} aria-label={t('Descargar como imagen')}>{summaryDownloadBusy ? '…' : '⬇'}</button>
+        </div>
+        <div className={styles.weekBar}>
+          <button onClick={() => setSummaryWeekStart(summaryPrevWeek)} aria-label={t('Semana anterior')}>←</button>
+          <span>{summaryWeekLabel}</span>
+          <button onClick={() => setSummaryWeekStart(summaryNextWeek)} aria-label={t('Semana siguiente')}>→</button>
+        </div>
+        <button onClick={() => setSummaryWeekStart(weekStartOf(today()))} className={styles.summaryTodayBtn}>{t('Semana actual')}</button>
+        <div ref={summaryRef} className={styles.summaryCapture}>
+          {summaryGroups.map(g => g.rows.length > 0 && <div key={g.group}>
+            <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</div>
+            <table className={styles.summaryTable}>
+              <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} /></colgroup>
+              <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th></tr></thead>
+              <tbody>{g.rows.map(l => <tr key={l.id}>
+                <td>{driverName(l.driverId)}</td>
+                <td>{l.loadNumber || '—'}</td>
+                <td>{money(l.amount)}</td>
+                <td>{l.pickupState}-{l.deliveryState}</td>
+                <td>{entregaLabel(l)}</td>
+                <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>)}
+          {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
+        </div>
       </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{t('CHOFERES')}</th><th>{t('CARGAS')}</th><th>{t('PRECIOS')}</th><th>{t('DESTINOS')}</th><th>{t('ENTREGAS')}</th><th>{t('SUMMAR')}</th></tr></thead>
-          <tbody>{summaryGroups.map(g => <>
-            {g.group !== 'Mario' && <tr key={`h-${g.group}`}><td colSpan={6}><strong>{g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</strong></td></tr>}
-            {g.rows.map(l => <tr key={l.id}>
-              <td>{driverName(l.driverId).toUpperCase()}</td>
-              <td>{l.loadNumber || '—'}</td>
-              <td>{l.amount}</td>
-              <td>{l.pickupState}-{l.deliveryState}</td>
-              <td>{entregaLabel(l)}</td>
-              <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
-            </tr>)}
-          </>)}</tbody>
-        </table>
-        {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
-      </div>
-    </section>
+    </div>}
 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 

@@ -25,10 +25,26 @@
 .tripCard[data-tone=red] { border-color:#E06565; background:#FEF3F3; }
 .tripLoads { list-style:none; margin:4px 0 0; padding:0; display:grid; gap:2px; font-size:13px; color:#59616D; }
 .tripPaidTag { display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#1f7a4d; background:#DFF5E9; border-radius:10px; padding:1px 8px; }
-.summaryBox { margin:22px 0; }
 .weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; flex-wrap:wrap; }
 .weekBar span { font-weight:700; color:#11151B; font-size:14px; }
 .weekBar button { min-height:34px; padding:6px 10px; }
+
+/* Resumen semanal en pantalla completa (pedido explícito): antes se veía
+   como un reguero de cargas apiladas — ahora vive detrás de un botón y se
+   abre en su propio "overlay" a pantalla completa, con tabla compacta de
+   ancho fijo para que quepa entera en un móvil sin tener que moverla. */
+.summaryOverlay { position:fixed; inset:0; z-index:50; background:#FBF8F6; overflow-y:auto; }
+.summaryPanel { max-width:480px; margin:0 auto; min-height:100%; padding-bottom:24px; }
+.summaryPanelHeader { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; background:#8B102A; color:#fff; padding:14px 12px; font-size:15px; font-weight:700; }
+.summaryPanelHeader button { background:transparent; border:0; color:#fff; font-size:19px; min-height:auto; padding:2px 8px; }
+.summaryPanel .weekBar { padding:0 12px; justify-content:center; }
+.summaryTodayBtn { display:block; margin:0 auto 6px; }
+.summaryCapture { padding:6px 12px 4px; }
+.summaryGroupHeader { background:#8B102A; color:#fff; font-size:12px; font-weight:700; padding:6px 10px; margin-top:14px; border-radius:8px 8px 0 0; }
+.summaryTable { width:100%; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
+.summaryTable th,.summaryTable td { padding:5px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+.summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
+.summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
 .tripIncidentTag { display:inline-block; margin-left:6px; font-size:11px; font-weight:700; color:#8a1c20; background:#FBEAEA; border-radius:10px; padding:1px 8px; }
 .tripLoadRow { display:flex; align-items:flex-start; gap:6px; }
 .loadMenu { position:relative; flex:0 0 auto; }
