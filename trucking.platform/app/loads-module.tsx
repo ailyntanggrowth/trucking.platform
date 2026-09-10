@@ -51,13 +51,17 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
       // Lee el PDF aquí mismo, en el navegador (no en el servidor) — pdfjs-dist
       // necesita cosas que solo un navegador de verdad tiene; en el entorno
       // serverless de Vercel fallaba en producción aunque funcionara en local.
+      //
+      // NO se usa un Web Worker aparte (ni local ni por CDN): Safari/iOS
+      // tiene bugs conocidos con los Worker de tipo "module" que pdfjs-dist
+      // necesita, y eso fue lo que seguía rompiendo ahí aunque el worker ya
+      // se sirviera desde el mismo dominio. En vez de eso, se importa el
+      // propio código del worker como módulo normal y se le asigna a
+      // globalThis.pdfjsWorker — pdfjs-dist detecta esto y analiza el PDF
+      // en el mismo hilo principal, sin crear ningún Worker, así que este
+      // problema no puede volver a pasar en ningún navegador.
       const pdfjs: any = await import('pdfjs-dist/build/pdf.mjs');
-      // El worker se sirve desde /public (mismo origen que la app), NO desde
-      // un CDN externo — Safari/iOS bloquea o falla al crear un Worker de
-      // módulo ES desde un origen distinto ("undefined is not a function"
-      // dentro del worker, confirmado real en iPhone). Debe ser exactamente
-      // la versión de pdfjs-dist instalada (ver public/pdf.worker.min.mjs).
-      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+      if (!(globalThis as any).pdfjsWorker) (globalThis as any).pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
       const data = new Uint8Array(await file.arrayBuffer());
       const doc = await pdfjs.getDocument({ data }).promise;
 
