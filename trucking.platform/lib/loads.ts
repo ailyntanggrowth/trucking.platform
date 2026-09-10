@@ -38,6 +38,12 @@ export type Load = {
   // reporte "vigente" por carga, no un historial — se sobreescribe si se
   // vuelve a reportar, y se limpia mandando la nota vacía.
   incidentNote: string; incidentCost: number; incidentReportedAt: string;
+  // Excluye esta carga del invoice del despachador (comisión del 4%) sin
+  // sacarla de nada más — sigue contando en Bruto/reportes normalmente. Caso
+  // real: Mario le pagó directo a un chofer de un grupo que normalmente pasa
+  // por el despachador, sin pasar por Gleybis, así que esa carga puntual no
+  // debe generarle comisión. No es una regla de grupo/general, es por carga.
+  dispatcherExempt: boolean;
   // Controladas SOLO por sus propias acciones (approve/reject/cancel/replace);
   // 'load' (crear/editar) nunca las toca directamente — ver applyLoadAction.
   approval: ApprovalStatus; approvedBy: string; approvedAt: string; rejectedReason: string;
@@ -117,8 +123,8 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
     // vía — solo por sus propias acciones. Al crear, la carga queda
     // aprobada de una vez.
     const record: Load = old
-      ? { ...incoming, paidAt, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy, incidentNote: old.incidentNote, incidentCost: old.incidentCost, incidentReportedAt: old.incidentReportedAt }
-      : { ...incoming, paidAt, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '', incidentNote: '', incidentCost: 0, incidentReportedAt: '' };
+      ? { ...incoming, paidAt, approval: old.approval, approvedBy: old.approvedBy, approvedAt: old.approvedAt, rejectedReason: old.rejectedReason, cancelReason: old.cancelReason, cancelledAt: old.cancelledAt, cancelledBy: old.cancelledBy, replacesId: old.replacesId, replacedBy: old.replacedBy, incidentNote: old.incidentNote, incidentCost: old.incidentCost, incidentReportedAt: old.incidentReportedAt, dispatcherExempt: old.dispatcherExempt }
+      : { ...incoming, paidAt, approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '', incidentNote: '', incidentCost: 0, incidentReportedAt: '', dispatcherExempt: false };
     state.loads = old ? state.loads.map(l => l.id === record.id ? record : l) : [...state.loads, record];
     entityIds = [record.id]; after = record;
     detail = `${old ? 'Actualizó' : 'Registró'} carga ${record.loadNumber || record.id}${old ? `: ${action.reason.trim()}` : ''}`;
@@ -148,7 +154,7 @@ export function applyLoadAction(original: LoadState, action: LoadAction, now: st
       ...action.replacement, id: action.replacement.id, paidAt: action.replacement.paymentStatus === 'Pagada' ? now : '',
       approval: 'Aprobada', approvedBy: 'Automático al registrar', approvedAt: now, rejectedReason: '',
       cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: original!.id, replacedBy: '',
-      incidentNote: '', incidentCost: 0, incidentReportedAt: '',
+      incidentNote: '', incidentCost: 0, incidentReportedAt: '', dispatcherExempt: false,
     };
     const wasCancelled = Boolean(original!.cancelledAt);
     before = { status: original!.status }; original!.status = 'Reemplazada'; original!.replacedBy = replacement.id;

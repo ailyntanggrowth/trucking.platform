@@ -84,7 +84,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
           amount: num('amount'), status: text('status') as LoadStatus, missingPod: false,
           paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), paidAt: '', notes: text('notes'),
           approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
-          incidentNote: '', incidentCost: 0, incidentReportedAt: '',
+          incidentNote: '', incidentCost: 0, incidentReportedAt: '', dispatcherExempt: false,
         };
         action = editor.type === 'load' ? { type: 'load', record, reason: text('reason') } : { type: 'replace', id: editor.id, replacement: record, reason: text('reason') };
       } else if (editor.type === 'cancel') {

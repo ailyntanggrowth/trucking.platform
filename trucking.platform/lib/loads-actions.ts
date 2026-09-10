@@ -22,6 +22,7 @@ function mapRow(r: Record<string, any>): Load {
     rejectedReason: r.rejected_reason, cancelReason: r.cancel_reason, cancelledAt: r.cancelled_at ?? '',
     cancelledBy: r.cancelled_by, replacesId: r.replaces_id ?? '', replacedBy: r.replaced_by ?? '',
     incidentNote: r.incident_note ?? '', incidentCost: Number(r.incident_cost ?? 0), incidentReportedAt: r.incident_reported_at ?? '',
+    dispatcherExempt: Boolean(r.dispatcher_exempt),
   };
 }
 
@@ -76,6 +77,7 @@ function loadPayload(l: Load) {
     // la carga se guardaba con el default de la columna ('Pendiente') y
     // quedaba invisible en cualquier vista que filtre por isOfficial().
     approval: l.approval, approved_by: l.approvedBy, approved_at: l.approvedAt || null,
+    dispatcher_exempt: l.dispatcherExempt,
   };
 }
 

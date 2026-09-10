@@ -288,7 +288,10 @@ export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], wee
   const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
-    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, weekLocks))
+    // dispatcherExempt: carga puntual que Mario ya pagó directo, sin pasar
+    // por el despachador — sigue contando en Bruto/reportes normales, pero
+    // nunca genera comisión (pedido explícito, no es regla de grupo).
+    .filter(l => eligibleById.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && !l.dispatcherExempt && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, weekLocks))
     .map(l => ({ loadId: l.id, loadNumber: l.loadNumber, driverName: eligibleById.get(l.driverId)!.name, group: eligibleById.get(l.driverId)!.group, amount: l.amount, commission: l.amount * config.dispatcherCommissionPct }))
     // Agrupado por chofer (pedido explícito: todas las cargas de Agnel juntas,
     // luego las de Dixon, etc.) — dentro de cada chofer, la más grande primero.
