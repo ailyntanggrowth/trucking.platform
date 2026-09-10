@@ -47,6 +47,21 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
       if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
       if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
 
+      // pdfjs-dist usa Promise.withResolvers por dentro, una función de
+      // JavaScript agregada apenas en Safari 17.4 (marzo 2024) — en un
+      // iPhone con iOS más viejo simplemente no existe, y por eso truena con
+      // "undefined is not a function" exactamente al extraer el texto del
+      // PDF, tanto en Safari real como dentro de WhatsApp (ambos usan el
+      // mismo motor). Este relleno la agrega si falta, sin afectar nada en
+      // navegadores que ya la tienen.
+      if (!(Promise as any).withResolvers) {
+        (Promise as any).withResolvers = function withResolvers<T>() {
+          let resolve!: (value: T) => void, reject!: (reason?: unknown) => void;
+          const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+          return { promise, resolve, reject };
+        };
+      }
+
       stage = 'lectura del PDF en el navegador';
       // Lee el PDF aquí mismo, en el navegador (no en el servidor) — pdfjs-dist
       // necesita cosas que solo un navegador de verdad tiene; en el entorno
