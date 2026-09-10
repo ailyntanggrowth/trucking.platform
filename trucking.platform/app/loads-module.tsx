@@ -35,10 +35,31 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   const [summarSelected, setSummarSelected] = useState<Set<string>>(new Set());
   function openSummar() { setError(''); setNotice(''); setEditor(null); setSummarError(''); setSummarPreview(null); setSummarOpen(true); requestAnimationFrame(() => document.getElementById('summar-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function submitSummar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (summarBusy) return; const fields = new FormData(event.currentTarget);
+    event.preventDefault(); if (summarBusy) return;
+    const file = new FormData(event.currentTarget).get('statement') as File | null;
     setSummarBusy(true); setSummarError('');
     try {
-      const result = await parseSummarStatementAction(fields);
+      if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
+      if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
+      // Lee el PDF aquí mismo, en el navegador (no en el servidor) — pdfjs-dist
+      // necesita cosas que solo un navegador de verdad tiene; en el entorno
+      // serverless de Vercel fallaba en producción aunque funcionara en local.
+      const pdfjs: any = await import('pdfjs-dist/build/pdf.mjs');
+      // El worker se carga desde un CDN, no empaquetado localmente: el
+      // empaquetado de Next.js (Terser) no sabe procesar ese archivo (usa
+      // import.meta a su manera) y rompía el build. jsdelivr sirve el
+      // archivo exacto de la versión de pdfjs-dist instalada.
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+      const data = new Uint8Array(await file.arrayBuffer());
+      const doc = await pdfjs.getDocument({ data }).promise;
+      let text = '';
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((it: unknown) => (it as { str?: string }).str || '').join(' ') + '\n';
+      }
+      const result = await parseSummarStatementAction(text);
       setSummarPreview(result);
       setSummarSelected(new Set(result.actionable.map(m => m.loadId)));
       if (!result.actionable.length && !result.alreadyPaid.length && !result.denied.length && !result.other.length) setSummarError(t('No se encontró ninguna carga registrada en el sistema dentro de este PDF.'));

@@ -1,15 +1,17 @@
 'use server';
 // Server Actions del botón "Subir Summar", separadas de lib/loads-actions.ts
-// a propósito: este archivo depende de pdfjs-dist (una librería grande,
-// pensada para navegador) para leer el PDF. Tenerlo en el MISMO archivo que
-// commitLoadAction (guardar/editar una carga normal) rompió en producción el
-// guardado normal de cargas — Next.js empaqueta todas las Server Actions de
-// un mismo archivo juntas, así que un problema de pdfjs-dist en el entorno
-// serverless de Vercel tumbaba también el guardado de cargas, aunque nadie
-// tocara el botón de Summar. Verificado: commitLoadAction funciona perfecto
-// llamado directo contra la base de datos; el error solo aparece pasando por
-// el empaquetado de Server Actions de Next — separar el archivo aísla el
-// riesgo de pdfjs-dist a esta única función, sin tocar Cargas.
+// a propósito (ver historial: esto ya rompió una vez el guardado normal de
+// cargas por compartir archivo con commitLoadAction).
+//
+// pdfjs-dist YA NO se usa aquí. Se probó server-side (dentro de esta misma
+// Server Action) y falló en producción en Vercel dos veces seguidas —
+// incluso marcándolo como paquete externo en next.config.mjs — con el
+// mismo error genérico de "Server Components render", a pesar de funcionar
+// perfecto en local. Es una librería pensada para navegador; el entorno
+// serverless de Vercel no le da lo que necesita (probablemente el worker).
+// La solución real: leer el PDF DENTRO del navegador de la dueña (un
+// navegador de verdad SÍ tiene todo lo que pdfjs-dist necesita) y mandar
+// aquí solo el TEXTO ya extraído — esta función nunca toca el PDF en sí.
 import { randomUUID } from 'node:crypto';
 import { mapLoadRow, type LoadState, type PaymentStatus } from './loads';
 import { parseSummarText } from './summar';
@@ -42,21 +44,8 @@ export type SummarStatementPreview = {
   other: SummarDraftMatch[]; // Held u otra sección desconocida — informativo
 };
 
-export async function parseSummarStatementAction(formData: FormData, companyId = DEFAULT_COMPANY_ID): Promise<SummarStatementPreview> {
-  const file = formData.get('statement') as File | null;
-  if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
-  if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
-  if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
-
-  const data = new Uint8Array(await file.arrayBuffer());
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
-  let text = '';
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map((it: unknown) => (it as { str?: string }).str || '').join(' ') + '\n';
-  }
+export async function parseSummarStatementAction(text: string, companyId = DEFAULT_COMPANY_ID): Promise<SummarStatementPreview> {
+  if (!text || !text.trim()) throw new Error('No se pudo leer texto del PDF.');
 
   const supabase = supabaseServer();
   const [{ data: loadRows, error: loadsError }, { data: driverRows, error: driversError }] = await Promise.all([
