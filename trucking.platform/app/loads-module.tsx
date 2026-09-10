@@ -38,32 +38,43 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     event.preventDefault(); if (summarBusy) return;
     const file = new FormData(event.currentTarget).get('statement') as File | null;
     setSummarBusy(true); setSummarError('');
+    // Cada etapa reporta su propio error (pedido explícito) — así, si algo
+    // falla otra vez, se sabe de una si fue al elegir el archivo, leerlo,
+    // extraer el texto del PDF o analizar las cargas contra la base de datos.
+    let stage = 'selección del archivo';
     try {
       if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
       if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
       if (file.size > 10 * 1024 * 1024) throw new Error('El PDF debe pesar hasta 10 MB.');
+
+      stage = 'lectura del PDF en el navegador';
       // Lee el PDF aquí mismo, en el navegador (no en el servidor) — pdfjs-dist
       // necesita cosas que solo un navegador de verdad tiene; en el entorno
       // serverless de Vercel fallaba en producción aunque funcionara en local.
       const pdfjs: any = await import('pdfjs-dist/build/pdf.mjs');
-      // El worker se carga desde un CDN, no empaquetado localmente: el
-      // empaquetado de Next.js (Terser) no sabe procesar ese archivo (usa
-      // import.meta a su manera) y rompía el build. jsdelivr sirve el
-      // archivo exacto de la versión de pdfjs-dist instalada.
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+      // El worker se sirve desde /public (mismo origen que la app), NO desde
+      // un CDN externo — Safari/iOS bloquea o falla al crear un Worker de
+      // módulo ES desde un origen distinto ("undefined is not a function"
+      // dentro del worker, confirmado real en iPhone). Debe ser exactamente
+      // la versión de pdfjs-dist instalada (ver public/pdf.worker.min.mjs).
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
       const data = new Uint8Array(await file.arrayBuffer());
       const doc = await pdfjs.getDocument({ data }).promise;
+
+      stage = 'extracción del texto del PDF';
       let text = '';
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const content = await page.getTextContent();
         text += content.items.map((it: unknown) => (it as { str?: string }).str || '').join(' ') + '\n';
       }
+
+      stage = 'análisis de las cargas contra la base de datos';
       const result = await parseSummarStatementAction(text);
       setSummarPreview(result);
       setSummarSelected(new Set(result.actionable.map(m => m.loadId)));
       if (!result.actionable.length && !result.alreadyPaid.length && !result.denied.length && !result.other.length) setSummarError(t('No se encontró ninguna carga registrada en el sistema dentro de este PDF.'));
-    } catch (e) { setSummarError((e as Error).message); } finally { setSummarBusy(false); }
+    } catch (e) { setSummarError(`[${stage}] ${(e as Error).message}`); } finally { setSummarBusy(false); }
   }
   async function confirmSummar() {
     if (!summarPreview || summarBusy || !summarSelected.size) return;
