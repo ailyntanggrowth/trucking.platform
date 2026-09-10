@@ -12,7 +12,7 @@ import styles from './loads.module.css';
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
 const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 
-export default function LoadsModule({ loads, fleet, settlements, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; settlements: SettlementsController; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
+export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; settlements: SettlementsController; canEdit: boolean; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -124,14 +124,14 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
             <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
             <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id} className={styles.tripLoadRow}>
-              <details className={styles.loadMenu}>
+              {canEdit && <details className={styles.loadMenu}>
                 <summary aria-label={t('Opciones de la carga')}>☰</summary>
                 <div className={styles.loadMenuActions}>
                   <button type="button" onClick={() => open('load', l.id)}>{t('Editar')}</button>
                   <button type="button" onClick={() => open('incident', l.id)}>{l.incidentNote ? t('Editar rotura') : t('Reportar rotura')}</button>
                   <button type="button" onClick={() => open('cancel', l.id)}>{t('Cancelar')}</button>
                 </div>
-              </details>
+              </details>}
               <span>
                 {dayLabel(l.pickupDate)} → {l.deliveryDate ? dayLabel(l.deliveryDate) : t('sin fecha de entrega')}: {l.pickupState || '—'} → {l.deliveryState || '—'}{l.loadNumber && ` (#${l.loadNumber})`} — {money(l.amount)}
                 {l.incidentNote && <span className={styles.tripIncidentTag}>🔧 {t('Retrasada')}</span>}
@@ -141,16 +141,16 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
             {isMario && <>
               <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{t('Salario estimado:')}</b> {money(estimatedPay)}</p>
               {isPaid && <p className={styles.tripPaidLine}>✅ {t('Pagado:')} {money(mark!.amountPaid)}
-                <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(String(mark!.amountPaid)); setPayError(''); }}>{t('Editar')}</button>
-                <button type="button" onClick={() => void reopenPay(trip.driverId, trip.driverName, trip.tripStart)}>{t('Marcar pendiente')}</button>
+                {canEdit && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(String(mark!.amountPaid)); setPayError(''); }}>{t('Editar')}</button>}
+                {canEdit && <button type="button" onClick={() => void reopenPay(trip.driverId, trip.driverName, trip.tripStart)}>{t('Marcar pendiente')}</button>}
               </p>}
-              {isPayingThis
+              {canEdit && (isPayingThis
                 ? <form onSubmit={submitPay} className={styles.payForm}>
                     <input type="number" step="0.01" min="0" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={t('Monto pagado')} autoFocus />
                     <button type="submit" disabled={payBusy}>{payBusy ? t('Guardando…') : t('Confirmar')}</button>
                     <button type="button" disabled={payBusy} onClick={() => { setPayTrip(null); setPayError(''); }}>{t('Cancelar')}</button>
                   </form>
-                : !isPaid && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(estimatedPay.toFixed(2)); setPayError(''); }}>{t('Marcar como pagado')}</button>}
+                : !isPaid && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(estimatedPay.toFixed(2)); setPayError(''); }}>{t('Marcar como pagado')}</button>)}
               {isPayingThis && payError && <p className={styles.error} role="alert">{payError}</p>}
             </>}
           </div>;
@@ -160,11 +160,11 @@ export default function LoadsModule({ loads, fleet, settlements, lang, t, initia
 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
-    <div className={styles.toolbarRow}>
+    {canEdit && <div className={styles.toolbarRow}>
       <button className={`${styles.primary} ${styles.registerBtn}`} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
-    </div>
+    </div>}
 
-    {editor && <form id="loads-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
+    {canEdit && editor && <form id="loads-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
       <h3>{editorTitle}</h3>
       {(editor.type === 'load' || editor.type === 'replace') && <div className={styles.fields}>
         <label>{t('Chofer')}<select name="driverId" defaultValue={editor.type === 'load' ? editLoad?.driverId || '' : target?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>

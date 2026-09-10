@@ -46,6 +46,10 @@ export default function Home() {
   const role = auth.profile?.role;
   const isDriver = role === 'driver';
   const canSeeFleet = role !== 'dispatcher' && !isDriver;
+  // La dispatcher ve Cargas completo pero de solo lectura (pedido explícito):
+  // no puede registrar, editar, cancelar, reportar roturas ni marcar salario
+  // pagado — solo Dueño/Administrador.
+  const canEditLoads = role === 'owner' || role === 'admin';
   // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
   // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
@@ -182,7 +186,7 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 
