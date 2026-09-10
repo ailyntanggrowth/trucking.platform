@@ -70,6 +70,12 @@ function loadPayload(l: Load) {
     delivery_city: l.deliveryCity, delivery_state: l.deliveryState, delivery_date: l.deliveryDate || null,
     amount: l.amount, status: l.status, missing_pod: l.missingPod,
     payment_status: l.paymentStatus, amount_received: l.amountReceived, paid_at: l.paidAt || null, notes: l.notes,
+    // Bug corregido (pedido explícito, la dueña registró una carga desde el
+    // sistema y no le salía): applyLoadAction ya calcula approval='Aprobada'
+    // para una carga nueva, pero este payload nunca lo mandaba a Supabase —
+    // la carga se guardaba con el default de la columna ('Pendiente') y
+    // quedaba invisible en cualquier vista que filtre por isOfficial().
+    approval: l.approval, approved_by: l.approvedBy, approved_at: l.approvedAt || null,
   };
 }
 
