@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, marioPaidGross, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, marioPaidGross, fuelWeekStartOf, type SettlementConfig,
 } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -28,14 +28,20 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [tab, setTab] = useState<Tab>('mario');
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
+  // El combustible tiene su propio calendario lunes-domingo (pedido
+  // explícito), igual al ciclo real de los statements de Mudflap — no el
+  // martes-lunes de las cargas.
+  const [fuelWeekStart, setFuelWeekStart] = useState(fuelWeekStartOf(today()));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
+  const { end: fuelWeekEnd, prevWeek: fuelPrevWeek, nextWeek: fuelNextWeek } = weekRange(fuelWeekStart);
+  const fuelWeekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${fuelWeekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${fuelWeekEnd}T12:00:00Z`).getTime() - 86400000))}`;
   const locked = isWeekLocked(weekEnd, state.weekLocks);
   const weekLock = state.weekLocks.find(w => w.weekEnd === weekEnd);
-  const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks);
-  const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config);
+  const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks, fuelWeekStart, fuelWeekEnd);
+  const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, fuelWeekStart, fuelWeekEnd);
   const lazaro = computeLazaroSettlements(fleet.state.drivers, loads.state.loads, weekStart, weekEnd);
   const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config, state.weekLocks);
   const invoiceNumber = invoiceNumberFor(weekStart);
@@ -118,9 +124,16 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     </div>
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar. Ciérrala tú cuando quieras, no hay hora automática.')}</p>}
 
+    <div className={styles.weekBar}>
+      <button onClick={() => setFuelWeekStart(fuelPrevWeek)} aria-label={t('Semana de combustible anterior')}><ChevronLeft size={16} /></button>
+      <span>⛽ {t('Combustible (lunes-domingo)')} {fuelWeekLabel}</span>
+      <button onClick={() => setFuelWeekStart(fuelNextWeek)} aria-label={t('Semana de combustible siguiente')}><ChevronRight size={16} /></button>
+      <button onClick={() => setFuelWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
+    </div>
+
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(marioPaidGrossTotal) : '—'}</strong><small>{t('Solo lo ya pagado por Summar')}</small></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario')}</span><strong>{ready2 ? money(totalFuel) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario')}</span><strong>{ready2 ? money(totalFuel) : '—'}</strong><small>{fuelWeekLabel} ({t('lun-dom')})</small></div>
       <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Comisión despachador (4%)')}</span><strong>{ready2 ? money(dispatcher.commission) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><TrendingUp size={16} /></span><span className={styles.statLabel}>{t('Ganancia estimada')}</span><strong>{ready2 ? money(totalProfit) : '—'}</strong></div>
     </div>

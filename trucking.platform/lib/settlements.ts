@@ -148,6 +148,18 @@ export function weekStartOf(date: string) {
   dt.setDate(dt.getDate() - diffToTuesday);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
+// Mudflap cierra su propio statement de LUNES a DOMINGO (pedido explícito) —
+// llega la madrugada del lunes con la semana anterior completa. Es un
+// calendario distinto al de las cargas (martes a lunes), así que el
+// combustible tiene su propia navegación de semana en Contabilidad, para
+// que cuadre exacto con cada statement real en vez de quedar corrido un día.
+export function fuelWeekStartOf(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const diffToMonday = (dt.getDay() + 6) % 7;
+  dt.setDate(dt.getDate() - diffToMonday);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
 export function weekRange(weekStart: string) {
   const [y, m, d] = weekStart.split('-').map(Number);
   const start = new Date(y, m - 1, d);
@@ -221,11 +233,12 @@ export type MarioSettlement = {
 export function computeMarioSettlements(
   drivers: Driver[], loads: Load[], transactions: FuelTransaction[], expenses: Expense[],
   weekStart: string, weekEnd: string, config: SettlementConfig, driverInsurance: Record<string, number>, marks: PaymentMark[],
+  fuelWeekStart: string = weekStart, fuelWeekEnd: string = weekEnd,
 ): MarioSettlement[] {
   return drivers.filter(d => d.group === 'Mario').map(d => {
     const loadsCount = loads.filter(l => l.driverId === d.id && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).length;
     const gross = grossFor(d.id, loads, weekStart, weekEnd);
-    const fuel = fuelAndExpenses(d.id, transactions, expenses, weekStart, weekEnd);
+    const fuel = fuelAndExpenses(d.id, transactions, expenses, fuelWeekStart, fuelWeekEnd);
     const companyDeduction = gross * config.companyDeductionPct;
     const driverPay = driverPayForGross(gross, config);
     const insurance = driverInsurance[d.id] || 0;
@@ -245,11 +258,12 @@ export type OwnerOperatorSettlement = { driverId: string; driverName: string; lo
 export function computeOwnerOperatorSettlements(
   drivers: Driver[], loads: Load[], transactions: FuelTransaction[], expenses: Expense[],
   weekStart: string, weekEnd: string, config: SettlementConfig,
+  fuelWeekStart: string = weekStart, fuelWeekEnd: string = weekEnd,
 ): OwnerOperatorSettlement[] {
   return drivers.filter(d => d.group === 'Owner Operators').map(d => {
     const loadsCount = loads.filter(l => l.driverId === d.id && isOfficial(l) && l.status !== 'Cancelada' && inRange(l.pickupDate, weekStart, weekEnd)).length;
     const gross = grossFor(d.id, loads, weekStart, weekEnd);
-    const fuel = fuelAndExpenses(d.id, transactions, expenses, weekStart, weekEnd);
+    const fuel = fuelAndExpenses(d.id, transactions, expenses, fuelWeekStart, fuelWeekEnd);
     const marioCut = gross * config.ownerOperatorCutPct;
     const driverShare = gross - marioCut;
     return { driverId: d.id, driverName: d.name, loadsCount, gross, marioCut, fuel, driverShare, netPayout: driverShare - fuel };
