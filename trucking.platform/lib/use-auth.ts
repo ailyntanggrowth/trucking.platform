@@ -36,35 +36,31 @@ export function useAuth() {
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    async function init() {
-      // El link de invitación, de recuperación de contraseña y (antes) el
-      // mágico vuelven todos con ?code=... (flujo PKCE, el default de
-      // supabase-js) — hay que canjearlo por la sesión a mano; sin este
-      // paso la persona "entraba" pero no quedaba sesión guardada en el
-      // navegador, y por eso se le pedía iniciar sesión otra vez cada vez.
-      //
-      // "type=invite" o "type=recovery" en la URL (Supabase siempre lo
-      // manda junto con el code en esos dos casos) es cómo se distingue un
-      // link normal de un link que exige fijar contraseña antes de entrar
-      // — sin importar el nombre exacto del evento que dispare Supabase.
+
+    // Comprobado directo contra Supabase (curl, sin adivinar): un link de
+    // recuperación o invitación NO vuelve con "?code=" — vuelve con un
+    // fragmento "#access_token=...&refresh_token=...&type=recovery". Eso
+    // lo procesa automáticamente detectSessionInUrl (prendido en
+    // lib/supabase-browser.ts), que es quien de verdad establece la sesión
+    // y dispara el evento PASSWORD_RECOVERY — por eso init() ya NO llama a
+    // getSession()/loadProfile por su cuenta: hacerlo era una carrera real
+    // contra ese procesamiento automático (a veces ganaba uno, a veces el
+    // otro, y a veces "needsPassword" se saltaba directo a la app). El
+    // único "code=" que puede aparecer es el flujo PKCE por query string
+    // (otros proveedores/flujos) — se sigue canjeando a mano por si acaso,
+    // pero la fuente de verdad para TODO lo demás es únicamente
+    // onAuthStateChange, una sola vez, sin dos caminos corriendo a la vez.
+    async function exchangeCodeIfPresent() {
       const url = new URL(window.location.href);
       const code = url.searchParams.get('code');
-      const linkType = url.searchParams.get('type');
-      let forcePasswordSetup = false;
-      if (code) {
-        await supabase.auth.exchangeCodeForSession(code);
-        forcePasswordSetup = linkType === 'invite' || linkType === 'recovery';
-        url.searchParams.delete('code');
-        url.searchParams.delete('type');
-        window.history.replaceState({}, '', url.toString());
-      }
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
-      if (!session) { setStatus('signedOut'); return; }
-      if (forcePasswordSetup) { needsPasswordRef.current = true; setEmail(session.user.email || ''); setStatus('needsPassword'); return; }
-      void loadProfile(session.access_token, session.user.email || '');
+      if (!code) return;
+      await supabase.auth.exchangeCodeForSession(code);
+      url.searchParams.delete('code');
+      url.searchParams.delete('type');
+      window.history.replaceState({}, '', url.toString());
     }
-    void init();
+    void exchangeCodeIfPresent();
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') { needsPasswordRef.current = true; setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
       if (needsPasswordRef.current) return; // ver comentario junto a la declaración del ref
