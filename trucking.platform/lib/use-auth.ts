@@ -15,23 +15,31 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState('');
 
-  // Guarda contra una carrera real (confirmada): exchangeCodeForSession
-  // dispara su propio evento genérico "hay sesión" en onAuthStateChange,
-  // que llegaba DESPUÉS de que init() ya hubiera puesto 'needsPassword' —
-  // ese evento genérico pisaba el estado y saltaba directo a la app antes
-  // de que la persona pudiera escribir su contraseña nueva. Mientras este
-  // flag esté prendido, ningún evento genérico de sesión puede tocar el
-  // estado — solo setNewPassword (al terminar) o un cierre de sesión real.
+  // Guarda contra una carrera real (confirmada probando el flujo completo,
+  // dos veces con causas distintas): Supabase a veces dispara MÁS de un
+  // evento de sesión al procesar un link de recuperación/invitación (uno
+  // genérico primero, PASSWORD_RECOVERY después) — el genérico alcanza a
+  // arrancar loadProfile() antes de saberse que era de recuperación, y esa
+  // llamada (asíncrona, espera al servidor) puede terminar DESPUÉS y pisar
+  // el estado igual. Mientras este flag esté prendido, ni un evento
+  // genérico nuevo ni una llamada a loadProfile ya en camino pueden tocar
+  // el estado — solo setNewPassword (al terminar) o un cierre de sesión.
   const needsPasswordRef = useRef(false);
 
   const loadProfile = useCallback(async (accessToken: string, userEmail: string) => {
     try {
       const p = await getMyProfile(accessToken);
+      // Carrera real confirmada probando el flujo completo: esta llamada
+      // arranca por un evento de sesión que llegó ANTES de que se supiera
+      // que el link era de recuperación/invitación, y termina DESPUÉS
+      // (espera al servidor) — sin este chequeo, pisaba "needsPassword" con
+      // "noProfile" ya con la pantalla de "Elige tu contraseña" en pantalla.
+      if (needsPasswordRef.current) return;
       setEmail(userEmail);
       if (p && p.active) { setProfile(p); setStatus('ready'); }
       else if (p) { setProfile(p); setStatus('disabled'); }
       else { setProfile(null); setStatus('noProfile'); }
-    } catch (e) { setError((e as Error).message); setStatus('noProfile'); }
+    } catch (e) { if (needsPasswordRef.current) return; setError((e as Error).message); setStatus('noProfile'); }
   }, []);
 
   useEffect(() => {
