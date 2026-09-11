@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from './supabase-browser';
 import { getMyProfile } from './users-actions';
 import type { Profile } from './users';
@@ -14,6 +14,15 @@ export function useAuth() {
   const [email, setEmail] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState('');
+
+  // Guarda contra una carrera real (confirmada): exchangeCodeForSession
+  // dispara su propio evento genérico "hay sesión" en onAuthStateChange,
+  // que llegaba DESPUÉS de que init() ya hubiera puesto 'needsPassword' —
+  // ese evento genérico pisaba el estado y saltaba directo a la app antes
+  // de que la persona pudiera escribir su contraseña nueva. Mientras este
+  // flag esté prendido, ningún evento genérico de sesión puede tocar el
+  // estado — solo setNewPassword (al terminar) o un cierre de sesión real.
+  const needsPasswordRef = useRef(false);
 
   const loadProfile = useCallback(async (accessToken: string, userEmail: string) => {
     try {
@@ -52,12 +61,13 @@ export function useAuth() {
       const { data } = await supabase.auth.getSession();
       const session = data.session;
       if (!session) { setStatus('signedOut'); return; }
-      if (forcePasswordSetup) { setEmail(session.user.email || ''); setStatus('needsPassword'); return; }
+      if (forcePasswordSetup) { needsPasswordRef.current = true; setEmail(session.user.email || ''); setStatus('needsPassword'); return; }
       void loadProfile(session.access_token, session.user.email || '');
     }
     void init();
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') { setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
+      if (event === 'PASSWORD_RECOVERY') { needsPasswordRef.current = true; setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
+      if (needsPasswordRef.current) return; // ver comentario junto a la declaración del ref
       if (session) void loadProfile(session.access_token, session.user.email || '');
       else { setProfile(null); setEmail(''); setStatus('signedOut'); }
     });
@@ -92,11 +102,13 @@ export function useAuth() {
     const supabase = supabaseBrowser();
     const { error: err } = await supabase.auth.updateUser({ password });
     if (err) throw new Error(err.message);
+    needsPasswordRef.current = false;
     const { data } = await supabase.auth.getSession();
     if (data.session) void loadProfile(data.session.access_token, data.session.user.email || '');
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {
+    needsPasswordRef.current = false;
     const supabase = supabaseBrowser();
     await supabase.auth.signOut();
   }, []);
