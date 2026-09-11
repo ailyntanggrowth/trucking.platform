@@ -235,8 +235,13 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
       .filter(l => l.driverId === driver.id && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada')
       .sort((a, b) => a.pickupDate.localeCompare(b.pickupDate));
     if (!driverLoads.length) continue;
+    // Bug corregido (pedido explícito — el chofer desaparecía por completo del
+    // recorrido): una entrega a FL programada para el FUTURO no cuenta como
+    // "ya volvió a FL". Solo cierra el viaje una entrega a FL que YA pasó —
+    // si no, un chofer con una carga futura que entrega en FL se trataba como
+    // si el viaje ya hubiera terminado, y se escondía toda su tarjeta.
     let lastFlReturnIdx = -1;
-    driverLoads.forEach((l, i) => { if (l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate) lastFlReturnIdx = i; });
+    driverLoads.forEach((l, i) => { if (l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate && l.deliveryDate <= todayStr) lastFlReturnIdx = i; });
     const tripLoads = lastFlReturnIdx === -1 ? driverLoads : driverLoads.slice(lastFlReturnIdx + 1);
     if (!tripLoads.length) continue; // ya volvió a FL, sin viaje activo todavía
     const tripStart = tripLoads[0].pickupDate;
