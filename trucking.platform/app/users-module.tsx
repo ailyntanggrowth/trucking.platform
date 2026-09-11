@@ -116,7 +116,7 @@ export default function UsersModule({ auth, lang, t }: { auth: AuthController; l
       </div>
       {formRole === 'driver' && !unlinkedDrivers.length && <p className={styles.note}>{t('Todos los choferes de Choferes y Flota ya tienen cuenta, o todavía no has agregado ninguno.')}</p>}
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Enviando…') : t('Enviar acceso')}</button><button type="button" onClick={() => setFormOpen(false)}>{t('Cancelar')}</button></div>
-      <p className={styles.note}>{t('Le llega un correo con un link para entrar — no necesita crear ninguna contraseña.')}</p>
+      <p className={styles.note}>{t('Le llega un correo con un link para entrar — ahí mismo elige su contraseña la primera vez.')}</p>
     </form>}
 
     <div className={styles.filterRow}>
