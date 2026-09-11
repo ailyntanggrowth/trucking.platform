@@ -43,24 +43,31 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    const supabase = supabaseBrowser();
-
     // Comprobado directo contra Supabase (curl, sin adivinar): un link de
     // recuperación o invitación NO vuelve con "?code=" — vuelve con un
-    // fragmento "#access_token=...&refresh_token=...&type=recovery". Eso
-    // lo procesa automáticamente detectSessionInUrl (prendido en
-    // lib/supabase-browser.ts), que es quien de verdad establece la sesión
-    // y dispara el evento PASSWORD_RECOVERY — por eso init() ya NO llama a
-    // getSession()/loadProfile por su cuenta: hacerlo era una carrera real
-    // contra ese procesamiento automático (a veces ganaba uno, a veces el
-    // otro, y a veces "needsPassword" se saltaba directo a la app). El
-    // único "code=" que puede aparecer es el flujo PKCE por query string
-    // (otros proveedores/flujos) — se sigue canjeando a mano por si acaso,
-    // pero la fuente de verdad para TODO lo demás es únicamente
-    // onAuthStateChange, una sola vez, sin dos caminos corriendo a la vez.
+    // fragmento "#access_token=...&refresh_token=...&type=recovery" (o
+    // "type=invite"). Esto se lee AQUÍ MISMO, de forma síncrona, antes de
+    // pedir el cliente de Supabase — detectSessionInUrl (prendido en
+    // lib/supabase-browser.ts) borra ese fragmento de la URL en cuanto lo
+    // procesa, así que si se lee después ya puede haber desaparecido.
+    //
+    // Probado real: para "type=recovery" Supabase SÍ dispara el evento
+    // PASSWORD_RECOVERY, pero para "type=invite" NO — dispara un evento
+    // genérico de sesión igual que un login normal. Por eso no se puede
+    // confiar solo en el nombre del evento; hace falta este propio flag,
+    // capturado del fragmento de la URL, para los dos casos por igual.
+    const hashType = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type');
+    if (hashType === 'recovery' || hashType === 'invite') needsPasswordRef.current = true;
+
+    const supabase = supabaseBrowser();
+
+    // El único "code=" que puede aparecer es el flujo PKCE por query string
+    // (otros proveedores/flujos) — se canjea a mano por si acaso.
     async function exchangeCodeIfPresent() {
       const url = new URL(window.location.href);
       const code = url.searchParams.get('code');
+      const linkType = url.searchParams.get('type');
+      if (linkType === 'recovery' || linkType === 'invite') needsPasswordRef.current = true;
       if (!code) return;
       await supabase.auth.exchangeCodeForSession(code);
       url.searchParams.delete('code');
@@ -70,8 +77,7 @@ export function useAuth() {
     void exchangeCodeIfPresent();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') { needsPasswordRef.current = true; setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
-      if (needsPasswordRef.current) return; // ver comentario junto a la declaración del ref
+      if (needsPasswordRef.current) { setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
       if (session) void loadProfile(session.access_token, session.user.email || '');
       else { setProfile(null); setEmail(''); setStatus('signedOut'); }
     });
