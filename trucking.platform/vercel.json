@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/sheet-sync", "schedule": "*/5 * * * *" }
+    { "path": "/api/sheet-sync", "schedule": "0 6 * * *" }
   ]
 }
