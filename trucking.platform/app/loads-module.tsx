@@ -163,10 +163,18 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     try {
       await settlements.commit({ type: 'mark', driverId: payTrip.driverId, driverName: payTrip.driverName, weekStart: payTrip.tripStart, paymentStatus: 'Pagada', notes: '', amountPaid: amount });
       setPayTrip(null); setPayAmount('');
-    } catch (e) { setPayError((e as Error).message); } finally { setPayBusy(false); }
+    } catch (e) {
+      // En producción Next.js reemplaza el mensaje real de cualquier error
+      // de servidor por uno genérico en inglés — se deja en la consola para
+      // diagnosticar (Runtime Logs de Vercel), pero a la dueña se le muestra
+      // uno claro en español, nunca el técnico.
+      console.error(e);
+      setPayError(t('No se pudo guardar el salario. Intenta de nuevo.'));
+    } finally { setPayBusy(false); }
   }
   async function reopenPay(driverId: string, driverName: string, tripStart: string) {
-    try { await settlements.commit({ type: 'mark', driverId, driverName, weekStart: tripStart, paymentStatus: 'Pendiente', notes: '' }); } catch (e) { setPayError((e as Error).message); }
+    try { await settlements.commit({ type: 'mark', driverId, driverName, weekStart: tripStart, paymentStatus: 'Pendiente', notes: '' }); }
+    catch (e) { console.error(e); setPayError(t('No se pudo guardar el cambio. Intenta de nuevo.')); }
   }
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : editor?.type === 'incident' ? t('Reportar rotura de camión') : t('Reemplazar carga');
 
