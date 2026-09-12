@@ -1,20 +1,31 @@
 "use client";
 import { useState, type FormEvent } from 'react';
 import {
-  computeMarioSettlements, computeOwnerOperatorSettlements, computeLazaroSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, marioPaidGross, fuelWeekStartOf, type SettlementConfig,
+  computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
+  weekStartOf, weekRange, isWeekLocked, type SettlementConfig,
 } from '../lib/settlements';
+import { isOfficial } from '../lib/loads';
+import { summarizeFuel } from '../lib/fuel';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
 import { money, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { DollarSign, Fuel as FuelIcon, Percent, TrendingUp, ChevronLeft, ChevronRight, Settings, MoreVertical } from 'lucide-react';
-import { Donut, DonutLegend } from './mini-charts';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock } from 'lucide-react';
 import styles from './settlements.module.css';
 
-type Tab = 'mario' | 'ownerOperators' | 'lazaro' | 'dispatcher' | 'config';
+// REDISEÑO (pedido explícito de la dueña): Contabilidad y Pagos ahora tiene
+// SOLO 2 secciones visibles — "Esta semana" (4 números) y "Pagos a Choferes"
+// (Pendientes/Pagados) — sin duplicar nada de lo que ya se ve en Recorrido de
+// cada chofer (Cargas) ni en Reportes (grupos Owner Operators/Lázaro, que por
+// eso ya no tienen pestaña aquí). Las 4 funciones que sí existían pero no
+// entran en ese diseño simple (comisión del despachador/Gleybis, seguro
+// semanal, configuración de %/tramos, cerrar-reabrir invoice) se conservan
+// intactas, solo que movidas detrás del botón "⚙️ Más opciones" para que la
+// pantalla principal quede limpia.
+type PagosTab = 'pendientes' | 'pagados';
+type MoreTab = 'dispatcher' | 'insurance' | 'config' | 'lock';
 const AVATAR_TONES = ['#8B102A', '#1e4e8c', '#8a5a00', '#1f7a4d', '#6b3fa0', '#a12b2b'];
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 function Avatar({ name, index }: { name: string; index: number }) {
@@ -25,50 +36,41 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string;
 }) {
   const { state, ready } = settlements;
-  const [tab, setTab] = useState<Tab>('mario');
-  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [pagosTab, setPagosTab] = useState<PagosTab>('pendientes');
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
-  // El combustible tiene su propio calendario lunes-domingo (pedido
-  // explícito), igual al ciclo real de los statements de Mudflap — no el
-  // martes-lunes de las cargas.
-  const [fuelWeekStart, setFuelWeekStart] = useState(fuelWeekStartOf(today()));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
-  const { end: fuelWeekEnd, prevWeek: fuelPrevWeek, nextWeek: fuelNextWeek } = weekRange(fuelWeekStart);
-  const fuelWeekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${fuelWeekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${fuelWeekEnd}T12:00:00Z`).getTime() - 86400000))}`;
+  const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
   const locked = isWeekLocked(weekEnd, state.weekLocks);
   const weekLock = state.weekLocks.find(w => w.weekEnd === weekEnd);
-  const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks, fuelWeekStart, fuelWeekEnd);
-  const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, fuelWeekStart, fuelWeekEnd);
-  const lazaro = computeLazaroSettlements(fleet.state.drivers, loads.state.loads, weekStart, weekEnd);
+
+  const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks, weekStart, weekEnd);
   const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config, state.weekLocks);
   const invoiceNumber = invoiceNumberFor(weekStart);
   const dispatcherMark = state.dispatcherMarks.find(m => m.weekStart === weekStart);
   const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
-  // "Bruto Mario" de arriba (pedido explícito): solo lo YA pagado por
-  // Summar esa semana — distinto al bruto de la tabla, que sigue por fecha
-  // de recogida para no mover el tramo de pago del chofer.
-  const marioPaidGrossTotal = marioPaidGross(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.weekLocks);
-  const totalFuel = mario.reduce((s, m) => s + m.fuel, 0);
-  const totalProfit = mario.reduce((s, m) => s + m.finalProfit, 0);
-  const totalDriverPay = mario.reduce((s, m) => s + m.driverPay, 0);
-  const totalInsurance = mario.reduce((s, m) => s + m.insurance, 0);
-  const ooMarioCut = ownerOperators.reduce((s, o) => s + o.marioCut, 0);
-  const ooFuel = ownerOperators.reduce((s, o) => s + o.fuel, 0);
-  const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
-  const distribution = [
-    { label: t('Pago a choferes'), value: totalDriverPay, color: '#8B102A' },
-    { label: t('Combustible'), value: totalFuel + ooFuel, color: '#c98a00' },
-    { label: t('Corte Owner Operators (Mario)'), value: ooMarioCut, color: '#1e4e8c' },
-    { label: t('Comisión despachador'), value: dispatcher.commission, color: '#1f7a4d' },
-    { label: t('Seguro'), value: totalInsurance, color: '#6b3fa0' },
-  ];
-  const distributionTotal = distribution.reduce((s, d) => s + d.value, 0);
+
+  // Los 4 números de "Esta semana" — siempre calculados en vivo desde lo que
+  // ya existe en Cargas/Combustible/Recorrido de cada chofer, nunca captura
+  // manual (pedido explícito): así una corrección posterior (ej. Summar) se
+  // refleja sola sin tener que "actualizar" nada aquí.
+  const cargasRealizadas = loads.state.loads
+    .filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.pickupDate >= weekStart && l.pickupDate < weekEnd)
+    .reduce((s, l) => s + l.amount, 0);
+  const fuelSummary = summarizeFuel(fuel.state, weekStart, weekEnd);
+  const combustibleYGastos = fuelSummary.fuel + fuelSummary.nonFuel + fuelSummary.expenseTotal;
+  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.driverPay, 0);
+  const dineroQueQueda = cargasRealizadas - combustibleYGastos - pagoAChoferes;
+
+  const pendientes = mario.filter(m => m.paymentStatus === 'Pendiente');
+  const pagados = mario.filter(m => m.paymentStatus === 'Pagada');
+  const rows = pagosTab === 'pendientes' ? pendientes : pagados;
 
   async function toggleMark(driverId: string, driverName: string, current: 'Pendiente' | 'Pagada') {
-    if (busy || locked) return; setError(''); setNotice(''); setBusy(true); setOpenRow(null);
+    if (busy || locked) return; setError(''); setNotice(''); setBusy(true);
     try {
       const next = await settlements.commit({ type: 'mark', driverId, driverName, weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
       setNotice(next.events[0].detail);
@@ -108,6 +110,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     try { const next = await settlements.commit({ type: 'config', config }); setNotice(next.events[0].detail); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
+  function openMore(tab: MoreTab) { setError(''); setNotice(''); setMoreTab(tab); setMoreOpen(true); }
 
   return <div className={styles.settlements}>
     {(settlements.error || loads.error || fuel.error || fleet.error) && <div role="alert" className={styles.error}>{settlements.error || loads.error || fuel.error || fleet.error}</div>}
@@ -118,152 +121,127 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <span>📅 {t('Semana')} {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
-      {locked
-        ? <button disabled={busy} onClick={reopenWeek}>{t('Reabrir semana')}</button>
-        : <button className={styles.primary} disabled={busy} onClick={closeWeek}>{t('Cerrar invoice de esta semana')}</button>}
+      <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>
     </div>
-    {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar. Ciérrala tú cuando quieras, no hay hora automática.')}</p>}
+    {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar.')}</p>}
 
-    <div className={styles.weekBar}>
-      <button onClick={() => setFuelWeekStart(fuelPrevWeek)} aria-label={t('Semana de combustible anterior')}><ChevronLeft size={16} /></button>
-      <span>⛽ {t('Combustible (lunes-domingo)')} {fuelWeekLabel}</span>
-      <button onClick={() => setFuelWeekStart(fuelNextWeek)} aria-label={t('Semana de combustible siguiente')}><ChevronRight size={16} /></button>
-      <button onClick={() => setFuelWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
-    </div>
-
-    <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><DollarSign size={16} /></span><span className={styles.statLabel}>{t('Bruto Mario')}</span><strong>{ready2 ? money(marioPaidGrossTotal) : '—'}</strong><small>{t('Solo lo ya pagado por Summar')}</small></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario')}</span><strong>{ready2 ? money(totalFuel) : '—'}</strong><small>{fuelWeekLabel} ({t('lun-dom')})</small></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Comisión despachador (4%)')}</span><strong>{ready2 ? money(dispatcher.commission) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="green"><span className={styles.statIcon} aria-hidden="true"><TrendingUp size={16} /></span><span className={styles.statLabel}>{t('Ganancia estimada')}</span><strong>{ready2 ? money(totalProfit) : '—'}</strong></div>
-    </div>
-    <p className={styles.note}>{t('La comisión del despachador es un pago aparte: se calcula sobre el bruto de Mario + Owner Operators + Lázaro de la semana, todo junto, y no afecta el salario del chofer.')}</p>
-
-    <nav className={styles.tabs} aria-label={t('Secciones de contabilidad')}>
-      <button aria-pressed={tab === 'mario'} onClick={() => setTab('mario')}>{t('Choferes de Mario')} <span className={styles.count}>{mario.length}</span></button>
-      <button aria-pressed={tab === 'ownerOperators'} onClick={() => setTab('ownerOperators')}>{t('Owner Operators')} <span className={styles.count}>{ownerOperators.length}</span></button>
-      <button aria-pressed={tab === 'lazaro'} onClick={() => setTab('lazaro')}>{t('Grupo Lázaro')} <span className={styles.count}>{lazaro.length}</span></button>
-      <button aria-pressed={tab === 'dispatcher'} onClick={() => setTab('dispatcher')}>{t('Dispatcher')} <span className={styles.count}>#{invoiceNumber}</span></button>
-      <button aria-pressed={tab === 'config'} onClick={() => setTab('config')}><Settings size={14} /> {t('Configuración')}</button>
-    </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
 
-    {tab === 'mario' && <div className={styles.tableWrap}>
+    <h2>{t('Esta semana')}</h2>
+    <div className={styles.statCards}>
+      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible y gastos')}</span><strong>{ready2 ? money(combustibleYGastos) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Pago a choferes')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong></div>
+    </div>
+    <div className={styles.moneyCard}>
+      <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
+      <span className={styles.statLabel}>{t('Dinero que queda')}</span>
+      <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
+    </div>
+
+    <h2>{t('Pagos a Choferes')}</h2>
+    <nav className={styles.tabs} aria-label={t('Estado de pago')}>
+      <button aria-pressed={pagosTab === 'pendientes'} onClick={() => setPagosTab('pendientes')}>{t('Pendientes')} <span className={styles.count}>{pendientes.length}</span></button>
+      <button aria-pressed={pagosTab === 'pagados'} onClick={() => setPagosTab('pagados')}>{t('Pagados')} <span className={styles.count}>{pagados.length}</span></button>
+    </nav>
+    <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
-        <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Bruto')}</th><th>{t('Combustible')}</th><th>{t('Pago chofer')}</th><th>{t('Ganancia final')}</th><th>{t('Estado')}</th><th aria-hidden="true"></th></tr></thead>
-        <tbody>{mario.map((m, i) => <tr key={m.driverId}>
+        <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Salario')}</th><th>{t('Estado')}</th><th aria-hidden="true"></th></tr></thead>
+        <tbody>{rows.map((m, i) => <tr key={m.driverId}>
           <td><span className={styles.who}><Avatar name={m.driverName} index={i} />{m.driverName}</span></td>
           <td className={styles.tableSub}>{m.loadsCount}</td>
-          <td>{money(m.gross)}</td>
-          <td className={styles.tableSub}>{money(m.fuel)}</td>
           <td><strong>{money(m.driverPay)}</strong></td>
-          <td><strong className={m.finalProfit < 0 ? styles.negative : ''}>{money(m.finalProfit)}</strong></td>
           <td><span className={`${styles.badge} ${m.paymentStatus === 'Pagada' ? styles.badgePaid : styles.badgePending}`}>{t(m.paymentStatus)}</span></td>
           <td className={styles.tableActions}>
-            <button className={styles.moreBtn} onClick={() => setOpenRow(openRow === m.driverId ? null : m.driverId)} aria-label={t('Más acciones')}><MoreVertical size={16} /></button>
+            <button disabled={busy || locked} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>
           </td>
         </tr>)}</tbody>
       </table>
-      {ready2 && !mario.length && <p className={styles.empty}>{t('No hay choferes del grupo Mario todavía.')}</p>}
+      {ready2 && !rows.length && <p className={styles.empty}>{pagosTab === 'pendientes' ? t('No hay pagos pendientes esta semana.') : t('Todavía no se ha marcado ningún pago como pagado esta semana.')}</p>}
+    </div>
+
+    {moreOpen && <div className={styles.moreOverlay} role="dialog" aria-label={t('Más opciones')}>
+      <div className={styles.morePanel}>
+        <div className={styles.morePanelHeader}>
+          <strong>{t('Más opciones')}</strong>
+          <button onClick={() => setMoreOpen(false)} aria-label={t('Cerrar')}><X size={20} /></button>
+        </div>
+        <nav className={styles.tabs} aria-label={t('Secciones de más opciones')}>
+          <button aria-pressed={moreTab === 'dispatcher'} onClick={() => setMoreTab('dispatcher')}>{t('Dispatcher')} <span className={styles.count}>#{invoiceNumber}</span></button>
+          <button aria-pressed={moreTab === 'insurance'} onClick={() => setMoreTab('insurance')}><ShieldCheck size={14} /> {t('Seguro')}</button>
+          <button aria-pressed={moreTab === 'config'} onClick={() => setMoreTab('config')}><Settings size={14} /> {t('Configuración')}</button>
+          <button aria-pressed={moreTab === 'lock'} onClick={() => setMoreTab('lock')}><Lock size={14} /> {t('Cerrar semana')}</button>
+        </nav>
+
+        {moreTab === 'dispatcher' && <>
+          <div className={styles.rowDetail}>
+            <h3>{t('Invoice')} #{invoiceNumber} — {t('comisión de Gleybis')}</h3>
+            <p><b>{t('Bruto:')}</b> {money(dispatcher.gross)} · <b>{t('Comisión (4%):')}</b> {money(dispatcher.commission)}</p>
+            <div className={styles.actions}>
+              <span className={`${styles.badge} ${dispatcherPaid ? styles.badgePaid : styles.badgePending}`}>{dispatcherPaid ? t('Pagada') : t('Pendiente')}</span>
+              <button disabled={busy} onClick={() => toggleDispatcherMark(dispatcherMark?.paymentStatus || 'Pendiente')}>{dispatcherPaid ? t('Marcar pendiente') : t('Marcar pagada')}</button>
+            </div>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.dataTable}>
+              <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Bruto')}</th><th>{t('Comisión')}</th></tr></thead>
+              <tbody>{dispatcher.rows.map(r => <tr key={r.loadId}>
+                <td>{r.loadNumber || t('Sin número')}</td>
+                <td>{r.driverName}</td>
+                <td className={styles.tableSub}>{r.group}</td>
+                <td className={styles.tableSub}>{money(r.amount)}</td>
+                <td><strong>{money(r.commission)}</strong></td>
+              </tr>)}</tbody>
+            </table>
+            {ready2 && !dispatcher.rows.length && <p className={styles.empty}>{t('No hay cargas pagadas en este invoice todavía.')}</p>}
+          </div>
+        </>}
+
+        {moreTab === 'insurance' && <div className={styles.tableWrap}>
+          <table className={styles.dataTable}>
+            <thead><tr><th>{t('Chofer')}</th><th>{t('Seguro semanal')}</th><th aria-hidden="true"></th></tr></thead>
+            <tbody>{mario.map((m, i) => <tr key={m.driverId}>
+              <td><span className={styles.who}><Avatar name={m.driverName} index={i} />{m.driverName}</span></td>
+              <td colSpan={2}>
+                <form className={styles.insuranceForm} onSubmit={e => { e.preventDefault(); const v = Number(new FormData(e.currentTarget).get('insurance') || 0); void saveInsurance(m.driverId, v); }}>
+                  <input name="insurance" type="number" min="0" step="0.01" defaultValue={m.insurance} disabled={locked} />
+                  <button type="submit" disabled={busy || locked}>{t('Guardar')}</button>
+                </form>
+              </td>
+            </tr>)}</tbody>
+          </table>
+          {ready2 && !mario.length && <p className={styles.empty}>{t('No hay choferes del grupo Mario todavía.')}</p>}
+        </div>}
+
+        {moreTab === 'config' && <form className={styles.form} onSubmit={saveConfig}>
+          <h3>{t('Configuración de Contabilidad y Pagos')}</h3>
+          <p className={styles.note}>{t('Estos valores son del ejemplo de la compañía actual, no reglas universales — ajústalos si cambian.')}</p>
+          <div className={styles.fields}>
+            <label>{t('Descuento de compañía (%)')}<input name="companyDeductionPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.companyDeductionPct * 100} /></label>
+            <label>{t('Comisión del despachador (%)')}<input name="dispatcherCommissionPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.dispatcherCommissionPct * 100} /></label>
+            <label>{t('Corte de Owner Operators (%)')}<input name="ownerOperatorCutPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.ownerOperatorCutPct * 100} /></label>
+            <label>{t('Tramo 1 — bruto hasta')}<input name="tier1Max" type="number" min="0" step="1" defaultValue={state.config.tier1Max} /></label>
+            <label>{t('Tramo 1 — pago')}<input name="tier1Pay" type="number" min="0" step="1" defaultValue={state.config.tier1Pay} /></label>
+            <label>{t('Tramo 2 — bruto hasta')}<input name="tier2Max" type="number" min="0" step="1" defaultValue={state.config.tier2Max} /></label>
+            <label>{t('Tramo 2 — pago')}<input name="tier2Pay" type="number" min="0" step="1" defaultValue={state.config.tier2Pay} /></label>
+            <label>{t('Tramo 3 — pago (arriba del tramo 2)')}<input name="tier3Pay" type="number" min="0" step="1" defaultValue={state.config.tier3Pay} /></label>
+          </div>
+          <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar configuración')}</button></div>
+        </form>}
+
+        {moreTab === 'lock' && <div className={styles.rowDetail}>
+          <h3>{t('Invoice de la semana')} {weekLabel}</h3>
+          {locked && weekLock
+            ? <p>{t('Esta semana está cerrada desde el')} {new Date(weekLock.lockedAt).toLocaleString('es')}. {t('Los montos son finales y no se pueden editar.')}</p>
+            : <p>{t('Esta semana sigue abierta: los montos se pueden seguir marcando/editando. Ciérrala cuando quieras, no hay hora automática.')}</p>}
+          <div className={styles.actions}>
+            {locked
+              ? <button disabled={busy} onClick={reopenWeek}>{t('Reabrir semana')}</button>
+              : <button className={styles.primary} disabled={busy} onClick={closeWeek}>{t('Cerrar invoice de esta semana')}</button>}
+          </div>
+        </div>}
+      </div>
     </div>}
-    {tab === 'mario' && openRow && mario.find(m => m.driverId === openRow) && (() => {
-      const m = mario.find(x => x.driverId === openRow)!;
-      return <div className={styles.rowDetail}>
-        <h3>{m.driverName}</h3>
-        <p>
-          <b>{t('Descuento 6%:')}</b> {money(m.companyDeduction)} · <b>{t('Combustible:')}</b> {money(m.fuel)} · <b>{t('Seguro:')}</b> {money(m.insurance)}
-        </p>
-        <form className={styles.insuranceForm} onSubmit={e => { e.preventDefault(); const v = Number(new FormData(e.currentTarget).get('insurance') || 0); void saveInsurance(m.driverId, v); }}>
-          <label>{t('Seguro semanal')}<input name="insurance" type="number" min="0" step="0.01" defaultValue={m.insurance} disabled={locked} /></label>
-          <button type="submit" disabled={busy || locked}>{t('Guardar')}</button>
-        </form>
-        <div className={styles.actions}>
-          <button disabled={busy || locked} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>
-          <button onClick={() => setOpenRow(null)}>{t('Cerrar')}</button>
-        </div>
-      </div>;
-    })()}
-
-    {tab === 'ownerOperators' && <>
-      <p className={styles.note}>{t('Reporte angosto (spec 9.10): del bruto de la semana, el 12% se lo queda Mario; del 88% restante se le descuenta al Owner Operator el combustible que gastó con la tarjeta de la compañía, y lo que queda es lo que Mario le paga. No es una liquidación completa.')}</p>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Bruto')}</th><th>{t('Corte de Mario (12%)')}</th><th>{t('Combustible gastado')}</th><th>{t('A pagarle')}</th></tr></thead>
-          <tbody>{ownerOperators.map((o, i) => <tr key={o.driverId}>
-            <td><span className={styles.who}><Avatar name={o.driverName} index={i} />{o.driverName}</span></td>
-            <td className={styles.tableSub}>{o.loadsCount}</td>
-            <td>{money(o.gross)}</td>
-            <td className={styles.tableSub}>{money(o.marioCut)}</td>
-            <td className={styles.tableSub}>{money(o.fuel)}</td>
-            <td><strong>{money(o.netPayout)}</strong></td>
-          </tr>)}</tbody>
-        </table>
-        {ready2 && !ownerOperators.length && <p className={styles.empty}>{t('No hay choferes del grupo Owner Operators todavía.')}</p>}
-      </div>
-    </>}
-
-    {tab === 'lazaro' && <>
-      <p className={styles.note}>{t('Lázaro les paga a sus choferes aparte, fuera de este sistema. Aquí solo se ve su bruto de la semana, que entra junto con Mario y Owner Operators en la comisión del despachador de arriba.')}</p>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Bruto')}</th></tr></thead>
-          <tbody>{lazaro.map((l, i) => <tr key={l.driverId}>
-            <td><span className={styles.who}><Avatar name={l.driverName} index={i} />{l.driverName}</span></td>
-            <td className={styles.tableSub}>{l.loadsCount}</td>
-            <td>{money(l.gross)}</td>
-          </tr>)}</tbody>
-        </table>
-        {ready2 && !lazaro.length && <p className={styles.empty}>{t('No hay choferes del grupo Lázaro todavía.')}</p>}
-      </div>
-    </>}
-
-    {tab === 'dispatcher' && <>
-      <div className={styles.rowDetail}>
-        <h3>{t('Invoice')} #{invoiceNumber} — {t('comisión de Gleybis')}</h3>
-        <p><b>{t('Bruto:')}</b> {money(dispatcher.gross)} · <b>{t('Comisión (4%):')}</b> {money(dispatcher.commission)}</p>
-        <div className={styles.actions}>
-          <span className={`${styles.badge} ${dispatcherPaid ? styles.badgePaid : styles.badgePending}`}>{dispatcherPaid ? t('Pagada') : t('Pendiente')}</span>
-          <button disabled={busy} onClick={() => toggleDispatcherMark(dispatcherMark?.paymentStatus || 'Pendiente')}>{dispatcherPaid ? t('Marcar pendiente') : t('Marcar pagada')}</button>
-        </div>
-      </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Bruto')}</th><th>{t('Comisión')}</th></tr></thead>
-          <tbody>{dispatcher.rows.map(r => <tr key={r.loadId}>
-            <td>{r.loadNumber || t('Sin número')}</td>
-            <td>{r.driverName}</td>
-            <td className={styles.tableSub}>{r.group}</td>
-            <td className={styles.tableSub}>{money(r.amount)}</td>
-            <td><strong>{money(r.commission)}</strong></td>
-          </tr>)}</tbody>
-        </table>
-        {ready2 && !dispatcher.rows.length && <p className={styles.empty}>{t('No hay cargas pagadas en este invoice todavía.')}</p>}
-      </div>
-    </>}
-
-    {tab === 'config' && <form className={styles.form} onSubmit={saveConfig}>
-      <h3>{t('Configuración de Contabilidad y Pagos')}</h3>
-      <p className={styles.note}>{t('Estos valores son del ejemplo de la compañía actual, no reglas universales — ajústalos si cambian.')}</p>
-      <div className={styles.fields}>
-        <label>{t('Descuento de compañía (%)')}<input name="companyDeductionPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.companyDeductionPct * 100} /></label>
-        <label>{t('Comisión del despachador (%)')}<input name="dispatcherCommissionPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.dispatcherCommissionPct * 100} /></label>
-        <label>{t('Corte de Owner Operators (%)')}<input name="ownerOperatorCutPct" type="number" min="0" max="100" step="0.1" defaultValue={state.config.ownerOperatorCutPct * 100} /></label>
-        <label>{t('Tramo 1 — bruto hasta')}<input name="tier1Max" type="number" min="0" step="1" defaultValue={state.config.tier1Max} /></label>
-        <label>{t('Tramo 1 — pago')}<input name="tier1Pay" type="number" min="0" step="1" defaultValue={state.config.tier1Pay} /></label>
-        <label>{t('Tramo 2 — bruto hasta')}<input name="tier2Max" type="number" min="0" step="1" defaultValue={state.config.tier2Max} /></label>
-        <label>{t('Tramo 2 — pago')}<input name="tier2Pay" type="number" min="0" step="1" defaultValue={state.config.tier2Pay} /></label>
-        <label>{t('Tramo 3 — pago (arriba del tramo 2)')}<input name="tier3Pay" type="number" min="0" step="1" defaultValue={state.config.tier3Pay} /></label>
-      </div>
-      <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar configuración')}</button></div>
-    </form>}
-
-    {tab !== 'config' && <section className={styles.chartSection}>
-      <h3>{t('Distribución de Pagos de la Semana')}</h3>
-      <div className={styles.chartRow}>
-        <Donut data={distribution} centerLabel={money(distributionTotal)} centerSub={t('Total')} />
-        <DonutLegend data={distribution} format={money} />
-      </div>
-    </section>}
   </div>;
 }
