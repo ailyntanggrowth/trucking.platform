@@ -1,24 +1,19 @@
 // Endpoint que sincroniza la Hoja de Google de resumen semanal con Cargas
 // (pedido explícito: "la fila de la hoja sería el registro"). Lo llama un
-// Cron de Vercel cada pocos minutos (ver vercel.json) — no hace falta que
-// la dueña haga nada en la Hoja aparte de compartirla "cualquiera con el
-// enlace puede ver" (ya lo está).
+// Cron de Vercel cada pocos minutos (ver vercel.json).
+//
+// La hoja ya NO es pública (pedido explícito) — se lee con una cuenta de
+// servicio de Google (GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_SHEET_ID en
+// Vercel), compartida como lectora de la hoja. Antes se leía el export CSV
+// público; ver lib/google-sheets.ts para el reemplazo.
 //
 // Solo API route normal (no Server Action): un Cron de Vercel hace un GET
 // HTTP común, no puede invocar una Server Action de Next.js.
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseSheetRows, matchDriver } from '../../../lib/sheet-sync';
+import { fetchPrivateSheetRows } from '../../../lib/google-sheets';
 import { supabaseServer, DEFAULT_COMPANY_ID } from '../../../lib/supabase-server';
-
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1gcthRZ_WkcMA89pmkPPGRu9LaI1deMWmGmER23Hv63c/export?format=csv';
-
-// Parser CSV simple (los datos no traen comas ni comillas dentro de una
-// celda, confirmado contra la hoja real) — evita traer una librería extra
-// solo para esto.
-function parseCsv(text: string): string[][] {
-  return text.split('\n').map(line => line.replace(/\r$/, '').split(','));
-}
 
 export async function GET(request: NextRequest) {
   // CRON_SECRET es el nombre especial que reconoce Vercel: si existe esa
@@ -31,9 +26,14 @@ export async function GET(request: NextRequest) {
   const dryRun = request.nextUrl.searchParams.get('dryRun') === '1';
   const companyId = DEFAULT_COMPANY_ID;
 
-  const res = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
-  if (!res.ok) return NextResponse.json({ error: `No se pudo leer la Hoja (HTTP ${res.status})` }, { status: 502 });
-  const csvRows = parseCsv(await res.text());
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const sheetId = process.env.GOOGLE_SHEET_ID;
+  if (!serviceAccountJson) return NextResponse.json({ error: 'Falta la variable de entorno GOOGLE_SERVICE_ACCOUNT_JSON en Vercel.' }, { status: 500 });
+  if (!sheetId) return NextResponse.json({ error: 'Falta la variable de entorno GOOGLE_SHEET_ID en Vercel.' }, { status: 500 });
+
+  let csvRows: string[][];
+  try { csvRows = await fetchPrivateSheetRows(sheetId, serviceAccountJson); }
+  catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 502 }); }
   const { rows, unparsed } = parseSheetRows(csvRows);
 
   const supabase = supabaseServer();
