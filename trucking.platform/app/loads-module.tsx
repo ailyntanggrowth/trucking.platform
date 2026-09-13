@@ -1,7 +1,8 @@
 "use client";
 import { useRef, useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
-import { parseSummarStatementAction, commitSummarBatchAction, type SummarStatementPreview } from '../lib/summar-actions';
+import { syncGoogleSheetAction } from '../lib/sheet-sync-actions';
+import type { SheetSyncResult } from '../lib/sheet-sync-run';
 import { driverPayForGross, weekStartOf, weekRange } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -27,40 +28,19 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   const [payBusy, setPayBusy] = useState(false), [payError, setPayError] = useState('');
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
 
-  // Subir Summar (pedido explícito): lee el PDF del "Purchase Summary Report"
-  // y propone marcar como pagadas las cargas que encuentra — ella revisa y
-  // confirma, nunca se aplica solo. Ver lib/summar.ts y parseSummarStatementAction.
-  const [summarOpen, setSummarOpen] = useState(false), [summarBusy, setSummarBusy] = useState(false), [summarError, setSummarError] = useState('');
-  const [summarPreview, setSummarPreview] = useState<SummarStatementPreview | null>(null);
-  const [summarSelected, setSummarSelected] = useState<Set<string>>(new Set());
-  function openSummar() { setError(''); setNotice(''); setEditor(null); setSummarError(''); setSummarPreview(null); setSummarOpen(true); requestAnimationFrame(() => document.getElementById('summar-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
-  async function submitSummar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (summarBusy) return;
-    const fields = new FormData(event.currentTarget);
-    setSummarBusy(true); setSummarError('');
+  // Sincronizar Google Sheets (pedido explícito): la Hoja es la entrada
+  // principal de cargas nuevas — este botón corre la misma sincronización
+  // que el Cron diario, pero al momento, y muestra un resultado sencillo.
+  // Ver lib/sheet-sync-run.ts para la lógica compartida.
+  const [syncBusy, setSyncBusy] = useState(false), [syncError, setSyncError] = useState('');
+  const [syncResult, setSyncResult] = useState<SheetSyncResult | null>(null);
+  async function runSync() {
+    if (syncBusy) return; setSyncBusy(true); setSyncError(''); setSyncResult(null); setNotice(''); setError('');
     try {
-      // El navegador solo sube el PDF — leerlo dentro de Safari/iPhone
-      // fallaba adentro de page.getTextContent() (confirmado con stack
-      // trace real), algo específico de WebKit que no depende de la versión
-      // de iOS. La lectura y el análisis del PDF ahora son 100% del
-      // servidor (build "legacy/" de pdfjs-dist, pensada para Node — ver
-      // lib/summar-actions.ts).
-      const result = await parseSummarStatementAction(fields);
-      setSummarPreview(result);
-      setSummarSelected(new Set(result.actionable.map(m => m.loadId)));
-      if (!result.actionable.length && !result.alreadyPaid.length && !result.denied.length && !result.other.length) setSummarError(t('No se encontró ninguna carga registrada en el sistema dentro de este PDF.'));
-    } catch (e) { setSummarError((e as Error).message); } finally { setSummarBusy(false); }
-  }
-  async function confirmSummar() {
-    if (!summarPreview || summarBusy || !summarSelected.size) return;
-    setSummarBusy(true); setSummarError('');
-    try {
-      const inputs = summarPreview.actionable.filter(m => summarSelected.has(m.loadId)).map(m => ({ loadId: m.loadId, invoiceAmount: m.invoiceAmount, fundedAmount: m.fundedAmount }));
-      const result = await commitSummarBatchAction(inputs, summarPreview.reportDate || today());
+      const result = await syncGoogleSheetAction(false);
       await loads.refresh();
-      setSummarOpen(false); setSummarPreview(null); setSummarSelected(new Set());
-      setNotice(`${t('¡Listo!')} ${result.applied} ${t('carga(s) marcadas como pagadas desde el statement de Summar.')}`);
-    } catch (e) { setSummarError((e as Error).message); } finally { setSummarBusy(false); }
+      setSyncResult(result);
+    } catch (e) { setSyncError((e as Error).message); } finally { setSyncBusy(false); }
   }
 
   // Resumen chiquito (pedido explícito): las cargas que tocan entregarse hoy,
@@ -77,7 +57,9 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   // falta seguir recordándolo (pedido explícito).
   const driverTrips = ready ? computeDriverTrips(tripDrivers, state.loads, today()).filter(trip => {
     if (trip.group !== 'Mario') return true;
-    const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === trip.tripStart);
+    // El pago se archiva por la semana en que se pagó, no por trip.tripStart
+    // (ver el mismo ajuste más abajo) — misma clave en los dos lugares.
+    const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today()));
     return mark?.paymentStatus !== 'Pagada';
   }) : [];
 
@@ -289,54 +271,19 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     {canEdit && <div className={styles.toolbarRow}>
-      <button className={`${styles.primary} ${styles.registerBtn}`} disabled={!ready || busy} onClick={() => open('load')}>{t('+ Registrar carga')}</button>
+      <button className={`${styles.primary} ${styles.registerBtn}`} disabled={syncBusy} onClick={runSync}>{syncBusy ? t('Sincronizando…') : `🔄 ${t('Sincronizar Google Sheets')}`}</button>
     </div>}
-    {canEdit && <div className={styles.toolbarRow}>
-      <button className={styles.primary} disabled={!ready || busy} onClick={openSummar}>{t('+ Subir Summar')}</button>
-    </div>}
-
-    {canEdit && summarOpen && <div id="summar-import" className={styles.form}>
-      <h3>{t('Subir statement de Summar')}</h3>
-      <p><small>{t('Copia el PDF que te manda Summar (Purchase Summary Report) y pégalo aquí — el sistema busca las cargas que ya tienes registradas y propone marcarlas como pagadas.')}</small></p>
-      <form onSubmit={submitSummar}>
-        <label className={styles.wide}>{t('Archivo PDF *')}<input name="statement" type="file" accept="application/pdf" required disabled={summarBusy} /></label>
-        <div className={styles.actions}>
-          <button type="submit" className={styles.primary} disabled={summarBusy}>{summarBusy ? t('Leyendo…') : t('Analizar PDF')}</button>
-          <button type="button" disabled={summarBusy} onClick={() => { setSummarOpen(false); setSummarPreview(null); setSummarError(''); }}>{t('Cancelar')}</button>
-        </div>
-      </form>
-      {summarError && <p className={styles.error} role="alert" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px' }}>{summarError}</p>}
-      {summarPreview && <>
-        {summarPreview.reportDate && <p><b>{t('Fecha del statement:')}</b> {dayLabel(summarPreview.reportDate)}</p>}
-        {summarPreview.actionable.length > 0 && <>
-          <h4>{t('Cargas para marcar como pagadas')} ({summarSelected.size}/{summarPreview.actionable.length})</h4>
-          <div className={styles.tableWrap}><table className={styles.dataTable}><thead><tr>
-            <th></th><th>{t('Chofer')}</th><th>{t('Carga')}</th><th>{t('Facturado')}</th><th>{t('Depositado')}</th>
-          </tr></thead><tbody>
-            {summarPreview.actionable.map(m => <tr key={m.loadId}>
-              <td><input type="checkbox" checked={summarSelected.has(m.loadId)} onChange={e => setSummarSelected(prev => { const next = new Set(prev); if (e.target.checked) next.add(m.loadId); else next.delete(m.loadId); return next; })} /></td>
-              <td>{m.driverName.toUpperCase()}</td><td>{m.loadNumber}</td><td>{money(m.invoiceAmount)}</td><td>{money(m.fundedAmount)}</td>
-            </tr>)}
-          </tbody></table></div>
-        </>}
-        {summarPreview.alreadyPaid.length > 0 && <>
-          <h4>{t('Ya estaban pagadas')}</h4>
-          <ul className={styles.tripLoads}>{summarPreview.alreadyPaid.map(m => <li key={m.loadId}>
-            {m.driverName} — {m.loadNumber}: {t('sistema')} {money(m.currentAmount)} {Math.abs(m.currentAmount - m.invoiceAmount) > 0.005 ? `⚠ ${t('Summar dice')} ${money(m.invoiceAmount)} — ${t('revisa antes de cambiarla a mano')}` : `✓ ${t('coincide')}`}
-          </li>)}</ul>
-        </>}
-        {summarPreview.denied.length > 0 && <>
-          <h4>{t('Denegadas en este statement')}</h4>
-          <ul className={styles.tripLoads}>{summarPreview.denied.map((m, i) => <li key={m.loadId + i}>{m.driverName} — {m.loadNumber}: {money(m.invoiceAmount)} ({t('puede reaparecer pagada más adelante')})</li>)}</ul>
-        </>}
-        {summarPreview.other.length > 0 && <>
-          <h4>{t('Otras (revisar a mano)')}</h4>
-          <ul className={styles.tripLoads}>{summarPreview.other.map((m, i) => <li key={m.loadId + i}>{m.driverName} — {m.loadNumber} ({m.section})</li>)}</ul>
-        </>}
-        {(summarPreview.actionable.length > 0) && <div className={styles.actions}>
-          <button className={styles.primary} disabled={summarBusy || !summarSelected.size} onClick={confirmSummar}>{summarBusy ? t('Aplicando…') : `${t('Confirmar y marcar pagadas')} (${summarSelected.size})`}</button>
-        </div>}
-      </>}
+    {canEdit && syncError && <p className={styles.error} role="alert">{syncError}</p>}
+    {canEdit && syncResult && <div className={styles.form}>
+      <h3>{t('Sincronización completada')}</h3>
+      <p>
+        <b>{syncResult.created.length}</b> {t('cargas nuevas')} · <b>{syncResult.updated.length}</b> {t('cargas actualizadas')} · <b>{syncResult.unchanged}</b> {t('sin cambios')} · <b>{syncResult.errors.length}</b> {t('errores')}
+      </p>
+      {syncResult.created.length > 0 && <details><summary>{t('Ver cargas nuevas')}</summary><ul className={styles.tripLoads}>{syncResult.created.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
+      {syncResult.updated.length > 0 && <details><summary>{t('Ver cargas actualizadas')}</summary><ul className={styles.tripLoads}>{syncResult.updated.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
+      {syncResult.skippedNoDriver.length > 0 && <details><summary>{t('Filas sin chofer reconocido')} ({syncResult.skippedNoDriver.length})</summary><ul className={styles.tripLoads}>{syncResult.skippedNoDriver.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
+      {syncResult.unparsed.length > 0 && <details><summary>{t('Filas que no se pudieron leer')} ({syncResult.unparsed.length})</summary><ul className={styles.tripLoads}>{syncResult.unparsed.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
+      {syncResult.errors.length > 0 && <details open><summary className={styles.error}>{t('Errores')} ({syncResult.errors.length})</summary><ul className={styles.tripLoads}>{syncResult.errors.map((s, i) => <li key={i} className={styles.error}>{s}</li>)}</ul></details>}
     </div>}
 
     {canEdit && editor && <form id="loads-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>

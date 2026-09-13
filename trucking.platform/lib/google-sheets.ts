@@ -11,6 +11,14 @@ function base64url(input: string) {
   return Buffer.from(input).toString('base64url');
 }
 
+function parseServiceAccount(serviceAccountJson: string): ServiceAccount {
+  let account: ServiceAccount;
+  try { account = JSON.parse(serviceAccountJson); }
+  catch { throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no es un JSON válido — revisa que se haya pegado el archivo completo de la cuenta de servicio.'); }
+  if (!account.client_email || !account.private_key) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no tiene client_email o private_key — revisa el archivo de la cuenta de servicio.');
+  return account;
+}
+
 async function getGoogleAccessToken(account: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -36,26 +44,27 @@ async function getGoogleAccessToken(account: ServiceAccount): Promise<string> {
   return data.access_token as string;
 }
 
-// Devuelve las filas de la PRIMERA pestaña de la Hoja, en el mismo formato
-// string[][] que ya esperaba parseSheetRows (antes venía del export CSV).
-export async function fetchPrivateSheetRows(sheetId: string, serviceAccountJson: string): Promise<string[][]> {
-  let account: ServiceAccount;
-  try { account = JSON.parse(serviceAccountJson); }
-  catch { throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no es un JSON válido — revisa que se haya pegado el archivo completo de la cuenta de servicio.'); }
-  if (!account.client_email || !account.private_key) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON no tiene client_email o private_key — revisa el archivo de la cuenta de servicio.');
+export type SheetTab = { title: string; rows: string[][] };
 
+// Devuelve TODAS las pestañas del archivo (pedido explícito: una pestaña
+// nueva por semana, "no quiero un archivo diferente cada semana") — antes
+// solo se leía la primera. Una sola llamada batchGet trae los datos de
+// todas las pestañas de una vez.
+export async function fetchAllPrivateSheetTabs(sheetId: string, serviceAccountJson: string): Promise<SheetTab[]> {
+  const account = parseServiceAccount(serviceAccountJson);
   const accessToken = await getGoogleAccessToken(account);
   const authHeader = { Authorization: `Bearer ${accessToken}` };
 
   const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`, { headers: authHeader, cache: 'no-store' });
   if (!metaRes.ok) throw new Error(`No se pudo abrir la Hoja de Google (HTTP ${metaRes.status}): ${await metaRes.text()} — revisa que GOOGLE_SHEET_ID sea correcto y que la hoja esté compartida con ${account.client_email}.`);
   const meta = await metaRes.json();
-  const firstSheetTitle: string | undefined = meta.sheets?.[0]?.properties?.title;
-  if (!firstSheetTitle) throw new Error('La Hoja de Google no tiene ninguna pestaña.');
+  const titles: string[] = (meta.sheets ?? []).map((s: any) => s.properties?.title).filter(Boolean);
+  if (!titles.length) throw new Error('La Hoja de Google no tiene ninguna pestaña.');
 
-  const range = encodeURIComponent(`${firstSheetTitle}!A1:Z1000`);
-  const valuesRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`, { headers: authHeader, cache: 'no-store' });
+  const rangesParam = titles.map(title => `ranges=${encodeURIComponent(`${title}!A1:Z1000`)}`).join('&');
+  const valuesRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${rangesParam}`, { headers: authHeader, cache: 'no-store' });
   if (!valuesRes.ok) throw new Error(`No se pudieron leer los datos de la Hoja (HTTP ${valuesRes.status}): ${await valuesRes.text()}`);
   const valuesData = await valuesRes.json();
-  return (valuesData.values ?? []) as string[][];
+  const valueRanges: { values?: string[][] }[] = valuesData.valueRanges ?? [];
+  return titles.map((title, i) => ({ title, rows: valueRanges[i]?.values ?? [] }));
 }
