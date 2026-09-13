@@ -62,7 +62,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     .reduce((s, l) => s + l.amount, 0);
   const fuelSummary = summarizeFuel(fuel.state, weekStart, weekEnd);
   const combustibleYGastos = fuelSummary.fuel + fuelSummary.nonFuel + fuelSummary.expenseTotal;
-  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.driverPay, 0);
+  // "Pago a choferes" usa el monto REAL que Mario pagó (amountPaid), no el
+  // estimado por tramos (driverPay) — pedido explícito, para que coincida
+  // con lo que de verdad salió de la caja.
+  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0);
   const dineroQueQueda = cargasRealizadas - combustibleYGastos - pagoAChoferes;
 
   const pendientes = mario.filter(m => m.paymentStatus === 'Pendiente');
@@ -151,7 +154,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <tbody>{rows.map((m, i) => <tr key={m.driverId}>
           <td><span className={styles.who}><Avatar name={m.driverName} index={i} />{m.driverName}</span></td>
           <td className={styles.tableSub}>{m.loadsCount}</td>
-          <td><strong>{money(m.driverPay)}</strong></td>
+          <td><strong>{money(m.paymentStatus === 'Pagada' ? m.amountPaid : m.driverPay)}</strong>{m.paymentStatus === 'Pendiente' && <small className={styles.tableSub}> ({t('estimado')})</small>}</td>
           <td><span className={`${styles.badge} ${m.paymentStatus === 'Pagada' ? styles.badgePaid : styles.badgePending}`}>{t(m.paymentStatus)}</span></td>
           <td className={styles.tableActions}>
             <button disabled={busy || locked} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>

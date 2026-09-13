@@ -228,7 +228,7 @@ const grossFor = (driverId: string, loads: Load[], start: string, end: string) =
 export type MarioSettlement = {
   driverId: string; driverName: string; loadsCount: number;
   gross: number; companyDeduction: number; fuel: number; driverPay: number; insurance: number; finalProfit: number;
-  paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string;
+  paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; notes: string; amountPaid: number;
 };
 export function computeMarioSettlements(
   drivers: Driver[], loads: Load[], transactions: FuelTransaction[], expenses: Expense[],
@@ -246,7 +246,7 @@ export function computeMarioSettlements(
     const mark = marks.find(m => m.driverId === d.id && m.weekStart === weekStart);
     return {
       driverId: d.id, driverName: d.name, loadsCount, gross, companyDeduction, fuel, driverPay, insurance, finalProfit,
-      paymentStatus: mark?.paymentStatus || 'Pendiente', paidAt: mark?.paidAt || '', notes: mark?.notes || '',
+      paymentStatus: mark?.paymentStatus || 'Pendiente', paidAt: mark?.paidAt || '', notes: mark?.notes || '', amountPaid: mark?.amountPaid ?? 0,
     };
   }).sort((a, b) => b.gross - a.gross);
 }
