@@ -34,11 +34,6 @@ export async function GET(request: NextRequest) {
   let csvRows: string[][];
   try { csvRows = await fetchPrivateSheetRows(sheetId, serviceAccountJson); }
   catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 502 }); }
-  // DIAGNÓSTICO TEMPORAL (solo en dryRun): para ver la forma real de las
-  // primeras filas de la hoja privada y ajustar el parser si hace falta.
-  if (dryRun && request.nextUrl.searchParams.get('debug') === '1') {
-    return NextResponse.json({ rawPreview: csvRows.slice(0, 4) });
-  }
   const { rows, unparsed } = parseSheetRows(csvRows);
 
   const supabase = supabaseServer();

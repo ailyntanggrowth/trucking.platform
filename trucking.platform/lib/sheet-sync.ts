@@ -45,13 +45,22 @@ const GROUP_HEADERS: { match: RegExp; group: SheetRow['group'] }[] = [
 ];
 
 export function parseSheetRows(csvRows: string[][], year = new Date().getFullYear()): { rows: SheetRow[]; unparsed: { raw: string[]; reason: string }[] } {
-  const title = (csvRows[0]?.[0] || '').trim();
+  // La API de Sheets a veces sí incluye filas completamente en blanco al
+  // principio (la hoja privada de cargas trae una) que el export CSV
+  // público no traía — se ignoran para que el título quede en la posición
+  // correcta sin importar cuántas filas en blanco haya antes.
+  const isBlankRow = (row: string[]) => row.length === 0 || row.every(c => !c || !c.trim());
+  let start = 0;
+  while (start < csvRows.length && isBlankRow(csvRows[start])) start++;
+  const dataRows = csvRows.slice(start);
+
+  const title = (dataRows[0]?.[0] || '').trim();
   const monthNum = monthFromTitle(title);
   const rows: SheetRow[] = [];
   const unparsed: { raw: string[]; reason: string }[] = [];
   let currentGroup: SheetRow['group'] = 'Mario';
 
-  for (const row of csvRows.slice(1)) {
+  for (const row of dataRows.slice(1)) {
     const [driverName, loadNumber, amountStr, destino, entregas, summar] = row.map(c => (c || '').trim());
     if (!driverName && !loadNumber) continue; // fila vacía
     if (/^choferes$/i.test(driverName)) continue; // encabezado de columnas
