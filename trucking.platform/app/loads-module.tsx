@@ -161,7 +161,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     if (!(amount >= 0)) { setPayError(t('Escribe un monto válido.')); return; }
     setPayBusy(true); setPayError('');
     try {
-      await settlements.commit({ type: 'mark', driverId: payTrip.driverId, driverName: payTrip.driverName, weekStart: payTrip.tripStart, paymentStatus: 'Pagada', notes: '', amountPaid: amount });
+      await settlements.commit({ type: 'mark', driverId: payTrip.driverId, driverName: payTrip.driverName, weekStart: weekStartOf(today()), paymentStatus: 'Pagada', notes: '', amountPaid: amount });
       setPayTrip(null); setPayAmount('');
     } catch (e) {
       // En producción Next.js reemplaza el mensaje real de cualquier error
@@ -172,8 +172,8 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
       setPayError(t('No se pudo guardar el salario. Intenta de nuevo.'));
     } finally { setPayBusy(false); }
   }
-  async function reopenPay(driverId: string, driverName: string, tripStart: string) {
-    try { await settlements.commit({ type: 'mark', driverId, driverName, weekStart: tripStart, paymentStatus: 'Pendiente', notes: '' }); }
+  async function reopenPay(driverId: string, driverName: string, markWeekStart: string) {
+    try { await settlements.commit({ type: 'mark', driverId, driverName, weekStart: markWeekStart, paymentStatus: 'Pendiente', notes: '' }); }
     catch (e) { console.error(e); setPayError(t('No se pudo guardar el cambio. Intenta de nuevo.')); }
   }
   const editorTitle = editor?.type === 'load' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('carga')}` : editor?.type === 'cancel' ? t('Cancelar carga') : editor?.type === 'incident' ? t('Reportar rotura de camión') : t('Reemplazar carga');
@@ -203,7 +203,11 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
             const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
             const isMario = trip.group === 'Mario';
             const estimatedPay = isMario ? driverPayForGross(gross, settlements.state.config) : 0;
-            const mark = isMario ? settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === trip.tripStart) : undefined;
+            // El pago se archiva por la semana en que REALMENTE se pagó (pedido
+            // explícito, igual que "Bruto Mario" en Contabilidad), no por la
+            // fecha en que el chofer salió de FL — un viaje puede empezar en
+            // una semana y pagarse en otra.
+            const mark = isMario ? settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today())) : undefined;
             const isPaid = mark?.paymentStatus === 'Pagada';
             const isPayingThis = payTrip?.driverId === trip.driverId && payTrip?.tripStart === trip.tripStart;
             return <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
@@ -228,7 +232,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
               <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{t('Salario estimado:')}</b> {money(estimatedPay)}</p>
               {isPaid && <p className={styles.tripPaidLine}>✅ {t('Pagado:')} {money(mark!.amountPaid)}
                 {canEdit && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(String(mark!.amountPaid)); setPayError(''); }}>{t('Editar')}</button>}
-                {canEdit && <button type="button" onClick={() => void reopenPay(trip.driverId, trip.driverName, trip.tripStart)}>{t('Marcar pendiente')}</button>}
+                {canEdit && <button type="button" onClick={() => void reopenPay(trip.driverId, trip.driverName, mark!.weekStart)}>{t('Marcar pendiente')}</button>}
               </p>}
               {canEdit && (isPayingThis
                 ? <form onSubmit={submitPay} className={styles.payForm}>
