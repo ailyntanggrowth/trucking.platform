@@ -79,6 +79,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     </div>
 
     <div className={styles.printSection}>
+    <p className={styles.printInvoiceNumber}>{t('Invoice')} #{invoiceNumber}</p>
     <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>

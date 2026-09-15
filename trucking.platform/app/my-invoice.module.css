@@ -31,6 +31,7 @@
 .invoiceCard .statusBadge { margin-top:4px; }
 
 .downloadRow { display:flex; justify-content:center; margin:10px 0 0; }
+.printInvoiceNumber { display:none; margin:0; font-weight:800; color:#8B102A; }
 
 /* "Descargar PDF" (pedido explícito): al imprimir SOLO debe quedar la
    tabla "Cargas que forman este total" — nada de barra de semana, tarjeta
@@ -40,5 +41,15 @@
 @media print {
   .wrap > *:not(.printSection) { display:none !important; }
   .printSection { page-break-inside:avoid; break-inside:avoid; }
-  .printSection h3 { margin-top:0; }
+  /* Pedido explícito: que se vea bien — letra más grande en toda la tabla
+     (la de pantalla es chiquita a propósito, para que quepa en el celular)
+     y el total de la comisión del 4% bien grande, imposible de no ver. */
+  .printInvoiceNumber { display:block; font-size:22px; margin-bottom:4px; }
+  .printSection h3 { margin-top:0; font-size:24px; }
+  .printSection .tableWrap { border-width:2px; }
+  .printSection .dataTable { font-size:17px; }
+  .printSection .dataTable th { font-size:14px; padding:12px 10px; }
+  .printSection .dataTable td { padding:14px 10px; }
+  .printSection tbody tr:last-child td { font-size:20px; padding-top:18px; }
+  .printSection tbody tr:last-child td:last-child { font-size:34px; font-weight:800; color:#8B102A; }
 }
