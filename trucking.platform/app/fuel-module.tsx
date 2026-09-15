@@ -50,8 +50,8 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     const lines = ['RESUMEN DE MUDFLAP'];
     weeklySummary.groups.forEach(g => {
       lines.push(groupLabel(g.group));
-      g.drivers.forEach(d => lines.push(`${shortName(d.driverName)} — ${money(d.amount)}`));
-      if (g.group) lines.push(`Total ${g.group} — ${money(g.total)}`);
+      g.drivers.forEach(d => lines.push(`${shortName(d.driverName)} — ${money(d.retailAmount)}`));
+      if (g.group) lines.push(`Total ${g.group} — ${money(g.retailTotal)}`);
     });
     lines.push(`Total sin descuentos — ${money(weeklySummary.grandRetailTotal)}`);
     lines.push(`Total con descuentos — ${money(weeklySummary.grandTotal)}`);
@@ -206,12 +206,16 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
           <button type="button" onClick={downloadResumenPdf}><Printer size={15}/> {t('Descargar PDF')}</button>
         </div>}
       </div>
+      {/* Cada chofer y cada grupo muestran su monto SIN descuento (pedido
+          explícito, confirmado contra el resumen real que ella manda) — el
+          descuento de Mudflap se aplica una sola vez, al final, nunca
+          repartido entre choferes. */}
       {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
         <p><strong>{t(groupLabel(g.group))}</strong></p>
         <ul style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, display: 'grid', gap: 4 }}>
-          {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.amount)}</span></li>)}
+          {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.retailAmount)}</span></li>)}
         </ul>
-        {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.total)}</b></p>}
+        {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.retailTotal)}</b></p>}
       </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
       {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
         <b>{t('Total sin descuentos')}</b><b>{money(weeklySummary.grandRetailTotal)}</b>
