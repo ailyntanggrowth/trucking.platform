@@ -16,15 +16,16 @@ import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, 
 import styles from './settlements.module.css';
 
 // REDISEÑO (pedido explícito de la dueña): Contabilidad y Pagos ahora tiene
-// SOLO 2 secciones visibles — "Esta semana" (4 números) y "Pagos a Choferes"
-// (Pendientes/Pagados) — sin duplicar nada de lo que ya se ve en Recorrido de
-// cada chofer (Cargas) ni en Reportes (grupos Owner Operators/Lázaro, que por
-// eso ya no tienen pestaña aquí). Las 4 funciones que sí existían pero no
-// entran en ese diseño simple (comisión del despachador/Gleybis, seguro
-// semanal, configuración de %/tramos, cerrar-reabrir invoice) se conservan
-// intactas, solo que movidas detrás del botón "⚙️ Más opciones" para que la
-// pantalla principal quede limpia.
-type PagosTab = 'pendientes' | 'pagados';
+// SOLO "Esta semana" (los 4 números + Salarios pagados a mano) — sin
+// duplicar nada de lo que ya se ve en Recorrido de cada chofer (Cargas, que
+// ya tiene su propia lista de cargas por chofer con "Marcar pagada") ni en
+// Reportes (grupos Owner Operators/Lázaro). "Pagos a Choferes" (la lista
+// Pendientes/Pagados) se quitó por completo de aquí por ese motivo — el
+// cálculo de Salarios sigue usando los mismos marks, solo que ya no hay una
+// segunda pantalla para tocarlos. Las 4 funciones que no entran en ese
+// diseño simple (comisión del despachador/Gleybis, seguro semanal,
+// configuración de %/tramos, cerrar-reabrir invoice) siguen detrás del
+// botón "⚙️ Más opciones".
 type MoreTab = 'dispatcher' | 'insurance' | 'config' | 'lock';
 const AVATAR_TONES = ['#8B102A', '#1e4e8c', '#8a5a00', '#1f7a4d', '#6b3fa0', '#a12b2b'];
 const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
@@ -36,7 +37,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string;
 }) {
   const { state, ready } = settlements;
-  const [pagosTab, setPagosTab] = useState<PagosTab>('pendientes');
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
@@ -99,17 +99,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
   const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
-  const pendientes = mario.filter(m => m.paymentStatus === 'Pendiente');
-  const pagados = mario.filter(m => m.paymentStatus === 'Pagada');
-  const rows = pagosTab === 'pendientes' ? pendientes : pagados;
-
-  async function toggleMark(driverId: string, driverName: string, current: 'Pendiente' | 'Pagada') {
-    if (busy || locked) return; setError(''); setNotice(''); setBusy(true);
-    try {
-      const next = await settlements.commit({ type: 'mark', driverId, driverName, weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
-      setNotice(next.events[0].detail);
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
-  }
   async function addManualSalary(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return; const fields = new FormData(event.currentTarget);
     const driverId = String(fields.get('driverId') || ''); const payeeName = String(fields.get('payeeName') || '').trim(); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
@@ -211,26 +200,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
     </div>
 
-    <h2>{t('Pagos a Choferes')}</h2>
-    <nav className={styles.tabs} aria-label={t('Estado de pago')}>
-      <button aria-pressed={pagosTab === 'pendientes'} onClick={() => setPagosTab('pendientes')}>{t('Pendientes')} <span className={styles.count}>{pendientes.length}</span></button>
-      <button aria-pressed={pagosTab === 'pagados'} onClick={() => setPagosTab('pagados')}>{t('Pagados')} <span className={styles.count}>{pagados.length}</span></button>
-    </nav>
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        <thead><tr><th>{t('Chofer')}</th><th>{t('Cargas')}</th><th>{t('Salario')}</th><th>{t('Estado')}</th><th aria-hidden="true"></th></tr></thead>
-        <tbody>{rows.map((m, i) => <tr key={m.driverId}>
-          <td><span className={styles.who}><Avatar name={m.driverName} index={i} />{m.driverName}</span></td>
-          <td className={styles.tableSub}>{m.loadsCount}</td>
-          <td><strong>{money(m.paymentStatus === 'Pagada' ? m.amountPaid : m.driverPay)}</strong>{m.paymentStatus === 'Pendiente' && <small className={styles.tableSub}> ({t('estimado')})</small>}</td>
-          <td><span className={`${styles.badge} ${m.paymentStatus === 'Pagada' ? styles.badgePaid : styles.badgePending}`}>{t(m.paymentStatus)}</span></td>
-          <td className={styles.tableActions}>
-            <button disabled={busy || locked} onClick={() => toggleMark(m.driverId, m.driverName, m.paymentStatus)}>{m.paymentStatus === 'Pagada' ? t('Marcar pendiente') : t('Marcar pagada')}</button>
-          </td>
-        </tr>)}</tbody>
-      </table>
-      {ready2 && !rows.length && <p className={styles.empty}>{pagosTab === 'pendientes' ? t('No hay pagos pendientes esta semana.') : t('Todavía no se ha marcado ningún pago como pagado esta semana.')}</p>}
-    </div>
 
     {moreOpen && <div className={styles.moreOverlay} role="dialog" aria-label={t('Más opciones')}>
       <div className={styles.morePanel}>
