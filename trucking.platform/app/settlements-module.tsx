@@ -2,10 +2,10 @@
 import { useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, paidWithinInvoicePeriod, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, paidWithinInvoicePeriod, fuelWeekStartOf, type SettlementConfig,
 } from '../lib/settlements';
 import { isOfficial } from '../lib/loads';
-import { summarizeFuel } from '../lib/fuel';
+import { computeWeeklyFuelSummary } from '../lib/fuel';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -65,13 +65,18 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const cargasRealizadas = loads.state.loads
     .filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, state.weekLocks))
     .reduce((s, l) => s + l.amount, 0);
-  const fuelSummary = summarizeFuel(fuel.state, weekStart, weekEnd);
-  const combustibleYGastos = fuelSummary.fuel + fuelSummary.nonFuel + fuelSummary.expenseTotal;
+  // "Combustible" (pedido explícito): solo el total del grupo Mario que
+  // salió en el statement de Mudflap — ya no todos los grupos ni gastos
+  // reales (peajes, etc.). Usa la semana del STATEMENT (lunes a domingo),
+  // no la de Cargas (martes a lunes) — se toma la que contiene el martes
+  // de esta semana, que es la misma que ella mira en Combustible.
+  const mudflapWeekStart = fuelWeekStartOf(weekStart);
+  const combustibleMario = computeWeeklyFuelSummary(fuel.state, fleet.state.drivers, mudflapWeekStart).groups.find(g => g.group === 'Mario')?.retailTotal || 0;
   // "Pago a choferes" usa el monto REAL que Mario pagó (amountPaid), no el
   // estimado por tramos (driverPay) — pedido explícito, para que coincida
   // con lo que de verdad salió de la caja.
   const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0);
-  const dineroQueQueda = cargasRealizadas - combustibleYGastos - pagoAChoferes;
+  const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
 
   const pendientes = mario.filter(m => m.paymentStatus === 'Pendiente');
   const pagados = mario.filter(m => m.paymentStatus === 'Pagada');
@@ -139,7 +144,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     <h2>{t('Esta semana')}</h2>
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible y gastos')}</span><strong>{ready2 ? money(combustibleYGastos) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Pago a choferes')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong></div>
     </div>
     <div className={styles.moneyCard}>
