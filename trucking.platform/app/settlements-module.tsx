@@ -10,7 +10,7 @@ import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
-import { money, today } from '../lib/format';
+import { money, shortName, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, Printer } from 'lucide-react';
 import styles from './settlements.module.css';
@@ -198,16 +198,23 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
               <button onClick={downloadDispatcherInvoicePdf}><Printer size={15} /> {t('Descargar PDF')}</button>
             </div>
           </div>
+          <h3>{t('Cargas que forman este total')}</h3>
           <div className={styles.tableWrap}>
             <table className={styles.dataTable}>
-              <thead><tr><th>{t('Carga')}</th><th>{t('Chofer')}</th><th>{t('Grupo')}</th><th>{t('Bruto')}</th><th>{t('Comisión')}</th></tr></thead>
-              <tbody>{dispatcher.rows.map(r => <tr key={r.loadId}>
-                <td>{r.loadNumber || t('Sin número')}</td>
-                <td>{r.driverName}</td>
-                <td className={styles.tableSub}>{r.group}</td>
-                <td className={styles.tableSub}>{money(r.amount)}</td>
-                <td><strong>{money(r.commission)}</strong></td>
-              </tr>)}</tbody>
+              <thead><tr><th>{t('Chofer')}</th><th>{t('Carga')}</th><th>{t('Bruto')}</th><th>{t('Comisión (4%)')}</th></tr></thead>
+              <tbody>
+                {dispatcher.rows.map(r => <tr key={r.loadId}>
+                  <td>{shortName(r.driverName)}</td>
+                  <td>{r.loadNumber || t('Sin número')}</td>
+                  <td className={styles.tableSub}>{money(r.amount)}</td>
+                  <td><strong>{money(r.commission)}</strong></td>
+                </tr>)}
+                <tr className={styles.tableSub}>
+                  <td colSpan={2}><b>{t('Total')}</b></td>
+                  <td><b>{money(dispatcher.gross)}</b></td>
+                  <td><b>{money(dispatcher.commission)}</b></td>
+                </tr>
+              </tbody>
             </table>
             {ready2 && !dispatcher.rows.length && <p className={styles.empty}>{t('No hay cargas pagadas en este invoice todavía.')}</p>}
           </div>
