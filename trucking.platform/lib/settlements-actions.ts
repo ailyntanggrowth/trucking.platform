@@ -46,7 +46,7 @@ export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promi
     marks: (marks.data ?? []).map(r => ({ driverId: r.driver_id, weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', amountPaid: Number(r.amount_paid ?? 0), notes: r.notes })),
     dispatcherMarks: (dispatcherMarks.data ?? []).map(r => ({ weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
     weekLocks: (weekLocks.data ?? []).map(r => ({ weekEnd: r.week_end, lockedAt: r.locked_at })),
-    manualSalaries: (manualSalaries.data ?? []).map(r => ({ id: r.id, weekStart: r.week_start, driverId: r.driver_id ?? '', amount: Number(r.amount), notes: r.notes })),
+    manualSalaries: (manualSalaries.data ?? []).map(r => ({ id: r.id, weekStart: r.week_start, driverId: r.driver_id ?? '', payeeName: r.payee_name ?? '', amount: Number(r.amount), notes: r.notes })),
     events: (events.data ?? []).map(r => ({ id: r.id, at: r.at, actor: r.actor, entityIds: r.entity_ids, detail: r.detail, before: r.before, after: r.after })),
   };
 }
@@ -94,7 +94,7 @@ export async function commitSettlementAction(action: SettlementAction, expectedR
     const entry = next.manualSalaries.find(m => m.id === action.record.id)!;
     rpc = supabase.rpc('settlements_commit_manual_salary', {
       p_company_id: companyId, p_expected_revision: expectedRevision,
-      p_entry: { id: entry.id, week_start: entry.weekStart, driver_id: entry.driverId || null, amount: entry.amount, notes: entry.notes },
+      p_entry: { id: entry.id, week_start: entry.weekStart, driver_id: entry.driverId || null, payee_name: entry.payeeName, amount: entry.amount, notes: entry.notes },
       p_event: event,
     });
   } else {

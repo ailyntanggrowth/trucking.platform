@@ -49,7 +49,10 @@ export type WeekLock = { weekEnd: string; lockedAt: string };
 // hace semanas (no ha vuelto a FL) y aun así ya se le pagó algo por
 // adelantado. Lista libre por semana: se puede agregar, editar o quitar
 // cualquier cantidad de entradas, no una por chofer como los PaymentMark.
-export type ManualSalaryEntry = { id: string; weekStart: string; driverId: string; amount: number; notes: string };
+// driverId puede quedar vacío para pagos a alguien que no es un chofer
+// registrado (p.ej. la dueña misma) — en ese caso payeeName es el nombre
+// libre a mostrar. Nunca los dos vacíos a la vez.
+export type ManualSalaryEntry = { id: string; weekStart: string; driverId: string; payeeName: string; amount: number; notes: string };
 export type SettlementState = {
   schema: 1; revision: number; config: SettlementConfig;
   driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; weekLocks: WeekLock[];
@@ -135,8 +138,9 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     before = existing; state.weekLocks = state.weekLocks.filter(w => w !== existing); after = null;
     entityIds = ['weekLock']; detail = `Reabrió el invoice de la semana que termina el ${action.weekEnd}`;
   } else if (action.type === 'manualSalary') {
-    const r = { ...action.record, notes: action.record.notes.trim() };
-    requireValue(r.driverId && r.weekStart, 'Falta el chofer o la semana.');
+    const r = { ...action.record, payeeName: action.record.payeeName.trim(), notes: action.record.notes.trim() };
+    requireValue(r.weekStart, 'Falta la semana.');
+    requireValue(r.driverId || r.payeeName, 'Elige un chofer o escribe un nombre.');
     requireValue(r.amount > 0, 'El monto debe ser mayor a cero.');
     const existing = state.manualSalaries.find(m => m.id === r.id);
     before = existing || null;

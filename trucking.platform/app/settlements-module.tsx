@@ -98,10 +98,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   }
   async function addManualSalary(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return; const fields = new FormData(event.currentTarget);
-    const driverId = String(fields.get('driverId') || ''); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
+    const driverId = String(fields.get('driverId') || ''); const payeeName = String(fields.get('payeeName') || '').trim(); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
     setError(''); setNotice(''); setBusy(true);
     try {
-      const next = await settlements.commit({ type: 'manualSalary', record: { id: crypto.randomUUID(), weekStart, driverId, amount, notes } });
+      const next = await settlements.commit({ type: 'manualSalary', record: { id: crypto.randomUUID(), weekStart, driverId: payeeName ? '' : driverId, payeeName, amount, notes } });
       setNotice(next.events[0].detail);
       (event.target as HTMLFormElement).reset();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -178,12 +178,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <p className={styles.note}>{t('Para pagos que el sistema todavía no puede calcular solo — por ejemplo, un viaje que sigue abierto desde hace semanas. Se suman al número de "Salarios" de arriba, además de lo ya marcado en "Pagos a Choferes".')}</p>
       {weekManualSalaries.length > 0 && <ul className={styles.plainList}>
         {weekManualSalaries.map(m => <li key={m.id}>
-          <span>{driverNameFor(m.driverId)}{m.notes ? ` · ${m.notes}` : ''}</span>
+          <span>{m.driverId ? driverNameFor(m.driverId) : m.payeeName}{m.notes ? ` · ${m.notes}` : ''}</span>
           <span className={styles.actions}><b>{money(m.amount)}</b><button disabled={busy} onClick={() => removeManualSalary(m.id)} aria-label={t('Quitar')}><Trash2 size={15} /></button></span>
         </li>)}
       </ul>}
       <form className={styles.fields} onSubmit={addManualSalary}>
-        <label>{t('Chofer *')}<select name="driverId" required defaultValue=""><option value="" disabled>{t('Selecciona un chofer')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label>{t('Chofer')}<select name="driverId" defaultValue=""><option value="">{t('— Ninguno (usar el nombre de abajo) —')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label>{t('O nombre (si no es un chofer)')}<input name="payeeName" maxLength={100} placeholder={t('Ej. Ailyn')} /></label>
         <label>{t('Monto *')}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
         <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} placeholder={t('Ej. adelanto del viaje que sigue abierto')} /></label>
         <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar salario')}</button></div>
