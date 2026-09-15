@@ -213,7 +213,7 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
 }
 
 export type StatementImportRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: number; retailAmount: number; externalRef: string; notes: string };
-export type StatementImportResult = FuelState & { imported: number; skippedDuplicates: number };
+export type StatementImportResult = FuelState & { imported: number; skippedDuplicates: number; reassigned: number };
 
 // Confirma el lote: se guarda como UNA sola escritura (una revisión, un solo
 // evento de auditoría con el resumen), reutilizando la misma validación que
@@ -221,26 +221,38 @@ export type StatementImportResult = FuelState & { imported: number; skippedDupli
 // Protección contra duplicados a nivel de servidor: aunque el usuario marque
 // a mano una fila que la vista previa ya señaló como probable duplicado, aquí
 // se vuelve a comprobar contra lo que HOY existe en la base de datos (no lo
-// que había al abrir el formulario) y se omite en vez de guardarla dos veces.
+// que había al abrir el formulario).
 //
 // `statementWeek` (pedido explícito) es el lunes del período que el propio
 // PDF declara ("Billing Period") — TODAS las filas del mismo statement caen
 // en esa semana, aunque alguna traiga una fecha uno o dos días antes por
 // rezago normal de Mudflap. Nunca se deriva de `row.date` aquí: eso es
 // justo lo que hacía que el resumen semanal no cuadrara con el statement.
+//
+// Una fila "duplicada" (misma fecha/ref/montos) que YA existe pero con una
+// `statementWeek` distinta a la de este statement no se omite en silencio
+// — se RE-ASIGNA a esta semana (pedido explícito: "cada vez que suba los
+// statements... me lo agregues a esta semana"). Esto es lo que corrige
+// datos viejos importados antes de que existiera esta columna, con solo
+// volver a subir el mismo PDF.
 export async function commitStatementImportAction(input: StatementImportRow[], statementWeek: string, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<StatementImportResult> {
   if (!input.length) throw new Error('No hay filas seleccionadas para importar.');
   const supabase = supabaseServer();
   const state = await getFuelState(companyId);
   const now = new Date().toISOString();
 
-  const existingKeys = new Set(state.transactions.map(t => `${t.date}|${t.externalRef}|${t.fuelAmount}|${t.nonFuelAmount}`));
-  const rowsToImport = input.filter(row => {
+  const existingByKey = new Map(state.transactions.map(t => [`${t.date}|${t.externalRef}|${t.fuelAmount}|${t.nonFuelAmount}`, t]));
+  const rowsToImport: StatementImportRow[] = [];
+  const rowsToReassign: FuelTransaction[] = [];
+  let skippedDuplicates = 0;
+  for (const row of input) {
     const fuelAmount = row.type === 'Fuel' ? row.amount : 0, nonFuelAmount = row.type === 'Non-Fuel' ? row.amount : 0;
-    return !existingKeys.has(`${row.date}|${row.externalRef}|${fuelAmount}|${nonFuelAmount}`);
-  });
-  const skippedDuplicates = input.length - rowsToImport.length;
-  if (!rowsToImport.length) throw new Error('Todas las filas seleccionadas ya existen en la base de datos — no se guardó nada de nuevo.');
+    const existing = existingByKey.get(`${row.date}|${row.externalRef}|${fuelAmount}|${nonFuelAmount}`);
+    if (!existing) { rowsToImport.push(row); continue; }
+    if (existing.statementWeek !== statementWeek) rowsToReassign.push({ ...existing, statementWeek });
+    else skippedDuplicates++;
+  }
+  if (!rowsToImport.length && !rowsToReassign.length) throw new Error('Todas las filas seleccionadas ya existen en la base de datos y ya estaban en esta semana — no había nada que corregir.');
 
   let working = state;
   const created: FuelTransaction[] = [];
@@ -259,26 +271,56 @@ export async function commitStatementImportAction(input: StatementImportRow[], s
 
   const fuelTotal = created.reduce((s, r) => s + r.fuelAmount, 0);
   const nonFuelTotal = created.reduce((s, r) => s + r.nonFuelAmount, 0);
-  const event = {
-    id: `event-${randomUUID()}`, at: now, actor: 'Usuario local · sin cuenta autenticada',
-    entity_ids: created.map(r => r.id),
-    detail: `Importó statement: ${created.length} transacciones (Fuel ${money(fuelTotal)}, Non-Fuel ${money(nonFuelTotal)})${skippedDuplicates ? ` · ${skippedDuplicates} omitidas por ya existir` : ''}`,
-    before: null, after: { count: created.length },
-  };
+  let currentRevision = expectedRevision;
 
-  const { data: newRevision, error } = await supabase.rpc('fuel_commit_import', {
-    p_company_id: companyId, p_expected_revision: expectedRevision,
-    p_transactions: created.map(t => ({
-      id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: null, load_ref: t.loadRef,
-      station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
-      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount,
-      statement_week: t.statementWeek, status: t.status, external_ref: t.externalRef, notes: t.notes,
-    })),
-    p_event: event,
-  });
-  const conflict = asConflictError(error);
-  if (conflict) throw conflict;
+  if (created.length) {
+    const event = {
+      id: `event-${randomUUID()}`, at: now, actor: 'Usuario local · sin cuenta autenticada',
+      entity_ids: created.map(r => r.id),
+      detail: `Importó statement: ${created.length} transacciones (Fuel ${money(fuelTotal)}, Non-Fuel ${money(nonFuelTotal)})${skippedDuplicates ? ` · ${skippedDuplicates} omitidas por ya existir` : ''}`,
+      before: null, after: { count: created.length },
+    };
+    const { data: newRevision, error } = await supabase.rpc('fuel_commit_import', {
+      p_company_id: companyId, p_expected_revision: currentRevision,
+      p_transactions: created.map(t => ({
+        id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: null, load_ref: t.loadRef,
+        station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
+        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount,
+        statement_week: t.statementWeek, status: t.status, external_ref: t.externalRef, notes: t.notes,
+      })),
+      p_event: event,
+    });
+    const conflict = asConflictError(error);
+    if (conflict) throw conflict;
+    if (error) throw new Error(error.message);
+    currentRevision = newRevision as number;
+  }
+
+  // Reasignaciones: una llamada por fila (fuel_commit_transaction ya hace
+  // upsert), cada una con su propio evento de auditoría — nunca se corrige
+  // la semana de una transacción existente en silencio.
+  for (const t of rowsToReassign) {
+    const reassignEvent = {
+      id: `event-${randomUUID()}`, at: new Date().toISOString(), actor: 'Usuario local · sin cuenta autenticada',
+      entity_ids: [t.id], detail: `Reasignó transacción de combustible ${t.station || t.externalRef || t.id} a la semana del ${statementWeek} (ya existía con otra semana asignada)`,
+      before: null, after: { statementWeek },
+    };
+    const { data: newRevision, error } = await supabase.rpc('fuel_commit_transaction', {
+      p_company_id: companyId, p_expected_revision: currentRevision,
+      p_transaction: {
+        id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: t.truckId || null, load_ref: t.loadRef,
+        station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
+        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount,
+        statement_week: t.statementWeek, status: t.status, external_ref: t.externalRef, notes: t.notes,
+      },
+      p_event: reassignEvent,
+    });
+    const conflict = asConflictError(error);
+    if (conflict) throw conflict;
+    if (error) throw new Error(error.message);
+    currentRevision = newRevision as number;
+  }
+
   const result = await getFuelState(companyId);
-  result.revision = newRevision as number;
-  return { ...result, imported: created.length, skippedDuplicates };
+  return { ...result, revision: currentRevision, imported: created.length, skippedDuplicates, reassigned: rowsToReassign.length };
 }

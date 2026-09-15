@@ -84,8 +84,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   // que su retail = su monto, igual que hace commitStatementImportAction.
   const previewRetailTotal = (preview?.rows.reduce((s, r) => s + (r.retailPrice || r.amount), 0) || 0) + manualUnparsedRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const previewSavedTotal = preview?.rows.reduce((s, r) => s + r.saved, 0) || 0;
-  const hasDuplicateSelected = Boolean(preview) && preview!.rows.some((r, i) => r.duplicate && selectedRows.has(i));
-  const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0 && !hasDuplicateSelected
+  const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0
     && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - combinedFuel) < 0.01)
     && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - combinedNonFuel) < 0.01)
     && (preview!.declared.total === null || Math.abs(preview!.declared.total - combinedTotal) < 0.01)
@@ -100,7 +99,11 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     try {
       const result = await parseMudflapStatementAction(fields);
       setPreview(result);
-      setSelectedRows(new Set(result.rows.map((r, i) => i).filter(i => !result.rows[i].duplicate)));
+      // Todas seleccionadas por defecto, incluidas las marcadas como
+      // "posible duplicado" (pedido explícito: si ya existen pero quedaron
+      // en la semana equivocada, al confirmar se corrigen solas — nunca se
+      // vuelve a crear una fila repetida, eso ya lo protege el servidor).
+      setSelectedRows(new Set(result.rows.map((r, i) => i)));
       setRowDriverOverride({});
       setManualUnparsed({}); setOpenUnparsedIdx(null);
     } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
@@ -123,7 +126,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       const result = await commitStatementImportAction(input, statementWeekForImport, state.revision);
       await fuel.refresh();
       setImportOpen(false); setPreview(null); setSelectedRows(new Set()); setManualUnparsed({}); setOpenUnparsedIdx(null);
-      setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);
+      setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.reassigned ? ` ${result.reassigned} ${t('ya existían y se corrigieron a esta semana.')}` : ''}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);
     } catch (e) { setImportError((e as Error).message); } finally { setImportBusy(false); }
   }
   function toggleRow(i: number) { setSelectedRows(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; }); }
@@ -261,7 +264,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
           <b>{t('Sin descuento:')}</b> {money(previewRetailTotal)} · <b>{t('Descuento:')}</b> {money(previewSavedTotal)}{preview.declared.saved !== null && (Math.abs(preview.declared.saved - previewSavedTotal) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.saved)}`)}
           {' · '}{money(previewRetailTotal)} − {money(previewSavedTotal)} = <b>{money(Math.round((previewRetailTotal - previewSavedTotal) * 100) / 100)}</b>
         </p>
-        {hasDuplicateSelected && <p className={styles.error} role="alert">{t('Hay una fila marcada como posible duplicado todavía seleccionada — destíldala antes de continuar, o esa transacción quedaría contada dos veces.')}</p>}
         {preview.unparsed.length > 0 && <div className={styles.unparsedBox}>
           <p className={styles.error} role="alert">{unresolvedUnparsedCount > 0 ? `${unresolvedUnparsedCount} ${t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — complétalas a mano abajo para poder importar.')}` : t('Todas las filas sin leer ya se completaron a mano — revisa los montos antes de confirmar.')}</p>
           {preview.unparsed.map((u, i) => {
@@ -287,8 +289,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
             </div>;
           })}
         </div>}
-        {preview.rows.length > 0 && preview.rows.every(r => r.duplicate) && <p className={styles.error} role="alert">{t('Este statement ya fue importado antes: las')} {preview.rows.length} {t('filas ya existen en el sistema (mismo periodo, misma fecha y monto). No hay nada nuevo que agregar — por eso el botón de abajo aparece apagado con (0). Si esperabas cargas nuevas, revisa que sea el PDF de la semana correcta.')}</p>}
-        {preview.rows.length > 0 && !preview.rows.every(r => r.duplicate) && preview.rows.some(r => r.duplicate) && <p className={styles.note}>{preview.rows.filter(r => r.duplicate).length} {t('de')} {preview.rows.length} {t('filas ya existían en el sistema y se destildaron solas (marcadas como "posible duplicado"). Revisa las demás y confirma para importar solo lo nuevo.')}</p>}
+        {preview.rows.some(r => r.duplicate) && <p className={styles.note}>{preview.rows.filter(r => r.duplicate).length} {t('de')} {preview.rows.length} {t('filas ya existían en el sistema (marcadas como "posible duplicado"). No hay problema en dejarlas seleccionadas: al confirmar, el sistema nunca las duplica — si ya estaban en esta semana no pasa nada, y si habían quedado en otra semana (por ejemplo, cargadas antes de este arreglo) se corrigen solas.')}</p>}
         {!reconciled && <p className={styles.error} role="alert">{t('No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.')}</p>}
         <div className={styles.importTableWrap}>
           <table className={styles.importTable}>
