@@ -78,10 +78,11 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // que coincida con lo que de verdad salió de la caja. Se le suma lo
   // registrado a mano en "Salarios pagados a mano" (viajes que el sistema
   // todavía no puede calcular solo, p.ej. uno que sigue abierto desde hace
-  // semanas sin cerrar en Cargas).
+  // semanas sin cerrar en Cargas) y, si ya se marcó pagado, el invoice del
+  // despachador (Gleiby) — pedido explícito: también es un salario de ella.
   const weekManualSalaries = state.manualSalaries.filter(m => m.weekStart === weekStart);
   const manualSalariesTotal = weekManualSalaries.reduce((s, m) => s + m.amount, 0);
-  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal;
+  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal + (dispatcherPaid ? dispatcher.commission : 0);
   const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
   const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
