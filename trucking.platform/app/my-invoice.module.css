@@ -40,7 +40,12 @@
    evita que la tabla se parta entre hojas si cabe en una. */
 @media print {
   .wrap > *:not(.printSection) { display:none !important; }
-  .printSection { page-break-inside:avoid; break-inside:avoid; }
+  /* Pedido explícito: nunca partir la tabla entre dos hojas — se marca
+     "no dividir" en cada nivel (sección, tabla y cada fila) porque algunos
+     navegadores solo respetan la regla en el nivel más específico. */
+  .printSection, .printSection .tableWrap, .printSection table, .printSection tr {
+    page-break-inside:avoid; break-inside:avoid;
+  }
   /* Pedido explícito: que se vea bien — letra más grande en toda la tabla
      (la de pantalla es chiquita a propósito, para que quepa en el celular)
      y el total de la comisión del 4% bien grande, imposible de no ver. */
