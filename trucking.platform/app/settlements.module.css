@@ -6,7 +6,7 @@
 .settlements label { display:grid; gap:6px; font-size:14px; font-weight:600; min-width:0; }.settlements h2 { font-size:23px; color:#11151B; }.settlements h3 { font-size:19px; color:#11151B; margin-top:0; }.settlements p { line-height:1.6; }
 .settlements button.primary { background:#8B102A; color:white; border-color:#8B102A; }
 
-.weekBar { display:flex; align-items:center; gap:10px; margin:14px 0; }
+.weekBar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; row-gap:8px; margin:14px 0; }
 .weekBar span { font-weight:700; color:#11151B; font-size:14px; }
 .weekBar button { min-height:34px; padding:6px 10px; }
 
@@ -95,7 +95,8 @@
 .summaryCapture { background:#FBF8F6; border-radius:12px; padding:14px; margin:14px 0; }
 .captureWeekLabel { text-align:center; font-weight:700; color:#11151B; margin:0 0 10px; }
 .summaryGroupHeader { background:#8B102A; color:#fff; font-size:12px; font-weight:700; padding:6px 10px; margin-top:14px; border-radius:8px 8px 0 0; }
-.summaryTable { width:100%; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
+.summaryTableWrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.summaryTable { width:100%; min-width:480px; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
 .summaryTable th,.summaryTable td { padding:5px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
 .summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
 .summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
