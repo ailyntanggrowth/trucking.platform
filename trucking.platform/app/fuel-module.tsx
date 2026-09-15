@@ -7,7 +7,7 @@ import type { FleetController } from '../lib/use-fleet';
 import { fuelWeekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
+import { Fuel as FuelIcon, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos';
@@ -60,6 +60,15 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   async function copyResumen() {
     try { await navigator.clipboard.writeText(buildResumenText()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
     catch { setError(t('No se pudo copiar — selecciona y copia el texto a mano.')); }
+  }
+  // "Descargar PDF" (pedido explícito, para mandárselo a Mario mientras no
+  // esté integrado al sistema): mismo patrón que Reportes y Mi Invoice —
+  // diálogo de impresión nativo, sin librerías nuevas.
+  function downloadResumenPdf() {
+    const prevTitle = document.title;
+    document.title = `Resumen Mudflap - ${weekLabel}`;
+    window.print();
+    document.title = prevTitle;
   }
   // Top 5 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
   // el panel "Top 5 Choferes", nunca inventado: sale de summary.transactions.
@@ -191,9 +200,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     <div className={styles.copyBox}>
       <div className={styles.copyBoxHead}>
         <h3 style={{ margin: 0 }}>{t('Resumen de Mudflap')}</h3>
-        {weeklySummary.groups.length > 0 && <button type="button" onClick={() => void copyResumen()}>
-          {copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? t('¡Copiado!') : t('Copiar resumen')}
-        </button>}
+        {weeklySummary.groups.length > 0 && <div className={styles.actions}>
+          <button type="button" onClick={() => void copyResumen()}>
+            {copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? t('¡Copiado!') : t('Copiar resumen')}
+          </button>
+          <button type="button" onClick={downloadResumenPdf}><Printer size={15}/> {t('Descargar PDF')}</button>
+        </div>}
       </div>
       {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
         <p><strong>{t(groupLabel(g.group))}</strong></p>

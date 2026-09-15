@@ -76,6 +76,18 @@
 .copyBox { background:white; border:1px solid #e3dadd; border-radius:14px; padding:18px 20px; margin:14px 0; }
 .copyBoxHead { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
 .copyBoxHead h3 { margin:0; }
+
+/* "Descargar PDF" del Resumen de Mudflap (pedido explícito: para mandárselo
+   a Mario mientras no esté en el sistema): al imprimir solo queda esta
+   caja — nada de barra de semana, tarjetas de arriba, pestañas ni listas.
+   Letra más grande, igual que en Mi Invoice, para que se vea bien en papel. */
+@media print {
+  .fuel > *:not(.copyBox) { display:none !important; }
+  .copyBox { border:none; padding:0; page-break-inside:avoid; break-inside:avoid; }
+  .copyBox button { display:none !important; }
+  .copyBox h3 { font-size:22px; }
+  .copyBox p, .copyBox li { font-size:16px; }
+}
 .historyRow { cursor:pointer; }
 .historyRow:hover td { background:#FBF8F6; }
 .rowActive td { background:#F5EBED; }
