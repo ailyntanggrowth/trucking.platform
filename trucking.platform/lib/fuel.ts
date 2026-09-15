@@ -20,6 +20,14 @@ export type FuelTransaction = {
   // del resumen semanal por grupo). 0 si la transacción no vino de un statement
   // de Mudflap o no tuvo ahorro — nunca negativo, nunca menor que fuelAmount.
   retailAmount: number;
+  // Lunes de inicio del período del STATEMENT al que pertenece esta
+  // transacción (pedido explícito) — no siempre coincide con la semana de
+  // `date`: un statement "del 7 al 13" puede traer transacciones fechadas
+  // uno o dos días antes por rezago normal de Mudflap, y deben seguir
+  // contando en esa semana para que el resumen cuadre con el total oficial
+  // impreso en el PDF. Para transacciones manuales (sin PDF), es la semana
+  // de su propia fecha (ver fuelWeekStartOf en lib/settlements.ts).
+  statementWeek: string;
   status: TxStatus; externalRef: string; notes: string;
 };
 export const txTotal = (t: FuelTransaction) => t.fuelAmount + t.nonFuelAmount;
@@ -41,6 +49,7 @@ export type FuelAction =
 
 const requireValue = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function applyFuelAction(original: FuelState, action: FuelAction, now: string, id: string): FuelState {
   const state = structuredClone(original);
@@ -49,6 +58,7 @@ export function applyFuelAction(original: FuelState, action: FuelAction, now: st
     const record = { ...action.record };
     (Object.keys(record) as (keyof FuelTransaction)[]).forEach(k => { if (typeof record[k] === 'string') (record as unknown as Record<string, unknown>)[k] = (record[k] as string).trim(); });
     requireValue(record.id && isDate(record.date), 'La fecha de la visita no es válida.');
+    requireValue(isDate(record.statementWeek), 'No se pudo determinar la semana del statement de esta transacción.');
     requireValue(TX_STATUS_VALUES.includes(record.status), 'Estado de transacción inválido.');
     requireValue(record.gallons >= 0 && record.pricePerGallon >= 0 && record.fuelAmount >= 0 && record.nonFuelAmount >= 0 && record.retailAmount >= 0, 'Los montos y galones no pueden ser negativos.');
     requireValue(record.driverId || record.truckId || record.station, 'Indica al menos chofer, camión o estación.');
@@ -101,47 +111,40 @@ export function summarizeFuel(state: FuelState, start: string, end: string) {
 }
 
 // Resumen semanal de Mudflap por grupo de flota (pedido explícito: es el mismo
-// "Resumen de Mudflap" / "Resumen de Non-Fuel" que la dueña le manda a Mario
-// cada lunes). Se agrupa por driver.group, nunca por texto libre — un chofer
-// sin grupo asignado cae aparte, nunca se inventa un grupo para él.
-const FUEL_GROUPS = ['Mario', 'Owner Operators', 'Lázaro', 'Dionisio'] as const;
+// "Resumen de Mudflap" que la dueña le manda a Mario cada lunes por WhatsApp).
+// Se agrupa por driver.group, nunca por texto libre — un chofer sin grupo
+// asignado cae aparte, nunca se inventa un grupo para él. El monto de cada
+// chofer es Fuel + Non-Fuel sumados (pedido explícito: no se muestran por
+// separado en este resumen) y se agrupa por `statementWeek`, NO por `date` —
+// ver el comentario en el tipo FuelTransaction.
+export const FUEL_GROUPS = ['Mario', 'Owner Operators', 'Lázaro', 'Dionisio'] as const;
 export type FuelDriverLine = { driverId: string; driverName: string; amount: number; retailAmount: number };
-export type NonFuelLine = { driverId: string; driverName: string; date: string; state: string; station: string; amount: number };
-export type FuelGroupSummary = {
-  group: string; drivers: FuelDriverLine[]; total: number; retailTotal: number;
-  nonFuelRows: NonFuelLine[]; nonFuelTotal: number;
-};
-export function computeWeeklyFuelSummary(state: FuelState, drivers: Driver[], start: string, end: string) {
-  const inRange = (d: string) => d >= start && d < end;
-  const transactions = state.transactions.filter(t => inRange(t.date) && t.status === 'Final');
+export type FuelGroupSummary = { group: string; drivers: FuelDriverLine[]; total: number; retailTotal: number };
+export function computeWeeklyFuelSummary(state: FuelState, drivers: Driver[], statementWeek: string) {
+  const transactions = state.transactions.filter(t => t.statementWeek === statementWeek && t.status === 'Final');
   const driverGroup = (id: string) => drivers.find(d => d.id === id)?.group || '';
   const driverName = (id: string) => drivers.find(d => d.id === id)?.name || '';
-  const groupsPresent = [...FUEL_GROUPS, ''].filter(g => transactions.some(t => driverGroup(t.driverId) === g));
+  const driverIds = Array.from(new Set(transactions.filter(t => t.driverId).map(t => t.driverId)));
+  const groupsPresent = [...FUEL_GROUPS, ''].filter(g => driverIds.some(id => driverGroup(id) === g));
 
   const groups: FuelGroupSummary[] = groupsPresent.map(group => {
-    const groupTx = transactions.filter(t => driverGroup(t.driverId) === group);
-    const driverIds = Array.from(new Set(groupTx.filter(t => t.fuelAmount > 0).map(t => t.driverId)));
-    const drivers2: FuelDriverLine[] = driverIds.map(driverId => {
-      const own = groupTx.filter(t => t.driverId === driverId);
+    const ids = driverIds.filter(id => driverGroup(id) === group);
+    // Se ordena en el mismo orden en que el chofer está registrado en Flota
+    // (pedido implícito: mismo orden que ella usa siempre en su lista) — nunca
+    // por monto, para que el resumen no salte de posición semana a semana.
+    const orderedIds = drivers.filter(d => ids.includes(d.id)).map(d => d.id);
+    const lines: FuelDriverLine[] = orderedIds.map(driverId => {
+      const own = transactions.filter(t => t.driverId === driverId);
       return {
         driverId, driverName: driverName(driverId) || '(sin nombre)',
-        amount: own.reduce((s, t) => s + t.fuelAmount, 0),
-        retailAmount: own.reduce((s, t) => s + (t.retailAmount || t.fuelAmount), 0),
+        amount: own.reduce((s, t) => s + txTotal(t), 0),
+        retailAmount: own.reduce((s, t) => s + (t.retailAmount || txTotal(t)), 0),
       };
-    }).sort((a, b) => b.amount - a.amount);
-    const nonFuelRows: NonFuelLine[] = groupTx.filter(t => t.nonFuelAmount > 0).map(t => ({
-      driverId: t.driverId, driverName: driverName(t.driverId) || '(sin nombre)', date: t.date, state: t.state, station: t.station, amount: t.nonFuelAmount,
-    })).sort((a, b) => a.date.localeCompare(b.date));
-    return {
-      group, drivers: drivers2, total: drivers2.reduce((s, d) => s + d.amount, 0), retailTotal: drivers2.reduce((s, d) => s + d.retailAmount, 0),
-      nonFuelRows, nonFuelTotal: nonFuelRows.reduce((s, r) => s + r.amount, 0),
-    };
-  });
+    }).filter(d => d.amount > 0); // nunca choferes con total $0 (pedido explícito)
+    return { group, drivers: lines, total: lines.reduce((s, d) => s + d.amount, 0), retailTotal: lines.reduce((s, d) => s + d.retailAmount, 0) };
+  }).filter(g => g.drivers.length > 0);
 
-  return {
-    groups,
-    grandTotal: groups.reduce((s, g) => s + g.total, 0),
-    grandRetailTotal: groups.reduce((s, g) => s + g.retailTotal, 0),
-    grandNonFuelTotal: groups.reduce((s, g) => s + g.nonFuelTotal, 0),
-  };
+  const grandTotal = groups.reduce((s, g) => s + g.total, 0);
+  const grandRetailTotal = groups.reduce((s, g) => s + g.retailTotal, 0);
+  return { groups, grandTotal, grandRetailTotal, grandDiscount: round2(grandRetailTotal - grandTotal) };
 }

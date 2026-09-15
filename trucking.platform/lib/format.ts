@@ -13,3 +13,27 @@ export const dayLabel = (date: string) => {
   return new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(y, m - 1, d));
 };
 export const today = () => new Date().toLocaleDateString('en-CA');
+// Solo el primer nombre (pedido explícito, para que quepa en listas cortas o
+// en el resumen que se copia para WhatsApp) — excepto los "Jose", que se
+// desambiguan dejando también el apellido (hay más de uno en la flota).
+export function shortName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  if (parts[0].toLowerCase() === 'jose') return `${parts[0]} ${parts[1]}`;
+  return parts[0];
+}
+// "Del 7 al 13 de septiembre de 2026" (pedido explícito, Módulo 4): recibe
+// solo el lunes de inicio de la semana del statement (fuelWeekStartOf) y
+// arma el domingo de cierre a mano (+6 días) — mismo truco de armar la fecha
+// con componentes locales que dayLabel, para no arrastrar el bug de zona
+// horaria que corría el día mostrado.
+export function weekPeriodLabel(weekStart: string) {
+  const [y, m, d] = weekStart.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
+  const end = new Date(y, m - 1, d + 6);
+  const month = (dt: Date) => new Intl.DateTimeFormat('es', { month: 'long' }).format(dt);
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `Del ${start.getDate()} al ${end.getDate()} de ${month(start)} de ${end.getFullYear()}`;
+  }
+  return `Del ${start.getDate()} de ${month(start)} al ${end.getDate()} de ${month(end)} de ${end.getFullYear()}`;
+}

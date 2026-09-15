@@ -4,20 +4,10 @@ import { dispatcherCommissionDetail, invoiceNumberFor, weekStartOf, weekRange } 
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
-import { money, today } from '../lib/format';
+import { money, shortName, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import styles from './my-invoice.module.css';
-
-// Solo el primer nombre en la tabla (pedido explícito, para que quepa todo
-// sin tener que deslizar el dedo) — excepto los dos "Jose", que se
-// desambiguan dejando también el apellido.
-function shortName(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 1) return name;
-  if (parts[0].toLowerCase() === 'jose') return `${parts[0]} ${parts[1]}`;
-  return parts[0];
-}
 
 export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: {
   settlements: SettlementsController; loads: LoadsController; fleet: FleetController; lang: Lang; t: (es: string) => string;

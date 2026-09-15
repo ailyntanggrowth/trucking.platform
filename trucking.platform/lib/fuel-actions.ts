@@ -5,6 +5,7 @@ import { applyFuelAction, type Expense, type ExpenseCategory, type FuelAction, t
 import { parseMudflapText, type MudflapRow } from './mudflap';
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
 import { money } from './format';
+import { fuelWeekStartOf } from './settlements';
 // pdf-parse es CommonJS y no tiene tipos propios confiables bajo ESM/NodeNext;
 // se carga con createRequire para evitar arrastrar eso al resto del proyecto.
 // Importa 'pdf-parse/lib/pdf-parse.js' directamente (no 'pdf-parse' a secas):
@@ -38,7 +39,8 @@ export async function getFuelState(companyId = DEFAULT_COMPANY_ID): Promise<Fuel
     transactions: (transactions.data ?? []).map(r => ({
       id: r.id, date: r.date, driverId: r.driver_id ?? '', truckId: r.truck_id ?? '', loadRef: r.load_ref,
       station: r.station, city: r.city, state: r.state, gallons: Number(r.gallons), pricePerGallon: Number(r.price_per_gallon),
-      fuelAmount: Number(r.fuel_amount), nonFuelAmount: Number(r.non_fuel_amount), retailAmount: Number(r.retail_amount ?? 0), status: r.status as TxStatus,
+      fuelAmount: Number(r.fuel_amount), nonFuelAmount: Number(r.non_fuel_amount), retailAmount: Number(r.retail_amount ?? 0),
+      statementWeek: r.statement_week, status: r.status as TxStatus,
       externalRef: r.external_ref, notes: r.notes,
     })),
     expenses: (expenses.data ?? []).map(r => ({
@@ -78,7 +80,8 @@ export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expe
       p_transaction: {
         id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: t.truckId || null, load_ref: t.loadRef,
         station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
-        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
+        fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount,
+        statement_week: t.statementWeek, status: t.status, external_ref: t.externalRef, notes: t.notes,
       },
       p_event: event,
     });
@@ -170,7 +173,7 @@ export type MudflapParsePreview = {
   period: { start: string; end: string } | null;
   rows: MudflapDraftRow[];
   unparsed: { raw: string; reason: string }[];
-  declared: { fuel: number | null; nonFuel: number | null; total: number | null };
+  declared: { fuel: number | null; nonFuel: number | null; total: number | null; saved: number | null };
   totals: { fuel: number; nonFuel: number; total: number };
 };
 
@@ -219,7 +222,13 @@ export type StatementImportResult = FuelState & { imported: number; skippedDupli
 // a mano una fila que la vista previa ya señaló como probable duplicado, aquí
 // se vuelve a comprobar contra lo que HOY existe en la base de datos (no lo
 // que había al abrir el formulario) y se omite en vez de guardarla dos veces.
-export async function commitStatementImportAction(input: StatementImportRow[], expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<StatementImportResult> {
+//
+// `statementWeek` (pedido explícito) es el lunes del período que el propio
+// PDF declara ("Billing Period") — TODAS las filas del mismo statement caen
+// en esa semana, aunque alguna traiga una fecha uno o dos días antes por
+// rezago normal de Mudflap. Nunca se deriva de `row.date` aquí: eso es
+// justo lo que hacía que el resumen semanal no cuadrara con el statement.
+export async function commitStatementImportAction(input: StatementImportRow[], statementWeek: string, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<StatementImportResult> {
   if (!input.length) throw new Error('No hay filas seleccionadas para importar.');
   const supabase = supabaseServer();
   const state = await getFuelState(companyId);
@@ -240,7 +249,8 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
       id: randomUUID(), date: row.date, driverId: row.driverId, truckId: '', loadRef: '',
       station: row.station, city: row.city, state: row.state, gallons: 0, pricePerGallon: 0,
       fuelAmount: row.type === 'Fuel' ? row.amount : 0, nonFuelAmount: row.type === 'Non-Fuel' ? row.amount : 0,
-      retailAmount: row.type === 'Fuel' ? (row.retailAmount || row.amount) : 0,
+      retailAmount: row.retailAmount || row.amount,
+      statementWeek: statementWeek || fuelWeekStartOf(row.date),
       status: 'Final', externalRef: row.externalRef, notes: row.notes,
     };
     working = applyFuelAction(working, { type: 'transaction', record, reason: '' }, now, record.id);
@@ -261,7 +271,8 @@ export async function commitStatementImportAction(input: StatementImportRow[], e
     p_transactions: created.map(t => ({
       id: t.id, date: t.date, driver_id: t.driverId || null, truck_id: null, load_ref: t.loadRef,
       station: t.station, city: t.city, state: t.state, gallons: t.gallons, price_per_gallon: t.pricePerGallon,
-      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount, status: t.status, external_ref: t.externalRef, notes: t.notes,
+      fuel_amount: t.fuelAmount, non_fuel_amount: t.nonFuelAmount, retail_amount: t.retailAmount,
+      statement_week: t.statementWeek, status: t.status, external_ref: t.externalRef, notes: t.notes,
     })),
     p_event: event,
   });

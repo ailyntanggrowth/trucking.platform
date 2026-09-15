@@ -4,10 +4,10 @@ import { EXPENSE_CATEGORIES, summarizeFuel, computeWeeklyFuelSummary, txTotal, t
 import type { FuelController } from '../lib/use-fuel';
 import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
-import { weekStartOf, weekRange } from '../lib/settlements';
-import { money, dayLabel, today } from '../lib/format';
+import { fuelWeekStartOf, weekRange } from '../lib/settlements';
+import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos' | 'resumen';
@@ -21,7 +21,8 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const { state, ready } = fuel;
   const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState('');
   const [start, setStart] = useState(monthStart()), [end, setEnd] = useState(monthEnd());
-  const [weekStart, setWeekStart] = useState(weekRange(weekStartOf(today())).prevWeek);
+  const [weekStart, setWeekStart] = useState(fuelWeekStartOf(today()));
+  const [copied, setCopied] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false), [importBusy, setImportBusy] = useState(false), [importError, setImportError] = useState('');
@@ -35,10 +36,31 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const summary = summarizeFuel(state, start, end);
-  const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
-  const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart, weekEnd);
-  const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10))}`;
+  const { prevWeek, nextWeek } = weekRange(weekStart);
+  const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart);
+  const weekLabel = weekPeriodLabel(weekStart);
   const totalGastos = summary.fuel + summary.nonFuel;
+  // Semanas con datos guardados (pedido explícito: "las semanas más antiguas
+  // guardadas en el historial") — nunca semanas vacías inventadas. La semana
+  // actual siempre aparece en la lista aunque todavía no tenga nada, para
+  // que se pueda volver a ella con un clic.
+  const savedWeeks = Array.from(new Set([fuelWeekStartOf(today()), ...state.transactions.map(t => t.statementWeek)])).sort((a, b) => b.localeCompare(a)).slice(0, 12);
+  const weekHistory = savedWeeks.map(ws => ({ weekStart: ws, total: computeWeeklyFuelSummary(state, fleet.state.drivers, ws).grandTotal }));
+  function buildResumenText() {
+    const lines = ['RESUMEN DE MUDFLAP'];
+    weeklySummary.groups.forEach(g => {
+      lines.push(groupLabel(g.group));
+      g.drivers.forEach(d => lines.push(`${shortName(d.driverName)} — ${money(d.amount)}`));
+      if (g.group) lines.push(`Total ${g.group} — ${money(g.total)}`);
+    });
+    lines.push(`Total sin descuentos — ${money(weeklySummary.grandRetailTotal)}`);
+    lines.push(`Total con descuentos — ${money(weeklySummary.grandTotal)}`);
+    return lines.join('\n');
+  }
+  async function copyResumen() {
+    try { await navigator.clipboard.writeText(buildResumenText()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    catch { setError(t('No se pudo copiar — selecciona y copia el texto a mano.')); }
+  }
   // Top 5 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
   // el panel "Top 5 Choferes", nunca inventado: sale de summary.transactions.
   const topDrivers = Object.entries(summary.transactions.reduce((acc: Record<string, number>, t2) => {
@@ -55,9 +77,21 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const unresolvedUnparsedCount = preview ? preview.unparsed.length - Object.keys(manualUnparsed).length : 0;
   const combinedFuel = (preview?.totals.fuel || 0) + manualTotals.fuel;
   const combinedNonFuel = (preview?.totals.nonFuel || 0) + manualTotals.nonFuel;
-  const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0
+  const combinedTotal = combinedFuel + combinedNonFuel;
+  // "Total sin descuento" / "descuento" (pedido explícito): se saca sumando
+  // el precio de lista y el ahorro de CADA fila leída del PDF — las filas
+  // completadas a mano (sin precio de lista conocido) no tienen ahorro, así
+  // que su retail = su monto, igual que hace commitStatementImportAction.
+  const previewRetailTotal = (preview?.rows.reduce((s, r) => s + (r.retailPrice || r.amount), 0) || 0) + manualUnparsedRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const previewSavedTotal = preview?.rows.reduce((s, r) => s + r.saved, 0) || 0;
+  const hasDuplicateSelected = Boolean(preview) && preview!.rows.some((r, i) => r.duplicate && selectedRows.has(i));
+  const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0 && !hasDuplicateSelected
     && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - combinedFuel) < 0.01)
-    && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - combinedNonFuel) < 0.01);
+    && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - combinedNonFuel) < 0.01)
+    && (preview!.declared.total === null || Math.abs(preview!.declared.total - combinedTotal) < 0.01)
+    && (preview!.declared.saved === null || Math.abs(preview!.declared.saved - previewSavedTotal) < 0.01)
+    && Math.abs((previewRetailTotal - previewSavedTotal) - combinedTotal) < 0.01;
+  const statementWeekForImport = preview?.period ? fuelWeekStartOf(preview.period.start) : (preview?.rows[0]?.date ? fuelWeekStartOf(preview.rows[0].date) : weekStart);
 
   function openImport() { setError(''); setNotice(''); setEditor(null); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function handleParseStatement(event: FormEvent<HTMLFormElement>) {
@@ -86,7 +120,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
         notes: 'Completada a mano: el PDF no se pudo leer automáticamente en esta fila (posible salto de página).',
       }));
       const input = [...fromPreview, ...fromManual];
-      const result = await commitStatementImportAction(input, state.revision);
+      const result = await commitStatementImportAction(input, statementWeekForImport, state.revision);
       await fuel.refresh();
       setImportOpen(false); setPreview(null); setSelectedRows(new Set()); setManualUnparsed({}); setOpenUnparsedIdx(null);
       setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);
@@ -104,7 +138,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     try {
       let action: FuelAction;
       if (editor.type === 'transaction') {
-        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), retailAmount: editTx?.retailAmount ?? 0, status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
+        const date = text('date');
+        // Una transacción registrada a mano (no importada de un PDF) no
+        // tiene un período de statement declarado — se ubica en la semana
+        // de su propia fecha, salvo que ya tuviera una (al editar una fila
+        // que sí vino de un statement, se conserva la semana original).
+        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date, driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), retailAmount: editTx?.retailAmount ?? 0, statementWeek: editTx?.statementWeek ?? fuelWeekStartOf(date), status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
         action = { type: 'transaction', record, reason: text('reason') };
       } else if (editor.type === 'expense') {
         const file = fields.get('receipt') as File;
@@ -148,47 +187,51 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     {tab === 'resumen' && <>
-      <div className={styles.filters}>
+      <div className={styles.weekBar}>
         <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
-        <span>📅 {t('Semana')} {weekLabel}</span>
+        <span>📅 {weekLabel}</span>
         <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
-        <button onClick={() => setWeekStart(weekRange(weekStartOf(today())).prevWeek)}>{t('Última semana cerrada')}</button>
+        <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
       </div>
 
-      <h3>{t('Resumen de Mudflap')}</h3>
-      <div className={styles.tableWrap}>
-        <table className={styles.dataTable}>
-          <tbody>
-            {weeklySummary.groups.map(g => <>
-              <tr key={`h-${g.group}`}><td colSpan={2}><strong>{t(groupLabel(g.group))}</strong></td></tr>
-              {g.drivers.length ? g.drivers.map(d => <tr key={d.driverId}><td>{d.driverName}</td><td>{money(d.amount)}</td></tr>)
-                : <tr><td colSpan={2} className={styles.empty}>{t('No hubo transacciones de Fuel en este período.')}</td></tr>}
-              <tr key={`t-${g.group}`} className={styles.tableSub}><td><b>{t('Total')} {t(groupLabel(g.group))}</b></td><td><b>{money(g.total)}</b></td></tr>
-            </>)}
-            {!weeklySummary.groups.length && <tr><td colSpan={2} className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</td></tr>}
-          </tbody>
-        </table>
+      <div className={styles.weekTotals}>
+        <div className={styles.statCard}><span className={styles.statLabel}>{t('Total sin descuentos')}</span><strong>{money(weeklySummary.grandRetailTotal)}</strong></div>
+        <div className={styles.statCard}><span className={styles.statLabel}>{t('Descuento total')}</span><strong>{money(weeklySummary.grandDiscount)}</strong></div>
+        <div className={styles.statCard}><span className={styles.statLabel}>{t('Total con descuentos')}</span><strong>{money(weeklySummary.grandTotal)}</strong></div>
       </div>
-      {weeklySummary.groups.length > 0 && <p className={styles.note}>
-        <b>{t('Total sin descuento')}</b> {money(weeklySummary.grandRetailTotal)} · <b>{t('Total con descuento')}</b> {money(weeklySummary.grandTotal)}
-      </p>}
 
-      <h3>{t('Resumen de Non-Fuel')}</h3>
+      <div className={styles.copyBox}>
+        <div className={styles.copyBoxHead}>
+          <h3 style={{ margin: 0 }}>{t('Resumen de Mudflap')}</h3>
+          {weeklySummary.groups.length > 0 && <button type="button" onClick={() => void copyResumen()}>
+            {copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? t('¡Copiado!') : t('Copiar resumen')}
+          </button>}
+        </div>
+        {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
+          <p><strong>{t(groupLabel(g.group))}</strong></p>
+          <ul style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, display: 'grid', gap: 4 }}>
+            {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.amount)}</span></li>)}
+          </ul>
+          {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.total)}</b></p>}
+        </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
+        {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
+          <b>{t('Total sin descuentos')}</b><b>{money(weeklySummary.grandRetailTotal)}</b>
+        </p>}
+        {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 0 }}>
+          <b>{t('Total con descuentos')}</b><b>{money(weeklySummary.grandTotal)}</b>
+        </p>}
+      </div>
+
+      <h3>{t('Semanas anteriores')}</h3>
       <div className={styles.tableWrap}>
         <table className={styles.dataTable}>
-          <thead><tr><th>{t('Grupo / Chofer')}</th><th>{t('Fecha')}</th><th>{t('Estado')}</th><th>{t('Gasolinera')}</th><th>{t('Monto')}</th></tr></thead>
-          <tbody>
-            {weeklySummary.groups.map(g => <>
-              <tr key={`nh-${g.group}`}><td colSpan={5}><strong>{t(groupLabel(g.group))}</strong></td></tr>
-              {g.nonFuelRows.length ? g.nonFuelRows.map((r, i) => <tr key={`${g.group}-${i}`}><td>{r.driverName}</td><td className={styles.tableSub}>{dayLabel(r.date)}</td><td className={styles.tableSub}>{r.state}</td><td className={styles.tableSub}>{r.station}</td><td>{money(r.amount)}</td></tr>)
-                : <tr><td colSpan={5} className={styles.empty}>{t('No hubo transacciones de Non-Fuel en este período.')}</td></tr>}
-              <tr key={`nt-${g.group}`} className={styles.tableSub}><td colSpan={4}><b>{t('Total')} {t(groupLabel(g.group))}</b></td><td><b>{money(g.nonFuelTotal)}</b></td></tr>
-            </>)}
-            {!weeklySummary.groups.length && <tr><td colSpan={5} className={styles.empty}>{t('No hay transacciones en esta semana todavía.')}</td></tr>}
-          </tbody>
+          <thead><tr><th>{t('Semana')}</th><th>{t('Total con descuentos')}</th></tr></thead>
+          <tbody>{weekHistory.map(h => <tr key={h.weekStart} className={`${styles.historyRow} ${h.weekStart === weekStart ? styles.rowActive : ''}`} onClick={() => setWeekStart(h.weekStart)}>
+            <td>{weekPeriodLabel(h.weekStart)}{h.weekStart === fuelWeekStartOf(today()) ? ` · ${t('semana actual')}` : ''}</td>
+            <td><strong>{money(h.total)}</strong></td>
+          </tr>)}</tbody>
         </table>
       </div>
-      {weeklySummary.groups.length > 0 && <p className={styles.note}><b>{t('Total general Non-Fuel')}</b> {money(weeklySummary.grandNonFuelTotal)}</p>}
     </>}
 
     {tab !== 'resumen' && <div className={styles.toolbarRow}>
@@ -207,11 +250,17 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </form>
       {importError && <p className={styles.error} role="alert">{importError}</p>}
       {preview && <>
-        {preview.period && <p>{t('Período del statement:')} {dayLabel(preview.period.start)} – {dayLabel(preview.period.end)}</p>}
+        {preview.period && <p>{t('Período del statement:')} {dayLabel(preview.period.start)} – {dayLabel(preview.period.end)} · {t('se guardará en la semana de')} {weekPeriodLabel(statementWeekForImport)}</p>}
         <p>
           <b>{t('Filas leídas:')}</b> {preview.rows.length}{manualUnparsedRows.length > 0 ? ` + ${manualUnparsedRows.length} ${t('a mano')}` : ''} · <b>{t('Fuel:')}</b> {money(combinedFuel)}{preview.declared.fuel !== null && (Math.abs(preview.declared.fuel - combinedFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.fuel)}`)}
           {' · '}<b>{t('Non-Fuel:')}</b> {money(combinedNonFuel)}{preview.declared.nonFuel !== null && (Math.abs(preview.declared.nonFuel - combinedNonFuel) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.nonFuel)}`)}
+          {' · '}<b>{t('Total:')}</b> {money(combinedTotal)}{preview.declared.total !== null && (Math.abs(preview.declared.total - combinedTotal) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.total)}`)}
         </p>
+        <p>
+          <b>{t('Sin descuento:')}</b> {money(previewRetailTotal)} · <b>{t('Descuento:')}</b> {money(previewSavedTotal)}{preview.declared.saved !== null && (Math.abs(preview.declared.saved - previewSavedTotal) < 0.01 ? ` ✓ ${t('coincide con el PDF')}` : ` ⚠ ${t('el PDF declara')} ${money(preview.declared.saved)}`)}
+          {' · '}{money(previewRetailTotal)} − {money(previewSavedTotal)} = <b>{money(Math.round((previewRetailTotal - previewSavedTotal) * 100) / 100)}</b>
+        </p>
+        {hasDuplicateSelected && <p className={styles.error} role="alert">{t('Hay una fila marcada como posible duplicado todavía seleccionada — destíldala antes de continuar, o esa transacción quedaría contada dos veces.')}</p>}
         {preview.unparsed.length > 0 && <div className={styles.unparsedBox}>
           <p className={styles.error} role="alert">{unresolvedUnparsedCount > 0 ? `${unresolvedUnparsedCount} ${t('fila(s) no se pudieron leer automáticamente (posible salto de página en el PDF) — complétalas a mano abajo para poder importar.')}` : t('Todas las filas sin leer ya se completaron a mano — revisa los montos antes de confirmar.')}</p>
           {preview.unparsed.map((u, i) => {

@@ -23,7 +23,11 @@ export type MudflapParseResult = {
   period: { start: string; end: string } | null;
   rows: MudflapRow[];
   unparsed: { raw: string; reason: string }[];
-  declared: { fuel: number | null; nonFuel: number | null; total: number | null };
+  // `saved` es best-effort: no todos los formatos de statement imprimen un
+  // total de ahorro aparte (algunos solo lo dejan fila por fila) — cuando no
+  // aparece, queda null y la verificación de "Total sin descuento" cae de
+  // vuelta a la suma de retailPrice/saved por fila (ver fuel-module.tsx).
+  declared: { fuel: number | null; nonFuel: number | null; total: number | null; saved: number | null };
   totals: { fuel: number; nonFuel: number; total: number };
 };
 
@@ -71,10 +75,15 @@ export function parseMudflapText(text: string): MudflapParseResult {
     periodEndYM = { y: Number(y2), m: Number(MONTHS[cap(m2)]) };
   }
 
+  const declaredField = (re: RegExp) => { const m = text.match(re); return m ? money(m[1]) : null; };
   const declared = {
-    fuel: (text.match(/Fuel\s*Purchases\$?([\d,]+\.\d{2})/i) || [])[1] ? money((text.match(/Fuel\s*Purchases\$?([\d,]+\.\d{2})/i) as RegExpMatchArray)[1]) : null,
-    nonFuel: (text.match(/Non-Fuel\s*Purchases\$?([\d,]+\.\d{2})/i) || [])[1] ? money((text.match(/Non-Fuel\s*Purchases\$?([\d,]+\.\d{2})/i) as RegExpMatchArray)[1]) : null,
-    total: (text.match(/Total\s*Purchases\$?([\d,]+\.\d{2})/i) || [])[1] ? money((text.match(/Total\s*Purchases\$?([\d,]+\.\d{2})/i) as RegExpMatchArray)[1]) : null,
+    fuel: declaredField(/Fuel\s*Purchases\$?([\d,]+\.\d{2})/i),
+    nonFuel: declaredField(/Non-Fuel\s*Purchases\$?([\d,]+\.\d{2})/i),
+    total: declaredField(/Total\s*Purchases\$?([\d,]+\.\d{2})/i),
+    // No todos los statements imprimen un "Total Saved" aparte del desglose
+    // por fila — queda null cuando no aparece con ninguna de estas dos
+    // variantes de texto que usa Mudflap.
+    saved: declaredField(/Total\s*Saved\$?([\d,]+\.\d{2})/i) ?? declaredField(/You\s*Saved\$?([\d,]+\.\d{2})/i),
   };
 
   // Recorta a la sección "Purchases" (excluye Payments & Credits y el pie del documento).
