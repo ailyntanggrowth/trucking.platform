@@ -95,11 +95,19 @@
 .summaryCapture { background:#FBF8F6; border-radius:12px; padding:14px; margin:14px 0; }
 .captureWeekLabel { text-align:center; font-weight:700; color:#11151B; margin:0 0 10px; }
 .summaryGroupHeader { background:#8B102A; color:#fff; font-size:12px; font-weight:700; padding:6px 10px; margin-top:14px; border-radius:8px 8px 0 0; }
-.summaryTableWrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-.summaryTable { width:100%; min-width:480px; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
+.summaryTable { width:100%; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
 .summaryTable th,.summaryTable td { padding:5px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+@media(max-width:480px) { .summaryTable { font-size:9.5px; } .summaryTable th,.summaryTable td { padding:4px 2px; } }
 .summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
 .summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
+
+@media print {
+  .settlements > *:not(.summaryCapture) { display:none !important; }
+  .summaryCapture { background:none; padding:0; }
+  .summaryGroupHeader,.summaryTable,.statCards,.moneyCard { page-break-inside:avoid; break-inside:avoid; }
+  .summaryTable { font-size:13px; }
+  .statCards { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
 
 .moreOverlay { position:fixed; inset:0; z-index:50; background:#FBF8F6; overflow-y:auto; }
 .morePanel { max-width:720px; margin:0 auto; min-height:100%; padding:0 14px 24px; }

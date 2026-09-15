@@ -12,7 +12,7 @@ import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Download } from 'lucide-react';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Printer } from 'lucide-react';
 import styles from './settlements.module.css';
 
 // Tabla semanal por chofer (pedido explícito): es exactamente la que la
@@ -56,35 +56,17 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
   const [salariosOpen, setSalariosOpen] = useState(false);
-  const [summaryDownloadBusy, setSummaryDownloadBusy] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
-  // Pedido explícito: en el celular no se sabe dónde queda guardada la
-  // descarga (Safari la manda a Archivos/Descargas, no a Fotos, y ahí nadie
-  // la busca). Si el navegador soporta compartir archivos (iOS/Android), se
-  // abre la hoja de compartir nativa — desde ahí se puede guardar en Fotos
-  // o mandarla directo por WhatsApp a Mario, sin tener que buscarla. En
-  // computadora, donde eso no existe, se sigue descargando como antes.
-  async function downloadSummaryImage() {
-    if (!summaryRef.current || summaryDownloadBusy) return;
-    setSummaryDownloadBusy(true);
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(summaryRef.current, { backgroundColor: '#FBF8F6', scale: 2, windowWidth: 900, width: summaryRef.current.scrollWidth });
-      const filename = `resumen-semanal-${weekStart}.png`;
-      const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (blob) {
-        const file = new File([blob], filename, { type: 'image/png' });
-        const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: { files: File[]; title?: string }) => Promise<void> };
-        if (nav.canShare?.({ files: [file] }) && nav.share) {
-          try { await nav.share({ files: [file], title: t('Resumen semanal') }); return; }
-          catch (e) { if ((e as Error).name === 'AbortError') return; /* canceló la hoja de compartir, no es un error real */ }
-        }
-      }
-      const link = document.createElement('a');
-      link.download = filename;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } finally { setSummaryDownloadBusy(false); }
+  // Pedido explícito: la imagen (html2canvas) salía cortada/fea en el
+  // celular. Se cambió al mismo patrón que Combustible y Mi Invoice — el
+  // diálogo de impresión nativo del navegador, donde ella elige "Guardar
+  // como PDF" y ya queda un documento completo, sin recortes, listo para
+  // mandar por WhatsApp o correo.
+  function downloadSummaryPdf() {
+    const prevTitle = document.title;
+    document.title = `Resumen semanal - ${weekLabel}`;
+    window.print();
+    document.title = prevTitle;
   }
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
@@ -211,7 +193,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
       <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>
-      <button onClick={downloadSummaryImage} disabled={summaryDownloadBusy}><Download size={15} /> {summaryDownloadBusy ? t('Un momento…') : t('Compartir/Descargar imagen')}</button>
+      <button onClick={downloadSummaryPdf}><Printer size={15} /> {t('Descargar PDF')}</button>
     </div>
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar.')}</p>}
 
@@ -225,20 +207,18 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <p className={styles.captureWeekLabel}>{weekLabel}</p>
       {summaryGroups.map(g => g.rows.length > 0 && <div key={g.group}>
         <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</div>
-        <div className={styles.summaryTableWrap}>
-          <table className={styles.summaryTable}>
-            <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} /></colgroup>
-            <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th></tr></thead>
-            <tbody>{g.rows.map(l => <tr key={l.id}>
-              <td>{driverNameFor(l.driverId)}</td>
-              <td>{l.loadNumber || '—'}</td>
-              <td>{money(l.amount)}</td>
-              <td>{l.pickupState}-{l.deliveryState}</td>
-              <td>{entregaLabel(l)}</td>
-              <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>
+        <table className={styles.summaryTable}>
+          <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} /></colgroup>
+          <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th></tr></thead>
+          <tbody>{g.rows.map(l => <tr key={l.id}>
+            <td>{driverNameFor(l.driverId)}</td>
+            <td>{l.loadNumber || '—'}</td>
+            <td>{money(l.amount)}</td>
+            <td>{l.pickupState}-{l.deliveryState}</td>
+            <td>{entregaLabel(l)}</td>
+            <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
+          </tr>)}</tbody>
+        </table>
       </div>)}
       {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
 
