@@ -7,7 +7,7 @@ import type { FleetController } from '../lib/use-fleet';
 import { fuelWeekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
+import { Fuel as FuelIcon, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos';
@@ -193,7 +193,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandRetailTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total sin descuentos')}</span></div>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total con descuentos')}</span></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total Gastos')}</span></div>
     </div>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
