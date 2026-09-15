@@ -12,15 +12,16 @@ import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos' | 'resumen';
 type Editor = { type: 'transaction' | 'expense' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
-const monthStart = () => today().slice(0, 7) + '-01';
-const monthEnd = () => { const d = new Date(`${monthStart()}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 10); };
 const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
 async function downloadReceipt(expense: Expense) { const url = await getExpenseReceiptUrl(expense.id); const a = document.createElement('a'); a.href = url; a.download = expense.receiptFilename || 'recibo'; a.click(); }
 
 export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string }) {
   const { state, ready } = fuel;
   const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState('');
-  const [start, setStart] = useState(monthStart()), [end, setEnd] = useState(monthEnd());
+  // Una sola semana (lunes a domingo, igual que el statement real) gobierna
+  // todo el módulo — pedido explícito: nada de un rango de fechas libre
+  // arriba (mostraba "1 sept – 1 oct" y confundía), siempre semana por
+  // semana como en Cargas (Módulo 2), solo que con el calendario de Mudflap.
   const [weekStart, setWeekStart] = useState(fuelWeekStartOf(today()));
   const [copied, setCopied] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -35,8 +36,8 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
-  const summary = summarizeFuel(state, start, end);
-  const { prevWeek, nextWeek } = weekRange(weekStart);
+  const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
+  const summary = summarizeFuel(state, weekStart, weekEnd);
   const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart);
   const weekLabel = weekPeriodLabel(weekStart);
   const totalGastos = summary.fuel + summary.nonFuel;
@@ -169,9 +170,11 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   return <div className={styles.fuel}>
     {fuel.error && <div role="alert" className={styles.error}>{fuel.error} <button onClick={() => void fuel.refresh()}>{t('Reintentar')}</button></div>}
     {!ready && !fuel.error && <p role="status">{t('Abriendo los registros de combustible y gastos…')}</p>}
-    <div className={styles.filters}>
-      <label>{t('Desde')}<input type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
-      <label>{t('Hasta')}<input type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
+    <div className={styles.weekBar}>
+      <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
+      <span>📅 {weekLabel}</span>
+      <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
+      <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
     </div>
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(summary.fuel) : '—'}</strong><span className={styles.statLabel}>{t('Total Combustible')}</span></div>
@@ -187,13 +190,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
     {tab === 'resumen' && <>
-      <div className={styles.weekBar}>
-        <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
-        <span>📅 {weekLabel}</span>
-        <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
-        <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
-      </div>
-
       <div className={styles.weekTotals}>
         <div className={styles.statCard}><span className={styles.statLabel}>{t('Total sin descuentos')}</span><strong>{money(weeklySummary.grandRetailTotal)}</strong></div>
         <div className={styles.statCard}><span className={styles.statLabel}>{t('Descuento total')}</span><strong>{money(weeklySummary.grandDiscount)}</strong></div>
