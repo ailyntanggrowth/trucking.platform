@@ -6,7 +6,16 @@ import { commitSettlementAction, getSettlementsState } from './settlements-actio
 export function useSettlements() {
   const [state, setState] = useState<SettlementState>(emptySettlements), [ready, setReady] = useState(false), [error, setError] = useState('');
   const refresh = useCallback(async () => { try { const next = await getSettlementsState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
-  useEffect(() => { void refresh(); const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ma-king-settlements') : null; if (channel) channel.onmessage = () => void refresh(); const focus = () => void refresh(); window.addEventListener('focus', focus); return () => { channel?.close(); window.removeEventListener('focus', focus); }; }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ma-king-settlements') : null;
+    if (channel) channel.onmessage = () => void refresh();
+    const wake = () => { if (document.visibilityState !== 'hidden') void refresh(); };
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    return () => { channel?.close(); window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake); window.removeEventListener('pageshow', wake); };
+  }, [refresh]);
   const commit = async (action: SettlementAction, revision = state.revision) => {
     if (!ready) throw new Error('Supabase no está disponible.');
     const next = await commitSettlementAction(action, revision);

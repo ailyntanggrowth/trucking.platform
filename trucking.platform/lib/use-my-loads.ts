@@ -21,9 +21,11 @@ export function useMyLoads(getAccessToken: () => Promise<string>) {
 
   useEffect(() => {
     void refresh();
-    const focus = () => void refresh();
-    window.addEventListener('focus', focus);
-    return () => window.removeEventListener('focus', focus);
+    const wake = () => { if (document.visibilityState !== 'hidden') void refresh(); };
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    return () => { window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake); window.removeEventListener('pageshow', wake); };
   }, [refresh]);
 
   return { loads, ready, error, refresh };
