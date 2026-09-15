@@ -53,6 +53,17 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const invoiceNumber = invoiceNumberFor(weekStart);
   const dispatcherMark = state.dispatcherMarks.find(m => m.weekStart === weekStart);
   const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
+  // Regla fija (pedido explícito, aclarado en conversación): el invoice del
+  // despachador de la semana N se arma con las cargas de esa semana y cierra
+  // el lunes de esa semana — pero a Gleiby se le PAGA en los días siguientes,
+  // ya dentro de la semana N+1. Por eso, para "Salarios", lo que importa no
+  // es si el invoice de ESTA semana ya está pagado (todavía ni cierra), sino
+  // si el invoice de la semana ANTERIOR (la que sí cerró) ya se pagó — ese
+  // pago es el que realmente sale de la caja durante la semana que se está
+  // mirando.
+  const priorDispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, prevWeek, weekStart, state.config, state.weekLocks);
+  const priorDispatcherMark = state.dispatcherMarks.find(m => m.weekStart === prevWeek);
+  const priorDispatcherPaid = priorDispatcherMark?.paymentStatus === 'Pagada';
 
   // Los 4 números de "Esta semana" — siempre calculados en vivo desde lo que
   // ya existe en Cargas/Combustible/Recorrido de cada chofer, nunca captura
@@ -78,11 +89,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // que coincida con lo que de verdad salió de la caja. Se le suma lo
   // registrado a mano en "Salarios pagados a mano" (viajes que el sistema
   // todavía no puede calcular solo, p.ej. uno que sigue abierto desde hace
-  // semanas sin cerrar en Cargas) y, si ya se marcó pagado, el invoice del
-  // despachador (Gleiby) — pedido explícito: también es un salario de ella.
+  // semanas sin cerrar en Cargas) y, si ya se pagó, el invoice del
+  // despachador (Gleiby) DE LA SEMANA ANTERIOR — también es un salario de
+  // ella, y es el que realmente se paga durante esta semana (ver nota
+  // arriba sobre priorDispatcher).
   const weekManualSalaries = state.manualSalaries.filter(m => m.weekStart === weekStart);
   const manualSalariesTotal = weekManualSalaries.reduce((s, m) => s + m.amount, 0);
-  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal + (dispatcherPaid ? dispatcher.commission : 0);
+  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal + (priorDispatcherPaid ? priorDispatcher.commission : 0);
   const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
   const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
