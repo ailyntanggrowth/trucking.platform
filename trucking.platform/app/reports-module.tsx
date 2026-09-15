@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   computeMarioSettlements, computeOwnerOperatorSettlements, dispatcherCommission,
-  weekStartOf, weekRange,
+  weekStartOf, weekRange, paidWithinInvoicePeriod,
 } from '../lib/settlements';
 import { isOfficial } from '../lib/loads';
 import type { SettlementsController } from '../lib/use-settlements';
@@ -86,9 +86,21 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const companyNet = marioTotals.finalProfit + ooTotals.marioCut - dispatcher.commission;
   const prevCompanyNet = prevMarioTotals.finalProfit + prevOoTotals.marioCut - prevDispatcher.commission;
 
+  // "Total de Cargas" (pedido explícito): todas las que se RECOGIERON esa
+  // semana — ya lo daba bien loadsCount (por pickupDate), no se toca.
   const totalLoads = marioTotals.loadsCount + ownerOperators.reduce((s, o) => s + o.loadsCount, 0);
   const prevTotalLoads = prevMarioTotals.loadsCount + prevOwnerOperators.reduce((s, o) => s + o.loadsCount, 0);
-  const totalIngresos = marioTotals.gross + ooTotals.gross, prevTotalIngresos = prevMarioTotals.gross + prevOoTotals.gross;
+  // "Ingresos Totales" (pedido explícito, corregido): todas las cargas que se
+  // PAGARON (Summar) esa semana — antes usaba `gross` (por fecha de
+  // recogida, igual que Total de Cargas), que es un número distinto y no lo
+  // que ella necesita aquí. Misma regla que "Cargas realizadas" en
+  // Contabilidad y Pagos (paidWithinInvoicePeriod), pero solo Mario + Owner
+  // Operators (Lázaro/Dionisio quedan fuera de cualquier reporte financiero).
+  const marioOoIds = new Set(fleet.state.drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators').map(d => d.id));
+  const paidIngresos = (start: string, end: string) => loads.state.loads
+    .filter(l => marioOoIds.has(l.driverId) && isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, start, end, settlements.state.weekLocks))
+    .reduce((s, l) => s + l.amount, 0);
+  const totalIngresos = paidIngresos(weekStart, weekEnd), prevTotalIngresos = paidIngresos(prevWeek, prevWeekEnd);
   const totalCombustible = marioTotals.fuel + ooTotals.fuel, prevTotalCombustible = prevMarioTotals.fuel + prevOoTotals.fuel;
 
   const kpis = [
