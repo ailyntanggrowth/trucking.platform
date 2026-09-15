@@ -200,7 +200,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     </details>
 
     <div className={styles.toolbarRow}>
-      <button disabled={!ready} onClick={openImport}>{t('Importar PDF')}</button>
+      <button className={styles.primary} disabled={!ready} onClick={openImport}>{t('Importar PDF')}</button>
     </div>
 
     {importOpen && <div id="fuel-import" className={styles.form}>
