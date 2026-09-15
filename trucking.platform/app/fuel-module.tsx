@@ -7,7 +7,7 @@ import type { FleetController } from '../lib/use-fleet';
 import { fuelWeekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, MoreVertical, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
+import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos' | 'resumen';
@@ -159,9 +159,8 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   }
 
   const changeTab = (next: Tab) => { setTab(next); setEditor(null); setImportOpen(false); setQuery(''); setError(''); setNotice(''); setPage(1); };
-  const filteredTx = state.transactions.filter(t2 => `${t2.station} ${t2.city} ${t2.state} ${driverName(t2.driverId)} ${truckUnit(t2.truckId)} ${t2.externalRef}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
   const filteredExpenses = state.expenses.filter(e => `${e.category} ${driverName(e.driverId)} ${truckUnit(e.truckId)} ${e.paymentMethod}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
-  const rows = tab === 'transacciones' ? filteredTx : filteredExpenses;
+  const rows = filteredExpenses;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageSafe = Math.min(page, pageCount);
   const pageExpenses = filteredExpenses.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
@@ -230,11 +229,14 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </div>
     </>}
 
-    {tab !== 'resumen' && <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={tab === 'transacciones' ? t('Buscar por chofer, estación, etc...') : t('Categoría, chofer, camión o método')} /></label>
+    {tab === 'gastos' && <div className={styles.toolbarRow}>
+      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Categoría, chofer, camión o método')} /></label>
       <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
-      {tab === 'transacciones' && <button disabled={!ready || busy} onClick={openImport}>{t('Importar PDF')}</button>}
-      <button className={styles.primary} disabled={!ready || busy} onClick={() => open(tab === 'transacciones' ? 'transaction' : 'expense', tab === 'transacciones' ? 'transaction' : 'expense')}>{tab === 'transacciones' ? t('+ Registrar transacción') : t('+ Agregar Gasto')}</button>
+      <button className={styles.primary} disabled={!ready || busy} onClick={() => open('expense', 'expense')}>{t('+ Agregar Gasto')}</button>
+    </div>}
+    {tab === 'transacciones' && <div className={styles.toolbarRow}>
+      <button disabled={!ready || busy} onClick={openImport}>{t('Importar PDF')}</button>
+      <button className={styles.primary} disabled={!ready || busy} onClick={() => open('transaction', 'transaction')}>{t('+ Registrar transacción')}</button>
     </div>}
 
     {importOpen && <div id="fuel-import" className={styles.form}>
@@ -338,39 +340,25 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
     </form>}
 
-    {tab !== 'resumen' && <><div className={styles.toolbar}><h2>{tab === 'transacciones' ? t('Transacciones Recientes') : t('Gastos Recientes')}</h2></div>
+    {tab === 'gastos' && <><div className={styles.toolbar}><h2>{t('Gastos Recientes')}</h2></div>
 
-    <div className={`${styles.tableWrap} ${tab === 'transacciones' ? styles.tableWrapTall : ''}`}>
+    <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
-        {tab === 'transacciones' ? <>
-          <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Estación')}</th><th>{t('Tipo')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{filteredTx.map(t2 => { const isFuel = t2.fuelAmount >= t2.nonFuelAmount; return <tr key={t2.id}>
-            <td className={styles.tableSub}>{dayLabel(t2.date)}</td>
-            <td>{t2.driverId ? driverName(t2.driverId) : t('Sin chofer')}</td>
-            <td className={styles.tableSub}>{t2.station || t('Estación sin indicar')}{t2.externalRef && <span> · {t('Ref:')} {t2.externalRef}</span>}</td>
-            <td><span className={`${styles.badge} ${isFuel ? styles.badgeFuel : styles.badgeNonFuel}`}>{isFuel ? t('Fuel') : t('Non-Fuel')}</span></td>
-            <td><strong>{money(txTotal(t2))}</strong></td>
-            <td className={styles.tableActions}>
-              <button className={styles.moreBtn} onClick={() => open('transaction', 'transaction', t2.id)} aria-label={t('Editar')}><MoreVertical size={16}/></button>
-            </td>
-          </tr>; })}</tbody>
-        </> : <>
-          <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Categoría')}</th><th>{t('Pago')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
-          <tbody>{pageExpenses.map(e => <tr key={e.id}>
-            <td className={styles.tableSub}>{dayLabel(e.date)}</td>
-            <td>{e.driverId ? driverName(e.driverId) : t('Sin chofer')}</td>
-            <td>{t(e.category)}{e.receiptFilename && <span className={styles.tableSub}>{t('Recibo:')} {e.receiptFilename}</span>}</td>
-            <td className={styles.tableSub}>{e.paymentMethod || '—'}</td>
-            <td><strong>{money(e.amount)}</strong></td>
-            <td className={styles.tableActions}>
-              <div className={styles.actions}><button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>{e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Recibo')}</button>}<button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button></div>
-            </td>
-          </tr>)}</tbody>
-        </>}
+        <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Categoría')}</th><th>{t('Pago')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
+        <tbody>{pageExpenses.map(e => <tr key={e.id}>
+          <td className={styles.tableSub}>{dayLabel(e.date)}</td>
+          <td>{e.driverId ? driverName(e.driverId) : t('Sin chofer')}</td>
+          <td>{t(e.category)}{e.receiptFilename && <span className={styles.tableSub}>{t('Recibo:')} {e.receiptFilename}</span>}</td>
+          <td className={styles.tableSub}>{e.paymentMethod || '—'}</td>
+          <td><strong>{money(e.amount)}</strong></td>
+          <td className={styles.tableActions}>
+            <div className={styles.actions}><button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>{e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Recibo')}</button>}<button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button></div>
+          </td>
+        </tr>)}</tbody>
       </table>
     </div>
     {ready && !rows.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
-    {tab === 'gastos' && rows.length > 0 && <div className={styles.pagination}>
+    {rows.length > 0 && <div className={styles.pagination}>
       <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} {t('de')} {rows.length}</span>
       <div className={styles.pageButtons}>
         <button disabled={pageSafe <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} aria-label={t('Anterior')}>‹</button>
