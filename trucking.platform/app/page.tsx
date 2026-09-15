@@ -201,6 +201,14 @@ export default function Home() {
                 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 60; background: white; color: #8B102A; padding: 12px; }
                 .skipLink:focus { top: 12px; }
                 .shell { min-height: 100vh; }
+                /* Al usar "Exportar/Descargar PDF" (Reportes, invoice del
+                   despachador) el diálogo de impresión del navegador no debe
+                   sacar el menú/cajón ni el banner del módulo — solo el
+                   contenido que cada módulo decide mostrar. */
+                @media print {
+                  .skipLink, .edgeZone, .drawerBackdrop, .drawer, .miniNav, .moduleHero { display:none !important; }
+                  .content { padding:0; max-width:none; }
+                }
                 .srOnly { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 
                 .edgeZone { position:fixed; top:0; left:0; width:20px; height:100vh; z-index:40; touch-action:none; }
