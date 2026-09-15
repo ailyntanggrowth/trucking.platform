@@ -249,7 +249,13 @@ export async function commitStatementImportAction(input: StatementImportRow[], s
     const fuelAmount = row.type === 'Fuel' ? row.amount : 0, nonFuelAmount = row.type === 'Non-Fuel' ? row.amount : 0;
     const existing = existingByKey.get(`${row.date}|${row.externalRef}|${fuelAmount}|${nonFuelAmount}`);
     if (!existing) { rowsToImport.push(row); continue; }
-    if (existing.statementWeek !== statementWeek) rowsToReassign.push({ ...existing, statementWeek });
+    // No solo la semana: si la fila vieja se guardó antes de que existiera
+    // retail_amount (quedó en 0), este PDF recién leído SÍ trae el precio
+    // de lista real — se toma de aquí, nunca se deja el 0 viejo. También se
+    // respeta el chofer que ella haya corregido en esta pantalla.
+    const freshRetail = row.retailAmount || row.amount;
+    const needsUpdate = existing.statementWeek !== statementWeek || existing.retailAmount !== freshRetail || (row.driverId && existing.driverId !== row.driverId);
+    if (needsUpdate) rowsToReassign.push({ ...existing, statementWeek, retailAmount: freshRetail, driverId: row.driverId || existing.driverId });
     else skippedDuplicates++;
   }
   if (!rowsToImport.length && !rowsToReassign.length) throw new Error('Todas las filas seleccionadas ya existen en la base de datos y ya estaban en esta semana — no había nada que corregir.');
@@ -302,7 +308,7 @@ export async function commitStatementImportAction(input: StatementImportRow[], s
   for (const t of rowsToReassign) {
     const reassignEvent = {
       id: `event-${randomUUID()}`, at: new Date().toISOString(), actor: 'Usuario local · sin cuenta autenticada',
-      entity_ids: [t.id], detail: `Reasignó transacción de combustible ${t.station || t.externalRef || t.id} a la semana del ${statementWeek} (ya existía con otra semana asignada)`,
+      entity_ids: [t.id], detail: `Actualizó transacción de combustible ${t.station || t.externalRef || t.id} desde el statement re-importado: semana ${statementWeek}, precio de lista ${t.retailAmount} (ya existía, quedó corregida en vez de duplicarse)`,
       before: null, after: { statementWeek },
     };
     const { data: newRevision, error } = await supabase.rpc('fuel_commit_transaction', {
