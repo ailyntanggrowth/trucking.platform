@@ -1,31 +1,30 @@
 "use client";
 import { useState, type FormEvent } from 'react';
-import { EXPENSE_CATEGORIES, summarizeFuel, computeWeeklyFuelSummary, txTotal, type Expense, type ExpenseCategory, type FuelAction, type FuelTransaction } from '../lib/fuel';
+import { summarizeFuel, computeWeeklyFuelSummary, txTotal } from '../lib/fuel';
 import type { FuelController } from '../lib/use-fuel';
-import { getExpenseReceiptUrl, parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
+import { parseMudflapStatementAction, commitStatementImportAction, type MudflapParsePreview } from '../lib/fuel-actions';
 import type { FleetController } from '../lib/use-fleet';
 import { fuelWeekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
+import { Fuel as FuelIcon, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
 import styles from './fuel.module.css';
 
-type Tab = 'transacciones' | 'gastos';
-type Editor = { type: 'transaction' | 'expense' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
 const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
-async function downloadReceipt(expense: Expense) { const url = await getExpenseReceiptUrl(expense.id); const a = document.createElement('a'); a.href = url; a.download = expense.receiptFilename || 'recibo'; a.click(); }
 
+// Gastos (peajes, reparaciones, etc.) se retiró de esta pantalla (pedido
+// explícito: "por ahora no lo voy a utilizar") — los datos y las acciones
+// siguen intactos en lib/fuel.ts / lib/fuel-actions.ts, solo que sin UI
+// aquí. Si más adelante hace falta de vuelta, se recupera del historial.
 export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string }) {
   const { state, ready } = fuel;
-  const [tab, setTab] = useState<Tab>('transacciones'), [query, setQuery] = useState('');
   // Una sola semana (lunes a domingo, igual que el statement real) gobierna
   // todo el módulo — pedido explícito: nada de un rango de fechas libre
   // arriba (mostraba "1 sept – 1 oct" y confundía), siempre semana por
   // semana como en Cargas (Módulo 2), solo que con el calendario de Mudflap.
   const [weekStart, setWeekStart] = useState(fuelWeekStartOf(today()));
   const [copied, setCopied] = useState(false);
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [importOpen, setImportOpen] = useState(false), [importBusy, setImportBusy] = useState(false), [importError, setImportError] = useState('');
   const [preview, setPreview] = useState<MudflapParsePreview | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -33,9 +32,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   type ManualUnparsedRow = { date: string; type: 'Fuel' | 'Non-Fuel'; station: string; city: string; state: string; driverId: string; amount: string };
   const [manualUnparsed, setManualUnparsed] = useState<Record<number, ManualUnparsedRow>>({});
   const [openUnparsedIdx, setOpenUnparsedIdx] = useState<number | null>(null);
-  const [page, setPage] = useState(1); const pageSize = 5;
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
-  const truckUnit = (id: string) => fleet.state.trucks.find(e => e.id === id)?.unit || '';
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
   const summary = summarizeFuel(state, weekStart, weekEnd);
   const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart);
@@ -70,11 +67,11 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     window.print();
     document.title = prevTitle;
   }
-  // Top 5 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
-  // el panel "Top 5 Choferes", nunca inventado: sale de summary.transactions.
+  // Top 3 choferes por gasto de combustible (fuel + non-fuel) en el rango — para
+  // el panel "Top 3 Choferes", nunca inventado: sale de summary.transactions.
   const topDrivers = Object.entries(summary.transactions.reduce((acc: Record<string, number>, t2) => {
     if (!t2.driverId) return acc; acc[t2.driverId] = (acc[t2.driverId] || 0) + txTotal(t2); return acc;
-  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 3);
   // No se permite importar hasta que no queden filas sin leer y los totales
   // calculados coincidan al centavo con lo que el propio PDF declara — es la
   // única forma de estar seguros de que ninguna transacción quedó afuera. Una
@@ -101,7 +98,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
     && Math.abs((previewRetailTotal - previewSavedTotal) - combinedTotal) < 0.01;
   const statementWeekForImport = preview?.period ? fuelWeekStartOf(preview.period.start) : (preview?.rows[0]?.date ? fuelWeekStartOf(preview.rows[0].date) : weekStart);
 
-  function openImport() { setError(''); setNotice(''); setEditor(null); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
+  function openImport() { setError(''); setNotice(''); setImportError(''); setPreview(null); setImportOpen(true); requestAnimationFrame(() => document.getElementById('fuel-import')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
   async function handleParseStatement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (importBusy) return; const fields = new FormData(event.currentTarget);
     setImportBusy(true); setImportError('');
@@ -140,46 +137,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   }
   function toggleRow(i: number) { setSelectedRows(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; }); }
 
-  function open(type: Editor['type'], kind: Editor['kind'], id = '') { setError(''); setNotice(''); setImportOpen(false); setEditor({ type, kind, id, revision: state.revision }); requestAnimationFrame(() => document.getElementById('fuel-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
-  const editTx = editor?.type === 'transaction' ? state.transactions.find(x => x.id === editor.id) : undefined;
-  const editExpense = editor?.type === 'expense' ? state.expenses.find(x => x.id === editor.id) : undefined;
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!editor || busy) return; const fields = new FormData(event.currentTarget); const text = (key: string) => String(fields.get(key) || '').trim(); const num = (key: string) => Number(fields.get(key) || 0);
-    setError(''); setBusy(true);
-    try {
-      let action: FuelAction;
-      if (editor.type === 'transaction') {
-        const date = text('date');
-        // Una transacción registrada a mano (no importada de un PDF) no
-        // tiene un período de statement declarado — se ubica en la semana
-        // de su propia fecha, salvo que ya tuviera una (al editar una fila
-        // que sí vino de un statement, se conserva la semana original).
-        const record: FuelTransaction = { id: editor.id || crypto.randomUUID(), date, driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), station: text('station'), city: text('city'), state: text('state'), gallons: num('gallons'), pricePerGallon: num('pricePerGallon'), fuelAmount: num('fuelAmount'), nonFuelAmount: num('nonFuelAmount'), retailAmount: editTx?.retailAmount ?? 0, statementWeek: editTx?.statementWeek ?? fuelWeekStartOf(date), status: 'Final', externalRef: text('externalRef'), notes: text('notes') };
-        action = { type: 'transaction', record, reason: text('reason') };
-      } else if (editor.type === 'expense') {
-        const file = fields.get('receipt') as File;
-        const record: Expense = { id: editor.id || crypto.randomUUID(), category: text('category') as ExpenseCategory, amount: num('amount'), date: text('date'), driverId: text('driverId'), truckId: text('truckId'), loadRef: text('loadRef'), paymentMethod: text('paymentMethod'), notes: text('notes'), status: 'Final', receiptFilename: editExpense?.receiptFilename };
-        action = { type: 'expense', record, receiptFile: file && file.size > 0 ? file : undefined, reason: text('reason') };
-      } else {
-        action = { type: 'delete', kind: editor.kind, id: editor.id, reason: text('reason') };
-      }
-      const next = await fuel.commit(action, editor.revision);
-      setEditor(null); setNotice(next.events[0].detail);
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
-  }
-
-  const changeTab = (next: Tab) => { setTab(next); setEditor(null); setImportOpen(false); setQuery(''); setError(''); setNotice(''); setPage(1); };
-  const filteredExpenses = state.expenses.filter(e => `${e.category} ${driverName(e.driverId)} ${truckUnit(e.truckId)} ${e.paymentMethod}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
-  const rows = filteredExpenses;
-  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-  const pageSafe = Math.min(page, pageCount);
-  const pageExpenses = filteredExpenses.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
-  const editorTitle = editor?.type === 'transaction' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('transacción de combustible')}` : editor?.type === 'expense' ? `${editor.id ? t('Editar') : t('Agregar')} ${t('gasto')}` : t('Eliminar registro');
-
   return <div className={styles.fuel}>
     {fuel.error && <div role="alert" className={styles.error}>{fuel.error} <button onClick={() => void fuel.refresh()}>{t('Reintentar')}</button></div>}
-    {!ready && !fuel.error && <p role="status">{t('Abriendo los registros de combustible y gastos…')}</p>}
+    {!ready && !fuel.error && <p role="status">{t('Abriendo los registros de combustible…')}</p>}
     <div className={styles.weekBar}>
       <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
       <span>📅 {weekLabel}</span>
@@ -195,6 +155,7 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total con descuentos')}</span></div>
     </div>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
+    {error && <p role="alert" className={styles.error}>{error}</p>}
 
     <div className={styles.copyBox}>
       <div className={styles.copyBoxHead}>
@@ -238,20 +199,9 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </div>
     </details>
 
-    <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
-      <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
-      <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
-    </nav>
-
-    {tab === 'gastos' && <div className={styles.toolbarRow}>
-      <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Categoría, chofer, camión o método')} /></label>
-      <button type="button" className={styles.filtersBtn} aria-haspopup="true"><SlidersHorizontal size={16}/> {t('Filtros')}</button>
-      <button className={styles.primary} disabled={!ready || busy} onClick={() => open('expense', 'expense')}>{t('+ Agregar Gasto')}</button>
-    </div>}
-    {tab === 'transacciones' && <div className={styles.toolbarRow}>
-      <button disabled={!ready || busy} onClick={openImport}>{t('Importar PDF')}</button>
-      <button className={styles.primary} disabled={!ready || busy} onClick={() => open('transaction', 'transaction')}>{t('+ Registrar transacción')}</button>
-    </div>}
+    <div className={styles.toolbarRow}>
+      <button disabled={!ready} onClick={openImport}>{t('Importar PDF')}</button>
+    </div>
 
     {importOpen && <div id="fuel-import" className={styles.form}>
       <h3>{t('Importar statement de Mudflap')}</h3>
@@ -317,81 +267,11 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       </>}
     </div>}
 
-    {editor && <form id="fuel-editor" className={styles.form} onSubmit={submit} key={`${editor.type}-${editor.id}`}>
-      <h3>{editorTitle}</h3>
-      {editor.type === 'transaction' && <div className={styles.fields}>
-        <label>{t('Fecha de la visita *')}<input name="date" type="date" required defaultValue={editTx?.date || today()} /></label>
-        <label>{t('Chofer')}<select name="driverId" defaultValue={editTx?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label>{t('Camión')}<select name="truckId" defaultValue={editTx?.truckId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.trucks.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
-        <label>{t('Estación')}<input name="station" maxLength={150} defaultValue={editTx?.station} /></label>
-        <label>{t('Ciudad')}<input name="city" maxLength={100} defaultValue={editTx?.city} /></label>
-        <label>{t('Estado (ubicación)')}<input name="state" maxLength={50} defaultValue={editTx?.state} /></label>
-        <label>{t('Referencia de carga')}<input name="loadRef" maxLength={100} defaultValue={editTx?.loadRef} /></label>
-        <label>{t('Galones')}<input name="gallons" type="number" step="0.001" min="0" defaultValue={editTx?.gallons ?? 0} /></label>
-        <label>{t('Precio por galón')}<input name="pricePerGallon" type="number" step="0.001" min="0" defaultValue={editTx?.pricePerGallon ?? 0} /></label>
-        <label>{t('Monto Fuel')}<input name="fuelAmount" type="number" step="0.01" min="0" defaultValue={editTx?.fuelAmount ?? 0} /></label>
-        <label>{t('Monto Non-Fuel')}<input name="nonFuelAmount" type="number" step="0.01" min="0" defaultValue={editTx?.nonFuelAmount ?? 0} /></label>
-        <label>{t('Referencia externa')}<input name="externalRef" maxLength={100} placeholder="Mudflap #" defaultValue={editTx?.externalRef} /></label>
-        <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editTx?.notes} /></label>
-        {editor.id && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
-      </div>}
-      {editor.type === 'expense' && <div className={styles.fields}>
-        <label>{t('Categoría *')}<select name="category" defaultValue={editExpense?.category || EXPENSE_CATEGORIES[0]}>{EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></label>
-        <label>{t('Monto *')}<input name="amount" type="number" step="0.01" min="0" required defaultValue={editExpense?.amount ?? 0} /></label>
-        <label>{t('Fecha *')}<input name="date" type="date" required defaultValue={editExpense?.date || today()} /></label>
-        <label>{t('Chofer')}<select name="driverId" defaultValue={editExpense?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label>{t('Camión')}<select name="truckId" defaultValue={editExpense?.truckId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.trucks.map(e => <option key={e.id} value={e.id}>{e.unit}</option>)}</select></label>
-        <label>{t('Referencia de carga')}<input name="loadRef" maxLength={100} defaultValue={editExpense?.loadRef} /></label>
-        <label>{t('Método de pago')}<input name="paymentMethod" maxLength={100} defaultValue={editExpense?.paymentMethod} /></label>
-        <label>{t('Recibo')}<input name="receipt" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" /><small>{editExpense?.receiptFilename ? `${t('Actual:')} ${editExpense.receiptFilename}` : t('PDF o imagen · Hasta 5 MB · Opcional')}</small></label>
-        <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={editExpense?.notes} /></label>
-        {editor.id && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
-      </div>}
-      {editor.type === 'delete' && <><p>{t('Esta acción elimina el registro por completo. El evento de auditoría queda guardado igual.')}</p><label>{t('Motivo de la eliminación *')}<input name="reason" required maxLength={500} /></label></>}
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{busy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={busy} onClick={() => { setEditor(null); setError(''); }}>{t('Cancelar')}</button></div>
-    </form>}
-
-    {tab === 'gastos' && <><div className={styles.toolbar}><h2>{t('Gastos Recientes')}</h2></div>
-
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        <thead><tr><th>{t('Fecha')}</th><th>{t('Chofer')}</th><th>{t('Categoría')}</th><th>{t('Pago')}</th><th>{t('Monto')}</th><th aria-hidden="true"></th></tr></thead>
-        <tbody>{pageExpenses.map(e => <tr key={e.id}>
-          <td className={styles.tableSub}>{dayLabel(e.date)}</td>
-          <td>{e.driverId ? driverName(e.driverId) : t('Sin chofer')}</td>
-          <td>{t(e.category)}{e.receiptFilename && <span className={styles.tableSub}>{t('Recibo:')} {e.receiptFilename}</span>}</td>
-          <td className={styles.tableSub}>{e.paymentMethod || '—'}</td>
-          <td><strong>{money(e.amount)}</strong></td>
-          <td className={styles.tableActions}>
-            <div className={styles.actions}><button onClick={() => open('expense', 'expense', e.id)}>{t('Editar')}</button>{e.receiptFilename && <button onClick={() => void downloadReceipt(e)}>{t('Recibo')}</button>}<button onClick={() => { if (window.confirm(t('¿Eliminar este registro por completo? No se puede deshacer.'))) open('delete', 'expense', e.id); }}>{t('Eliminar')}</button></div>
-          </td>
-        </tr>)}</tbody>
-      </table>
-    </div>
-    {ready && !rows.length && <p className={styles.empty}>{query ? t('No hay resultados con estos filtros.') : t('Todavía no hay registros. Usa el botón de arriba para comenzar.')}</p>}
-    {rows.length > 0 && <div className={styles.pagination}>
-      <span>{t('Mostrando')} {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} {t('de')} {rows.length}</span>
-      <div className={styles.pageButtons}>
-        <button disabled={pageSafe <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} aria-label={t('Anterior')}>‹</button>
-        {Array.from({ length: pageCount }, (_, i) => i + 1).map(n => <button key={n} aria-pressed={pageSafe === n} onClick={() => setPage(n)}>{n}</button>)}
-        <button disabled={pageSafe >= pageCount} onClick={() => setPage(p => Math.min(pageCount, p + 1))} aria-label={t('Siguiente')}>›</button>
-      </div>
-    </div>}</>}
-
-    {tab === 'transacciones' && <div className={styles.summaryGrid}>
+    <div className={styles.summaryGrid}>
       <section className={styles.summaryPanel}>
-        <h3>{t('Resumen por Tipo')}</h3>
-        <ul>
-          <li><span className={styles.dot} data-tone="fuel"/> {t('Combustible')} <b>{money(summary.fuel)}</b></li>
-          <li><span className={styles.dot} data-tone="nonfuel"/> {t('Non-Fuel')} <b>{money(summary.nonFuel)}</b></li>
-          <li><span className={styles.dot} data-tone="other"/> {t('Otros Gastos')} <b>{money(summary.expenseTotal)}</b></li>
-        </ul>
-      </section>
-      <section className={styles.summaryPanel}>
-        <h3>{t('Top 5 Choferes (Combustible)')}</h3>
+        <h3>{t('Top 3 Choferes (Combustible)')}</h3>
         {topDrivers.length ? <ol>{topDrivers.map(([driverId, amount], i) => <li key={driverId}>{i + 1}. {driverName(driverId) || t('Sin chofer')} <b>{money(amount)}</b></li>)}</ol> : <p className={styles.empty}>{t('Sin datos en este rango.')}</p>}
       </section>
-    </div>}
+    </div>
   </div>;
 }

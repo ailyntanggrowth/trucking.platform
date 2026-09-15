@@ -32,7 +32,7 @@
 .moreBtn:hover { background:#f5ebed; border-color:#e3dadd; }
 .badge.badgeFuel { background:#e5f4ea; color:#1f7a43; }
 .badge.badgeNonFuel { background:#FDF0DA; color:#8a5a00; }
-.summaryGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.summaryGrid { display:grid; grid-template-columns:minmax(0,1fr); max-width:420px; gap:12px; margin:18px 0; }
 .summaryPanel { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; }
 .summaryPanel h3 { margin:0 0 10px; font-size:15px; }
 .summaryPanel ul,.summaryPanel ol { list-style:none; margin:0; padding:0; display:grid; gap:9px; }
