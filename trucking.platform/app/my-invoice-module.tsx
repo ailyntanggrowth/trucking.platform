@@ -6,7 +6,7 @@ import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import { money, shortName, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
+import { ChevronLeft, ChevronRight, DollarSign, Printer } from 'lucide-react';
 import styles from './my-invoice.module.css';
 
 export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: {
@@ -45,6 +45,18 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     });
   }
 
+  // "Descargar PDF" (pedido explícito): usa el diálogo de impresión nativo
+  // del navegador (mismo patrón que "Exportar a PDF" en Reportes) — nada de
+  // librerías nuevas. El título de la pestaña se usa como nombre de archivo
+  // sugerido al guardar como PDF, así que se cambia justo antes de imprimir
+  // y se restaura después.
+  function downloadInvoicePdf() {
+    const prevTitle = document.title;
+    document.title = `Invoice ${invoiceNumber} - ${weekLabel}`;
+    window.print();
+    document.title = prevTitle;
+  }
+
   return <div className={styles.wrap}>
     {!ready && <p role="status">{t('Abriendo tu invoice…')}</p>}
     <div className={styles.weekBar}>
@@ -62,6 +74,9 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
       <span className={`${styles.statusBadge} ${invoicePaid ? styles.statusPaid : styles.statusPending}`}>{invoicePaid ? t('Pagado') : t('Pendiente de pago')}</span>
     </div>
     <p className={styles.note}>{t('Este pago es independiente del salario de los choferes — nunca sale de lo que ellos cobran. Solo un Administrador puede marcar el invoice como pagado.')}</p>
+    <div className={styles.downloadRow}>
+      <button onClick={downloadInvoicePdf}><Printer size={15} /> {t('Descargar PDF')}</button>
+    </div>
 
     <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
@@ -84,17 +99,19 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
       {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
     </div>
 
-    <h3>{t('Tus invoices anteriores')}</h3>
-    <div className={styles.tableWrap}>
-      <table className={styles.dataTable}>
-        <thead><tr><th>{t('Invoice')}</th><th>{t('Semana de')}</th><th>{t('Comisión')}</th><th>{t('Estado')}</th></tr></thead>
-        <tbody>{history.map(h => <tr key={h.weekStart} className={`${styles.historyRow} ${h.weekStart === weekStart ? styles.rowActive : ''}`} onClick={() => setWeekStart(h.weekStart)}>
-          <td>#{h.invoiceNumber}</td>
-          <td className={styles.tableSub}>{h.label}</td>
-          <td><strong>{money(h.commission)}</strong></td>
-          <td><span className={`${styles.statusBadge} ${h.paid ? styles.statusPaid : styles.statusPending}`}>{h.paid ? t('Pagado') : t('Pendiente')}</span></td>
-        </tr>)}</tbody>
-      </table>
+    <div className={styles.noPrint}>
+      <h3>{t('Tus invoices anteriores')}</h3>
+      <div className={styles.tableWrap}>
+        <table className={styles.dataTable}>
+          <thead><tr><th>{t('Invoice')}</th><th>{t('Semana de')}</th><th>{t('Comisión')}</th><th>{t('Estado')}</th></tr></thead>
+          <tbody>{history.map(h => <tr key={h.weekStart} className={`${styles.historyRow} ${h.weekStart === weekStart ? styles.rowActive : ''}`} onClick={() => setWeekStart(h.weekStart)}>
+            <td>#{h.invoiceNumber}</td>
+            <td className={styles.tableSub}>{h.label}</td>
+            <td><strong>{money(h.commission)}</strong></td>
+            <td><span className={`${styles.statusBadge} ${h.paid ? styles.statusPaid : styles.statusPending}`}>{h.paid ? t('Pagado') : t('Pendiente')}</span></td>
+          </tr>)}</tbody>
+        </table>
+      </div>
     </div>
   </div>;
 }

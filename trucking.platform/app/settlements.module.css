@@ -92,17 +92,3 @@
   .tabs button:hover:not([aria-pressed=true]) { background:#f5ebed; }
 }
 @media(prefers-reduced-motion:reduce) { .settlements button { transition:none; } }
-
-/* "Descargar PDF" del invoice del despachador (pedido explícito): al
-   imprimir, solo debe quedar el contenido del panel "Más opciones" abierto
-   — se oculta todo lo demás de Contabilidad y Pagos (barra de semana,
-   tarjetas, Pagos a Choferes) y, dentro del panel, los controles que no
-   tienen sentido en papel (pestañas, botones). Igual patrón que "Exportar
-   a PDF" en Reportes (ver reports.module.css). */
-@media print {
-  .settlements > *:not(.moreOverlay) { display:none !important; }
-  .moreOverlay { position:static; inset:auto; background:none; overflow:visible; z-index:auto; }
-  .morePanel { max-width:none; padding:0; }
-  .morePanelHeader { position:static; background:none; color:#11151B; padding:0 0 12px; margin:0 0 14px; border-bottom:2px solid #8B102A; }
-  .tabs, .moreOverlay button { display:none !important; }
-}

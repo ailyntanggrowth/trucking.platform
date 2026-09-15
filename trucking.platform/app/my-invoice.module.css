@@ -29,3 +29,13 @@
 .statusPaid { background:#DFF5E9; color:#1f7a4d; }
 .statusPending { background:#FDF0DA; color:#8a5a00; }
 .invoiceCard .statusBadge { margin-top:4px; }
+
+.downloadRow { display:flex; justify-content:center; margin:10px 0 0; }
+
+/* "Descargar PDF" (pedido explícito): al imprimir solo debe quedar el
+   invoice de esta semana y su tabla de cargas — se ocultan los botones de
+   semana, el propio botón de descargar y el historial de invoices
+   anteriores. Igual patrón que "Exportar a PDF" en Reportes. */
+@media print {
+  .weekBar button, .downloadRow, .noPrint { display:none !important; }
+}

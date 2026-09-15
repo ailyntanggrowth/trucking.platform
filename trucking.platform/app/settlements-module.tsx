@@ -12,7 +12,7 @@ import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
 import { money, shortName, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, Printer } from 'lucide-react';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock } from 'lucide-react';
 import styles from './settlements.module.css';
 
 // REDISEÑO (pedido explícito de la dueña): Contabilidad y Pagos ahora tiene
@@ -114,17 +114,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   function openMore(tab: MoreTab) { setError(''); setNotice(''); setMoreTab(tab); setMoreOpen(true); }
-  // "Descargar PDF" (pedido explícito): usa el diálogo de impresión nativo
-  // del navegador (mismo patrón que "Exportar a PDF" en Reportes) — nada de
-  // librerías nuevas. El título de la pestaña se usa como nombre de archivo
-  // sugerido al guardar como PDF, así que se cambia justo antes de imprimir
-  // y se restaura después.
-  function downloadDispatcherInvoicePdf() {
-    const prevTitle = document.title;
-    document.title = `Invoice ${invoiceNumber} - ${weekLabel}`;
-    window.print();
-    document.title = prevTitle;
-  }
 
   return <div className={styles.settlements}>
     {(settlements.error || loads.error || fuel.error || fleet.error) && <div role="alert" className={styles.error}>{settlements.error || loads.error || fuel.error || fleet.error}</div>}
@@ -195,7 +184,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
             <div className={styles.actions}>
               <span className={`${styles.badge} ${dispatcherPaid ? styles.badgePaid : styles.badgePending}`}>{dispatcherPaid ? t('Pagada') : t('Pendiente')}</span>
               <button disabled={busy} onClick={() => toggleDispatcherMark(dispatcherMark?.paymentStatus || 'Pendiente')}>{dispatcherPaid ? t('Marcar pendiente') : t('Marcar pagada')}</button>
-              <button onClick={downloadDispatcherInvoicePdf}><Printer size={15} /> {t('Descargar PDF')}</button>
             </div>
           </div>
           <h3>{t('Cargas que forman este total')}</h3>
