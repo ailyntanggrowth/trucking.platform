@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, paidWithinInvoicePeriod, type SettlementConfig,
 } from '../lib/settlements';
 import { isOfficial } from '../lib/loads';
 import { summarizeFuel } from '../lib/fuel';
@@ -57,8 +57,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // ya existe en Cargas/Combustible/Recorrido de cada chofer, nunca captura
   // manual (pedido explícito): así una corrección posterior (ej. Summar) se
   // refleja sola sin tener que "actualizar" nada aquí.
+  // "Cargas realizadas" (pedido explícito, aclarado en conversación): por
+  // FECHA DE PAGO, no de recogida ni de entrega — una carga entra a la
+  // semana en que Summar la marcó pagada, usando la misma regla de reparto
+  // de cierre de semana que ya usa el invoice del despachador y de Mario
+  // (paidWithinInvoicePeriod), para que los tres números coincidan entre sí.
   const cargasRealizadas = loads.state.loads
-    .filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.pickupDate >= weekStart && l.pickupDate < weekEnd)
+    .filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, state.weekLocks))
     .reduce((s, l) => s + l.amount, 0);
   const fuelSummary = summarizeFuel(fuel.state, weekStart, weekEnd);
   const combustibleYGastos = fuelSummary.fuel + fuelSummary.nonFuel + fuelSummary.expenseTotal;

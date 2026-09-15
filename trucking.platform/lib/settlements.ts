@@ -190,7 +190,7 @@ function lockedAtFor(weekEnd: string, weekLocks: WeekLock[]): string | null {
 // las dos semanas que lo comparten — por defecto se lo queda la semana que
 // se está cerrando (la más vieja), nunca las dos a la vez, hasta que se
 // cierre esa semana con una hora exacta.
-function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
+export function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
   if (!paidAt) return false;
   const paidDate = paidAt.slice(0, 10);
   if (paidDate < weekStart) return false;
