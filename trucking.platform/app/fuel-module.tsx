@@ -10,7 +10,7 @@ import type { Lang } from '../lib/i18n';
 import { Fuel as FuelIcon, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import styles from './fuel.module.css';
 
-type Tab = 'transacciones' | 'gastos' | 'resumen';
+type Tab = 'transacciones' | 'gastos';
 type Editor = { type: 'transaction' | 'expense' | 'delete'; kind: 'transaction' | 'expense'; id: string; revision: number };
 const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
 async function downloadReceipt(expense: Expense) { const url = await getExpenseReceiptUrl(expense.id); const a = document.createElement('a'); a.href = url; a.download = expense.receiptFilename || 'recibo'; a.click(); }
@@ -177,53 +177,41 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
       <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
     </div>
+    {/* Pedido explícito: los dos números del statement (sin/con descuento)
+        y el resumen por grupo/chofer van SIEMPRE visibles arriba — nada de
+        entrar a una pestaña aparte para verlos, porque esto es justo lo que
+        ella copia y manda a Mario cada lunes en cuanto sube el statement. */}
     <div className={styles.statCards}>
-      {/* Total Combustible = Fuel + Non-Fuel del statement de esta semana, ya
-          CON el descuento de Mudflap aplicado (lo que realmente se pagó) —
-          pedido explícito: sin separar Fuel de Non-Fuel, y agrupado por la
-          semana del STATEMENT (weeklySummary), no por la fecha suelta de
-          cada transacción, para que cuadre exacto con el total oficial del
-          PDF aunque haya transacciones fechadas antes del lunes. */}
-      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total Combustible')}</span></div>
+      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandRetailTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total sin descuentos')}</span></div>
+      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total con descuentos')}</span></div>
       <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total Gastos')}</span></div>
     </div>
-    <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
-      <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
-      <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
-      <button aria-pressed={tab === 'resumen'} onClick={() => changeTab('resumen')}>{t('Resumen semanal')}</button>
-    </nav>
     {notice && <p role="status" className={styles.success}>{notice}</p>}
 
-    {tab === 'resumen' && <>
-      <div className={styles.weekTotals}>
-        <div className={styles.statCard}><span className={styles.statLabel}>{t('Total sin descuentos')}</span><strong>{money(weeklySummary.grandRetailTotal)}</strong></div>
-        <div className={styles.statCard}><span className={styles.statLabel}>{t('Descuento total')}</span><strong>{money(weeklySummary.grandDiscount)}</strong></div>
-        <div className={styles.statCard}><span className={styles.statLabel}>{t('Total con descuentos')}</span><strong>{money(weeklySummary.grandTotal)}</strong></div>
+    <div className={styles.copyBox}>
+      <div className={styles.copyBoxHead}>
+        <h3 style={{ margin: 0 }}>{t('Resumen de Mudflap')}</h3>
+        {weeklySummary.groups.length > 0 && <button type="button" onClick={() => void copyResumen()}>
+          {copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? t('¡Copiado!') : t('Copiar resumen')}
+        </button>}
       </div>
+      {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
+        <p><strong>{t(groupLabel(g.group))}</strong></p>
+        <ul style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, display: 'grid', gap: 4 }}>
+          {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.amount)}</span></li>)}
+        </ul>
+        {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.total)}</b></p>}
+      </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
+      {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
+        <b>{t('Total sin descuentos')}</b><b>{money(weeklySummary.grandRetailTotal)}</b>
+      </p>}
+      {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 0 }}>
+        <b>{t('Total con descuentos')}</b><b>{money(weeklySummary.grandTotal)}</b>
+      </p>}
+    </div>
 
-      <div className={styles.copyBox}>
-        <div className={styles.copyBoxHead}>
-          <h3 style={{ margin: 0 }}>{t('Resumen de Mudflap')}</h3>
-          {weeklySummary.groups.length > 0 && <button type="button" onClick={() => void copyResumen()}>
-            {copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? t('¡Copiado!') : t('Copiar resumen')}
-          </button>}
-        </div>
-        {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
-          <p><strong>{t(groupLabel(g.group))}</strong></p>
-          <ul style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, display: 'grid', gap: 4 }}>
-            {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.amount)}</span></li>)}
-          </ul>
-          {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.total)}</b></p>}
-        </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
-        {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
-          <b>{t('Total sin descuentos')}</b><b>{money(weeklySummary.grandRetailTotal)}</b>
-        </p>}
-        {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 0 }}>
-          <b>{t('Total con descuentos')}</b><b>{money(weeklySummary.grandTotal)}</b>
-        </p>}
-      </div>
-
-      <h3>{t('Semanas anteriores')}</h3>
+    <details>
+      <summary>{t('Semanas anteriores')}</summary>
       <div className={styles.tableWrap}>
         <table className={styles.dataTable}>
           <thead><tr><th>{t('Semana')}</th><th>{t('Total con descuentos')}</th></tr></thead>
@@ -233,7 +221,12 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
           </tr>)}</tbody>
         </table>
       </div>
-    </>}
+    </details>
+
+    <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
+      <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
+      <button aria-pressed={tab === 'gastos'} onClick={() => changeTab('gastos')}>{t('Gastos')} <span>{state.expenses.length}</span></button>
+    </nav>
 
     {tab === 'gastos' && <div className={styles.toolbarRow}>
       <label className={styles.searchField}><Search size={17} aria-hidden="true"/><input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={t('Categoría, chofer, camión o método')} /></label>
