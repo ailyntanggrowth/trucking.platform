@@ -7,7 +7,7 @@ import type { FleetController } from '../lib/use-fleet';
 import { fuelWeekStartOf, weekRange } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Fuel as FuelIcon, Receipt, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
+import { Fuel as FuelIcon, Wallet, Search, SlidersHorizontal, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import styles from './fuel.module.css';
 
 type Tab = 'transacciones' | 'gastos' | 'resumen';
@@ -40,7 +40,6 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
   const summary = summarizeFuel(state, weekStart, weekEnd);
   const weeklySummary = computeWeeklyFuelSummary(state, fleet.state.drivers, weekStart);
   const weekLabel = weekPeriodLabel(weekStart);
-  const totalGastos = summary.fuel + summary.nonFuel;
   // Semanas con datos guardados (pedido explícito: "las semanas más antiguas
   // guardadas en el historial") — nunca semanas vacías inventadas. La semana
   // actual siempre aparece en la lista aunque todavía no tenga nada, para
@@ -176,10 +175,14 @@ export default function FuelModule({ fuel, fleet, lang, t }: { fuel: FuelControl
       <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
     </div>
     <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(summary.fuel) : '—'}</strong><span className={styles.statLabel}>{t('Total Combustible')}</span></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><Receipt size={16}/></span><strong>{ready ? money(summary.nonFuel) : '—'}</strong><span className={styles.statLabel}>{t('Non-Fuel')}</span></div>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><SlidersHorizontal size={16}/></span><strong>{ready ? summary.transactions.length : '—'}</strong><span className={styles.statLabel}>{t('Transacciones')}</span></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><strong>{ready ? money(totalGastos) : '—'}</strong><span className={styles.statLabel}>{t('Total Gastos')}</span></div>
+      {/* Total Combustible = Fuel + Non-Fuel del statement de esta semana, ya
+          CON el descuento de Mudflap aplicado (lo que realmente se pagó) —
+          pedido explícito: sin separar Fuel de Non-Fuel, y agrupado por la
+          semana del STATEMENT (weeklySummary), no por la fecha suelta de
+          cada transacción, para que cuadre exacto con el total oficial del
+          PDF aunque haya transacciones fechadas antes del lunes. */}
+      <div className={styles.statCard} data-tone="primary"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16}/></span><strong>{ready ? money(weeklySummary.grandTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total Combustible')}</span></div>
+      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Wallet size={16}/></span><strong>{ready ? money(summary.expenseTotal) : '—'}</strong><span className={styles.statLabel}>{t('Total Gastos')}</span></div>
     </div>
     <nav className={styles.tabs} aria-label={t('Secciones de combustible')}>
       <button aria-pressed={tab === 'transacciones'} onClick={() => changeTab('transacciones')}>{t('Combustible')} <span>{state.transactions.length}</span></button>
