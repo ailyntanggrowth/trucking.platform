@@ -26,7 +26,7 @@ import AuthGate from "./auth-gate";
 // visualmente) — cada uno pide sus propios datos ya acotados del servidor.
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
-  {name:'Contabilidad y Pagos',id:'finanzas',icon:'02'},
+  {name:'Resumen Semanal',id:'finanzas',icon:'02'},
   {name:'Combustible y Gastos',id:'combustible',icon:'03'},
   {name:'Reportes',id:'reportes',icon:'04'},
   {name:'Dispatcher',id:'miinvoice',icon:'05'},
@@ -181,7 +181,7 @@ export default function Home() {
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
             <h1>{t(moduleNames[activeModule])}</h1>
-            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'Ingresos, pagos, deducciones y liquidaciones.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'La tabla de cargas de la semana y el resumen de dinero, para mandarle a Mario cada lunes.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
           </div>
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>

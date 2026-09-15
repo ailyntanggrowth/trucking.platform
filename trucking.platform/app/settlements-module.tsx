@@ -1,19 +1,34 @@
 "use client";
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
   weekStartOf, weekRange, isWeekLocked, paidWithinInvoicePeriod, fuelWeekStartOf, type SettlementConfig,
 } from '../lib/settlements';
-import { isOfficial } from '../lib/loads';
+import { isOfficial, type Load } from '../lib/loads';
 import { computeWeeklyFuelSummary } from '../lib/fuel';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
-import { money, today } from '../lib/format';
+import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2 } from 'lucide-react';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Download } from 'lucide-react';
 import styles from './settlements.module.css';
+
+// Tabla semanal por chofer (pedido explícito): es exactamente la que la
+// dueña mandaba a mano cada lunes a Mario, movida aquí desde Cargas ("Ver
+// resumen semanal") para que quede junto con los 4 números de abajo — un
+// solo resumen, una sola captura. Una carga entra en la semana según su
+// FECHA DE ENTREGA (no la de recogida ni la de pago) — regla ya existente,
+// sin cambios, solo de lugar.
+const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
+const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function entregaLabel(l: Load) {
+  const pDay = l.pickupDate ? Number(l.pickupDate.slice(8, 10)) : null;
+  const dDay = l.deliveryDate ? Number(l.deliveryDate.slice(8, 10)) : null;
+  const weekday = l.deliveryDate ? WEEKDAYS_ES[new Date(`${l.deliveryDate}T12:00:00Z`).getUTCDay()].toUpperCase() : '';
+  return pDay != null && dDay != null ? `${pDay}-${dDay} ${weekday}` : weekday;
+}
 
 // REDISEÑO (pedido explícito de la dueña): Contabilidad y Pagos ahora tiene
 // SOLO "Esta semana" (los 4 números + Salarios pagados a mano) — sin
@@ -41,12 +56,32 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
   const [salariosOpen, setSalariosOpen] = useState(false);
+  const [summaryDownloadBusy, setSummaryDownloadBusy] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  async function downloadSummaryImage() {
+    if (!summaryRef.current || summaryDownloadBusy) return;
+    setSummaryDownloadBusy(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(summaryRef.current, { backgroundColor: '#FBF8F6', scale: 2 });
+      const link = document.createElement('a');
+      link.download = `resumen-semanal-${weekStart}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } finally { setSummaryDownloadBusy(false); }
+  }
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
   const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
   const locked = isWeekLocked(weekEnd, state.weekLocks);
   const weekLock = state.weekLocks.find(w => w.weekEnd === weekEnd);
+  const summaryGroups = FLEET_GROUPS.map(g => ({
+    group: g,
+    rows: loads.state.loads
+      .filter(l => fleet.state.drivers.find(d => d.id === l.driverId)?.group === g && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.deliveryDate >= weekStart && l.deliveryDate < weekEnd)
+      .sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)),
+  }));
 
   const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks, weekStart, weekEnd);
   const dispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, state.config, state.weekLocks);
@@ -160,25 +195,55 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
       <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>
+      <button onClick={downloadSummaryImage} disabled={summaryDownloadBusy}><Download size={15} /> {summaryDownloadBusy ? t('Descargando…') : t('Descargar imagen')}</button>
     </div>
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar.')}</p>}
 
     {notice && <p role="status" className={styles.success}>{notice}</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
 
-    <h2>{t('Esta semana')}</h2>
-    <div className={styles.statCards}>
-      <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="red">
-        <button className={styles.cardMenuBtn} onClick={() => setSalariosOpen(o => !o)} aria-label={t('Editar salarios pagados a mano')}><MoreVertical size={16} /></button>
-        <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
+    {/* Todo lo de aquí adentro es lo que se descarga como una sola imagen
+        (pedido explícito): la tabla de cargas por chofer que ella le manda a
+        Mario cada lunes, justo arriba de los 4 números — un solo resumen. */}
+    <div ref={summaryRef} className={styles.summaryCapture}>
+      <p className={styles.captureWeekLabel}>{weekLabel}</p>
+      {summaryGroups.map(g => g.rows.length > 0 && <div key={g.group}>
+        <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</div>
+        <table className={styles.summaryTable}>
+          <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} /></colgroup>
+          <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th></tr></thead>
+          <tbody>{g.rows.map(l => <tr key={l.id}>
+            <td>{driverNameFor(l.driverId)}</td>
+            <td>{l.loadNumber || '—'}</td>
+            <td>{money(l.amount)}</td>
+            <td>{l.pickupState}-{l.deliveryState}</td>
+            <td>{entregaLabel(l)}</td>
+            <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>)}
+      {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
+
+      <h2>{t('Esta semana')}</h2>
+      <div className={styles.statCards}>
+        <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
+        <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
+        <div className={styles.statCard} data-tone="red">
+          <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
+        </div>
+      </div>
+
+      <div className={styles.moneyCard}>
+        <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
+        <span className={styles.statLabel}>{t('Dinero que queda')}</span>
+        <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
       </div>
     </div>
 
+    <button type="button" className={styles.textButton} onClick={() => setSalariosOpen(o => !o)}><MoreVertical size={15} /> {t('Editar salarios pagados a mano')}</button>
     {salariosOpen && <div className={styles.rowDetail}>
       <h3>{t('Salarios pagados a mano')}</h3>
-      <p className={styles.note}>{t('Para pagos que el sistema todavía no puede calcular solo — por ejemplo, un viaje que sigue abierto desde hace semanas. Se suman al número de "Salarios" de arriba, además de lo ya marcado en "Pagos a Choferes".')}</p>
+      <p className={styles.note}>{t('Para pagos que el sistema todavía no puede calcular solo — por ejemplo, un viaje que sigue abierto desde hace semanas. Se suman al número de "Salarios" de arriba.')}</p>
       {weekManualSalaries.length > 0 && <ul className={styles.plainList}>
         {weekManualSalaries.map(m => <li key={m.id}>
           <span>{m.driverId ? driverNameFor(m.driverId) : m.payeeName}{m.notes ? ` · ${m.notes}` : ''}</span>
@@ -193,12 +258,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar salario')}</button></div>
       </form>
     </div>}
-
-    <div className={styles.moneyCard}>
-      <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
-      <span className={styles.statLabel}>{t('Dinero que queda')}</span>
-      <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
-    </div>
 
 
     {moreOpen && <div className={styles.moreOverlay} role="dialog" aria-label={t('Más opciones')}>

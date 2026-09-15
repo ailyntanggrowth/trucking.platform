@@ -86,6 +86,20 @@
 .moneyCard .statLabel { color:#DFF5E9; font-size:14px; }
 .moneyCard strong { display:block; font-size:36px; color:#fff; margin-top:4px; }
 
+.textButton { border:0; background:transparent; color:#8B102A; font-size:14px; font-weight:700; padding:8px; border-radius:8px; margin:6px 0; }
+.textButton:hover { background:#F5EBED; }
+
+/* Tabla semanal por chofer (movida desde Cargas → "Ver resumen semanal",
+   pedido explícito) — mismo look que tenía ahí, ahora en línea con el resto
+   de la pantalla en vez de una ventana aparte. */
+.summaryCapture { background:#FBF8F6; border-radius:12px; padding:14px; margin:14px 0; }
+.captureWeekLabel { text-align:center; font-weight:700; color:#11151B; margin:0 0 10px; }
+.summaryGroupHeader { background:#8B102A; color:#fff; font-size:12px; font-weight:700; padding:6px 10px; margin-top:14px; border-radius:8px 8px 0 0; }
+.summaryTable { width:100%; table-layout:fixed; border-collapse:collapse; background:#fff; border:1px solid #e3dadd; border-top:0; font-size:11px; }
+.summaryTable th,.summaryTable td { padding:5px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+.summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
+.summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
+
 .moreOverlay { position:fixed; inset:0; z-index:50; background:#FBF8F6; overflow-y:auto; }
 .morePanel { max-width:720px; margin:0 auto; min-height:100%; padding:0 14px 24px; }
 .morePanelHeader { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; background:#8B102A; color:#fff; padding:14px 16px; font-size:16px; margin:0 -14px 14px; }
