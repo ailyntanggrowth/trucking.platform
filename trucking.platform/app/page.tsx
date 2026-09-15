@@ -26,8 +26,8 @@ import AuthGate from "./auth-gate";
 // visualmente) — cada uno pide sus propios datos ya acotados del servidor.
 const nav = [
   {name:'Cargas',id:'cargas',icon:'01'},
-  {name:'Resumen Semanal',id:'finanzas',icon:'02'},
-  {name:'Combustible y Gastos',id:'combustible',icon:'03'},
+  {name:'Combustible y Gastos',id:'combustible',icon:'02'},
+  {name:'Resumen Semanal',id:'finanzas',icon:'03'},
   {name:'Reportes',id:'reportes',icon:'04'},
   {name:'Dispatcher',id:'miinvoice',icon:'05'},
   {name:'Usuarios y Permisos',id:'usuarios',icon:'06'},
