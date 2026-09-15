@@ -43,12 +43,21 @@ export type SettlementEvent = { id: string; at: string; actor: string; entityIds
 // quiera, y esa fecha/hora exacta es la que reparte cargas pagadas entre el
 // invoice que cierra y el siguiente.
 export type WeekLock = { weekEnd: string; lockedAt: string };
+// Salario pagado a mano, fuera del flujo normal de "Pagos a Choferes" (pedido
+// explícito): para cuando ella le paga a un chofer un monto que el sistema
+// todavía no puede calcular solo — p.ej. un viaje que sigue abierto desde
+// hace semanas (no ha vuelto a FL) y aun así ya se le pagó algo por
+// adelantado. Lista libre por semana: se puede agregar, editar o quitar
+// cualquier cantidad de entradas, no una por chofer como los PaymentMark.
+export type ManualSalaryEntry = { id: string; weekStart: string; driverId: string; amount: number; notes: string };
 export type SettlementState = {
   schema: 1; revision: number; config: SettlementConfig;
-  driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; weekLocks: WeekLock[]; events: SettlementEvent[];
+  driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; weekLocks: WeekLock[];
+  manualSalaries: ManualSalaryEntry[]; events: SettlementEvent[];
 };
 export const emptySettlements: SettlementState = {
-  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], weekLocks: [], events: [],
+  schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], weekLocks: [],
+  manualSalaries: [], events: [],
 };
 
 export type SettlementAction =
@@ -57,7 +66,9 @@ export type SettlementAction =
   | { type: 'mark'; driverId: string; driverName: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string; amountPaid?: number }
   | { type: 'dispatcherMark'; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; notes: string }
   | { type: 'closeWeek'; weekEnd: string }
-  | { type: 'reopenWeek'; weekEnd: string };
+  | { type: 'reopenWeek'; weekEnd: string }
+  | { type: 'manualSalary'; record: ManualSalaryEntry }
+  | { type: 'deleteManualSalary'; id: string };
 
 // Número de invoice del despachador (pedido explícito): invoice #41 cerró el
 // 31 de agosto de 2026 — de ahí se cuenta hacia adelante o hacia atrás, una
@@ -117,12 +128,26 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     const lock: WeekLock = { weekEnd: action.weekEnd, lockedAt: now };
     before = null; state.weekLocks = [...state.weekLocks, lock]; after = lock;
     entityIds = ['weekLock']; detail = `Cerró el invoice de la semana que termina el ${action.weekEnd} (${new Date(now).toLocaleString('es')})`;
-  } else {
+  } else if (action.type === 'reopenWeek') {
     requireValue(action.weekEnd, 'Falta la semana.');
     const existing = state.weekLocks.find(w => w.weekEnd === action.weekEnd);
     requireValue(existing, 'Esta semana no estaba cerrada.');
     before = existing; state.weekLocks = state.weekLocks.filter(w => w !== existing); after = null;
     entityIds = ['weekLock']; detail = `Reabrió el invoice de la semana que termina el ${action.weekEnd}`;
+  } else if (action.type === 'manualSalary') {
+    const r = { ...action.record, notes: action.record.notes.trim() };
+    requireValue(r.driverId && r.weekStart, 'Falta el chofer o la semana.');
+    requireValue(r.amount > 0, 'El monto debe ser mayor a cero.');
+    const existing = state.manualSalaries.find(m => m.id === r.id);
+    before = existing || null;
+    state.manualSalaries = existing ? state.manualSalaries.map(m => m.id === r.id ? r : m) : [...state.manualSalaries, r];
+    after = r; entityIds = [r.id];
+    detail = `${existing ? 'Actualizó' : 'Agregó'} salario pagado a mano por $${r.amount} (semana del ${r.weekStart})`;
+  } else {
+    const existing = state.manualSalaries.find(m => m.id === action.id);
+    requireValue(existing, 'No se encontró ese salario.');
+    before = existing; state.manualSalaries = state.manualSalaries.filter(m => m.id !== action.id); after = null;
+    entityIds = [action.id]; detail = `Quitó un salario pagado a mano por $${existing!.amount} (semana del ${existing!.weekStart})`;
   }
 
   state.revision++; state.events.unshift({ id: `event-${id}`, at: now, actor: 'Usuario local · sin cuenta autenticada', entityIds, detail, before, after });

@@ -12,7 +12,7 @@ import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
 import { money, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock } from 'lucide-react';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2 } from 'lucide-react';
 import styles from './settlements.module.css';
 
 // REDISEÑO (pedido explícito de la dueña): Contabilidad y Pagos ahora tiene
@@ -40,6 +40,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
+  const [salariosOpen, setSalariosOpen] = useState(false);
 
   const ready2 = ready && loads.ready && fuel.ready && fleet.ready;
   const { end: weekEnd, prevWeek, nextWeek } = weekRange(weekStart);
@@ -72,11 +73,17 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // de esta semana, que es la misma que ella mira en Combustible.
   const mudflapWeekStart = fuelWeekStartOf(weekStart);
   const combustibleMario = computeWeeklyFuelSummary(fuel.state, fleet.state.drivers, mudflapWeekStart).groups.find(g => g.group === 'Mario')?.retailTotal || 0;
-  // "Pago a choferes" usa el monto REAL que Mario pagó (amountPaid), no el
-  // estimado por tramos (driverPay) — pedido explícito, para que coincida
-  // con lo que de verdad salió de la caja.
-  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0);
+  // "Salarios" (pedido explícito, antes "Pago a choferes") usa el monto REAL
+  // que Mario pagó (amountPaid), no el estimado por tramos (driverPay) — para
+  // que coincida con lo que de verdad salió de la caja. Se le suma lo
+  // registrado a mano en "Salarios pagados a mano" (viajes que el sistema
+  // todavía no puede calcular solo, p.ej. uno que sigue abierto desde hace
+  // semanas sin cerrar en Cargas).
+  const weekManualSalaries = state.manualSalaries.filter(m => m.weekStart === weekStart);
+  const manualSalariesTotal = weekManualSalaries.reduce((s, m) => s + m.amount, 0);
+  const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal;
   const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
+  const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
   const pendientes = mario.filter(m => m.paymentStatus === 'Pendiente');
   const pagados = mario.filter(m => m.paymentStatus === 'Pagada');
@@ -88,6 +95,21 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       const next = await settlements.commit({ type: 'mark', driverId, driverName, weekStart, paymentStatus: current === 'Pagada' ? 'Pendiente' : 'Pagada', notes: '' });
       setNotice(next.events[0].detail);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function addManualSalary(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (busy) return; const fields = new FormData(event.currentTarget);
+    const driverId = String(fields.get('driverId') || ''); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
+    setError(''); setNotice(''); setBusy(true);
+    try {
+      const next = await settlements.commit({ type: 'manualSalary', record: { id: crypto.randomUUID(), weekStart, driverId, amount, notes } });
+      setNotice(next.events[0].detail);
+      (event.target as HTMLFormElement).reset();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function removeManualSalary(id: string) {
+    if (busy) return; setError(''); setNotice(''); setBusy(true);
+    try { const next = await settlements.commit({ type: 'deleteManualSalary', id }); setNotice(next.events[0].detail); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function toggleDispatcherMark(current: 'Pendiente' | 'Pagada') {
     if (busy) return; setError(''); setNotice(''); setBusy(true);
@@ -145,8 +167,29 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     <div className={styles.statCards}>
       <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
       <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
-      <div className={styles.statCard} data-tone="red"><span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Pago a choferes')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong></div>
+      <div className={styles.statCard} data-tone="red">
+        <button className={styles.cardMenuBtn} onClick={() => setSalariosOpen(o => !o)} aria-label={t('Editar salarios pagados a mano')}><MoreVertical size={16} /></button>
+        <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
+      </div>
     </div>
+
+    {salariosOpen && <div className={styles.rowDetail}>
+      <h3>{t('Salarios pagados a mano')}</h3>
+      <p className={styles.note}>{t('Para pagos que el sistema todavía no puede calcular solo — por ejemplo, un viaje que sigue abierto desde hace semanas. Se suman al número de "Salarios" de arriba, además de lo ya marcado en "Pagos a Choferes".')}</p>
+      {weekManualSalaries.length > 0 && <ul className={styles.plainList}>
+        {weekManualSalaries.map(m => <li key={m.id}>
+          <span>{driverNameFor(m.driverId)}{m.notes ? ` · ${m.notes}` : ''}</span>
+          <span className={styles.actions}><b>{money(m.amount)}</b><button disabled={busy} onClick={() => removeManualSalary(m.id)} aria-label={t('Quitar')}><Trash2 size={15} /></button></span>
+        </li>)}
+      </ul>}
+      <form className={styles.fields} onSubmit={addManualSalary}>
+        <label>{t('Chofer *')}<select name="driverId" required defaultValue=""><option value="" disabled>{t('Selecciona un chofer')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label>{t('Monto *')}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+        <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} placeholder={t('Ej. adelanto del viaje que sigue abierto')} /></label>
+        <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar salario')}</button></div>
+      </form>
+    </div>}
+
     <div className={styles.moneyCard}>
       <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
       <span className={styles.statLabel}>{t('Dinero que queda')}</span>

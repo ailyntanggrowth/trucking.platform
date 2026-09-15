@@ -11,7 +11,13 @@
 .weekBar button { min-height:34px; padding:6px 10px; }
 
 .statCards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
-.statCard { background:white; border:1px solid #e3dadd; border-radius:12px; padding:13px; text-align:left; }
+.statCard { position:relative; background:white; border:1px solid #e3dadd; border-radius:12px; padding:13px; text-align:left; }
+.cardMenuBtn { position:absolute; top:8px; right:8px; min-height:auto; padding:4px; border:0; background:transparent; color:#59616D; }
+.cardMenuBtn:hover { background:#f5ebed; }
+.plainList { list-style:none; margin:10px 0; padding:0; }
+.plainList li { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:1px solid #E3DADD; padding:10px 0; font-size:14px; }
+.plainList li .actions { margin-top:0; }
+.wide { grid-column:1/-1; }
 .statIcon { display:inline-flex; width:26px; height:26px; border-radius:7px; align-items:center; justify-content:center; font-size:13px; margin-bottom:6px; }
 .statLabel { display:block; font-size:13px; font-weight:700; color:#59616D; }
 .statCard strong { display:block; font-size:20px; color:#11151B; margin-top:4px; }
