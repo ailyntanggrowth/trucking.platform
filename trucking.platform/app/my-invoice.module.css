@@ -32,10 +32,13 @@
 
 .downloadRow { display:flex; justify-content:center; margin:10px 0 0; }
 
-/* "Descargar PDF" (pedido explícito): al imprimir solo debe quedar el
-   invoice de esta semana y su tabla de cargas — se ocultan los botones de
-   semana, el propio botón de descargar y el historial de invoices
-   anteriores. Igual patrón que "Exportar a PDF" en Reportes. */
+/* "Descargar PDF" (pedido explícito): al imprimir SOLO debe quedar la
+   tabla "Cargas que forman este total" — nada de barra de semana, tarjeta
+   del monto, nota ni historial. `.printSection` envuelve exactamente esa
+   tabla; todo lo demás dentro de `.wrap` se oculta. `page-break-inside`
+   evita que la tabla se parta entre hojas si cabe en una. */
 @media print {
-  .weekBar button, .downloadRow, .noPrint { display:none !important; }
+  .wrap > *:not(.printSection) { display:none !important; }
+  .printSection { page-break-inside:avoid; break-inside:avoid; }
+  .printSection h3 { margin-top:0; }
 }

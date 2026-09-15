@@ -78,6 +78,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
       <button onClick={downloadInvoicePdf}><Printer size={15} /> {t('Descargar PDF')}</button>
     </div>
 
+    <div className={styles.printSection}>
     <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
@@ -97,6 +98,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
         </tbody>
       </table>
       {ready && !result.rows.length && <p className={styles.empty}>{t('No hay cargas de estos choferes en esta semana todavía.')}</p>}
+    </div>
     </div>
 
     <div className={styles.noPrint}>
