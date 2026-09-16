@@ -28,7 +28,7 @@ function configPayload(c: SettlementConfig) {
 
 export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promise<SettlementState> {
   const supabase = supabaseServer();
-  const [meta, config, insurance, marks, dispatcherMarks, weekLocks, manualSalaries, events] = await Promise.all([
+  const [meta, config, insurance, marks, dispatcherMarks, weekLocks, manualSalaries, manualRepairs, events] = await Promise.all([
     supabase.from('settlements_meta').select('revision').eq('company_id', companyId).single(),
     supabase.from('settlements_config').select('*').eq('company_id', companyId).single(),
     supabase.from('driver_settlement_settings').select('*').eq('company_id', companyId),
@@ -36,9 +36,10 @@ export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promi
     supabase.from('dispatcher_invoice_marks').select('*').eq('company_id', companyId),
     supabase.from('week_locks').select('*').eq('company_id', companyId),
     supabase.from('manual_salary_entries').select('*').eq('company_id', companyId),
+    supabase.from('manual_repair_entries').select('*').eq('company_id', companyId),
     supabase.from('settlement_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }),
   ]);
-  for (const result of [meta, config, insurance, marks, dispatcherMarks, weekLocks, manualSalaries, events]) if (result.error) throw new Error(result.error.message);
+  for (const result of [meta, config, insurance, marks, dispatcherMarks, weekLocks, manualSalaries, manualRepairs, events]) if (result.error) throw new Error(result.error.message);
   const driverInsurance: Record<string, number> = {};
   for (const row of insurance.data ?? []) driverInsurance[row.driver_id] = Number(row.weekly_insurance);
   return {
@@ -47,6 +48,7 @@ export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promi
     dispatcherMarks: (dispatcherMarks.data ?? []).map(r => ({ weekStart: r.week_start, paymentStatus: r.payment_status, paidAt: r.paid_at ?? '', notes: r.notes })),
     weekLocks: (weekLocks.data ?? []).map(r => ({ weekEnd: r.week_end, lockedAt: r.locked_at })),
     manualSalaries: (manualSalaries.data ?? []).map(r => ({ id: r.id, weekStart: r.week_start, driverId: r.driver_id ?? '', payeeName: r.payee_name ?? '', amount: Number(r.amount), notes: r.notes })),
+    manualRepairs: (manualRepairs.data ?? []).map(r => ({ id: r.id, weekStart: r.week_start, driverId: r.driver_id ?? '', description: r.description ?? '', amount: Number(r.amount), notes: r.notes })),
     events: (events.data ?? []).map(r => ({ id: r.id, at: r.at, actor: r.actor, entityIds: r.entity_ids, detail: r.detail, before: r.before, after: r.after })),
   };
 }
@@ -97,8 +99,19 @@ export async function commitSettlementAction(action: SettlementAction, expectedR
       p_entry: { id: entry.id, week_start: entry.weekStart, driver_id: entry.driverId || null, payee_name: entry.payeeName, amount: entry.amount, notes: entry.notes },
       p_event: event,
     });
-  } else {
+  } else if (action.type === 'deleteManualSalary') {
     rpc = supabase.rpc('settlements_commit_delete_manual_salary', {
+      p_company_id: companyId, p_expected_revision: expectedRevision, p_id: action.id, p_event: event,
+    });
+  } else if (action.type === 'manualRepair') {
+    const entry = next.manualRepairs.find(m => m.id === action.record.id)!;
+    rpc = supabase.rpc('settlements_commit_manual_repair', {
+      p_company_id: companyId, p_expected_revision: expectedRevision,
+      p_entry: { id: entry.id, week_start: entry.weekStart, driver_id: entry.driverId || null, description: entry.description, amount: entry.amount, notes: entry.notes },
+      p_event: event,
+    });
+  } else {
+    rpc = supabase.rpc('settlements_commit_delete_manual_repair', {
       p_company_id: companyId, p_expected_revision: expectedRevision, p_id: action.id, p_event: event,
     });
   }

@@ -12,7 +12,7 @@ import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
 import { money, dayLabel, today } from '../lib/format';
 import type { Lang } from '../lib/i18n';
-import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Printer } from 'lucide-react';
+import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Printer, Wrench } from 'lucide-react';
 import styles from './settlements.module.css';
 
 // Tabla semanal por chofer (pedido explícito): es exactamente la que la
@@ -56,6 +56,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
   const [salariosOpen, setSalariosOpen] = useState(false);
+  const [roturasOpen, setRoturasOpen] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   // Pedido explícito: la imagen (html2canvas) salía cortada/fea en el
   // celular. Se cambió al mismo patrón que Combustible y Mi Invoice — el
@@ -129,7 +130,12 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const weekManualSalaries = state.manualSalaries.filter(m => m.weekStart === weekStart);
   const manualSalariesTotal = weekManualSalaries.reduce((s, m) => s + m.amount, 0);
   const pagoAChoferes = mario.filter(m => m.paymentStatus === 'Pagada').reduce((s, m) => s + m.amountPaid, 0) + manualSalariesTotal + (priorDispatcherPaid ? priorDispatcher.commission : 0);
-  const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes;
+  // "Roturas" (pedido explícito): costo real de reparaciones anotado a mano
+  // — el reporte de rotura de una carga (Cargas → incidentCost) es solo una
+  // nota informativa que se pierde al resolverse, nunca se restaba de nada.
+  const weekManualRepairs = state.manualRepairs.filter(m => m.weekStart === weekStart);
+  const roturas = weekManualRepairs.reduce((s, m) => s + m.amount, 0);
+  const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes - roturas;
   const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
   async function addManualSalary(event: FormEvent<HTMLFormElement>) {
@@ -145,6 +151,21 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   async function removeManualSalary(id: string) {
     if (busy) return; setError(''); setNotice(''); setBusy(true);
     try { const next = await settlements.commit({ type: 'deleteManualSalary', id }); setNotice(next.events[0].detail); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function addManualRepair(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (busy) return; const fields = new FormData(event.currentTarget);
+    const driverId = String(fields.get('driverId') || ''); const description = String(fields.get('description') || '').trim(); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
+    setError(''); setNotice(''); setBusy(true);
+    try {
+      const next = await settlements.commit({ type: 'manualRepair', record: { id: crypto.randomUUID(), weekStart, driverId, description, amount, notes } });
+      setNotice(next.events[0].detail);
+      (event.target as HTMLFormElement).reset();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function removeManualRepair(id: string) {
+    if (busy) return; setError(''); setNotice(''); setBusy(true);
+    try { const next = await settlements.commit({ type: 'deleteManualRepair', id }); setNotice(next.events[0].detail); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function toggleDispatcherMark(current: 'Pendiente' | 'Pagada') {
@@ -229,6 +250,9 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <div className={styles.statCard} data-tone="red">
           <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
         </div>
+        <div className={styles.statCard} data-tone="red">
+          <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
+        </div>
       </div>
 
       <div className={styles.moneyCard}>
@@ -254,6 +278,25 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <label>{t('Monto *')}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
         <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} placeholder={t('Ej. adelanto del viaje que sigue abierto')} /></label>
         <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar salario')}</button></div>
+      </form>
+    </div>}
+
+    <button type="button" className={styles.textButton} onClick={() => setRoturasOpen(o => !o)}><Wrench size={15} /> {t('Editar roturas')}</button>
+    {roturasOpen && <div className={styles.rowDetail}>
+      <h3>{t('Roturas')}</h3>
+      <p className={styles.note}>{t('El costo de una reparación (ej. cuando se reporta y luego se quita una rotura en Cargas) — anótalo aquí para que sí se reste del "Dinero que queda" de arriba.')}</p>
+      {weekManualRepairs.length > 0 && <ul className={styles.plainList}>
+        {weekManualRepairs.map(m => <li key={m.id}>
+          <span>{m.description}{m.driverId ? ` · ${driverNameFor(m.driverId)}` : ''}{m.notes ? ` · ${m.notes}` : ''}</span>
+          <span className={styles.actions}><b>{money(m.amount)}</b><button disabled={busy} onClick={() => removeManualRepair(m.id)} aria-label={t('Quitar')}><Trash2 size={15} /></button></span>
+        </li>)}
+      </ul>}
+      <form className={styles.fields} onSubmit={addManualRepair}>
+        <label className={styles.wide}>{t('¿Qué se reparó? *')}<input name="description" maxLength={200} required placeholder={t('Ej. se ponchó una llanta, se rompió el motor…')} /></label>
+        <label>{t('Chofer (opcional)')}<select name="driverId" defaultValue=""><option value="">{t('— Ninguno —')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label>{t('Costo *')}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+        <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} placeholder={t('Ej. carga de Agner #38329284')} /></label>
+        <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar rotura')}</button></div>
       </form>
     </div>}
 

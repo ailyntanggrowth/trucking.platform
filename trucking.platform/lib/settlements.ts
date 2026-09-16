@@ -53,14 +53,21 @@ export type WeekLock = { weekEnd: string; lockedAt: string };
 // registrado (p.ej. la dueña misma) — en ese caso payeeName es el nombre
 // libre a mostrar. Nunca los dos vacíos a la vez.
 export type ManualSalaryEntry = { id: string; weekStart: string; driverId: string; payeeName: string; amount: number; notes: string };
+// Roturas (pedido explícito): cuando se reporta una rotura de camión en
+// Cargas, ese costo (incidentCost) es solo una nota informativa en la carga
+// — nunca se descontaba de nada, y se perdía apenas ella la quitaba al
+// resolverse. Esta es la lista libre (igual que Salarios pagados a mano) para
+// anotar el costo real de una reparación y que sí se reste del "Dinero que
+// queda" del Resumen Semanal.
+export type ManualRepairEntry = { id: string; weekStart: string; driverId: string; description: string; amount: number; notes: string };
 export type SettlementState = {
   schema: 1; revision: number; config: SettlementConfig;
   driverInsurance: Record<string, number>; marks: PaymentMark[]; dispatcherMarks: DispatcherInvoiceMark[]; weekLocks: WeekLock[];
-  manualSalaries: ManualSalaryEntry[]; events: SettlementEvent[];
+  manualSalaries: ManualSalaryEntry[]; manualRepairs: ManualRepairEntry[]; events: SettlementEvent[];
 };
 export const emptySettlements: SettlementState = {
   schema: 1, revision: 0, config: defaultSettlementConfig, driverInsurance: {}, marks: [], dispatcherMarks: [], weekLocks: [],
-  manualSalaries: [], events: [],
+  manualSalaries: [], manualRepairs: [], events: [],
 };
 
 export type SettlementAction =
@@ -71,7 +78,9 @@ export type SettlementAction =
   | { type: 'closeWeek'; weekEnd: string }
   | { type: 'reopenWeek'; weekEnd: string }
   | { type: 'manualSalary'; record: ManualSalaryEntry }
-  | { type: 'deleteManualSalary'; id: string };
+  | { type: 'deleteManualSalary'; id: string }
+  | { type: 'manualRepair'; record: ManualRepairEntry }
+  | { type: 'deleteManualRepair'; id: string };
 
 // Número de invoice del despachador (pedido explícito): invoice #41 cerró el
 // 31 de agosto de 2026 — de ahí se cuenta hacia adelante o hacia atrás, una
@@ -147,11 +156,26 @@ export function applySettlementAction(original: SettlementState, action: Settlem
     state.manualSalaries = existing ? state.manualSalaries.map(m => m.id === r.id ? r : m) : [...state.manualSalaries, r];
     after = r; entityIds = [r.id];
     detail = `${existing ? 'Actualizó' : 'Agregó'} salario pagado a mano por $${r.amount} (semana del ${r.weekStart})`;
-  } else {
+  } else if (action.type === 'deleteManualSalary') {
     const existing = state.manualSalaries.find(m => m.id === action.id);
     requireValue(existing, 'No se encontró ese salario.');
     before = existing; state.manualSalaries = state.manualSalaries.filter(m => m.id !== action.id); after = null;
     entityIds = [action.id]; detail = `Quitó un salario pagado a mano por $${existing!.amount} (semana del ${existing!.weekStart})`;
+  } else if (action.type === 'manualRepair') {
+    const r = { ...action.record, description: action.record.description.trim(), notes: action.record.notes.trim() };
+    requireValue(r.weekStart, 'Falta la semana.');
+    requireValue(r.description, 'Escribe qué se reparó.');
+    requireValue(r.amount > 0, 'El monto debe ser mayor a cero.');
+    const existing = state.manualRepairs.find(m => m.id === r.id);
+    before = existing || null;
+    state.manualRepairs = existing ? state.manualRepairs.map(m => m.id === r.id ? r : m) : [...state.manualRepairs, r];
+    after = r; entityIds = [r.id];
+    detail = `${existing ? 'Actualizó' : 'Agregó'} rotura por $${r.amount} (semana del ${r.weekStart}): ${r.description}`;
+  } else {
+    const existing = state.manualRepairs.find(m => m.id === action.id);
+    requireValue(existing, 'No se encontró esa rotura.');
+    before = existing; state.manualRepairs = state.manualRepairs.filter(m => m.id !== action.id); after = null;
+    entityIds = [action.id]; detail = `Quitó una rotura por $${existing!.amount} (semana del ${existing!.weekStart})`;
   }
 
   state.revision++; state.events.unshift({ id: `event-${id}`, at: now, actor: 'Usuario local · sin cuenta autenticada', entityIds, detail, before, after });

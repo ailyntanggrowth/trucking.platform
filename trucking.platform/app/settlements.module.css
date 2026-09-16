@@ -10,7 +10,7 @@
 .weekBar span { font-weight:700; color:#11151B; font-size:14px; }
 .weekBar button { min-height:34px; padding:6px 10px; }
 
-.statCards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.statCards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:14px 0; }
 .statCard { position:relative; background:white; border:1px solid #e3dadd; border-radius:12px; padding:13px; text-align:left; }
 .cardMenuBtn { position:absolute; top:8px; right:8px; min-height:auto; padding:4px; border:0; background:transparent; color:#59616D; }
 .cardMenuBtn:hover { background:#f5ebed; }
@@ -106,7 +106,7 @@
   .summaryCapture { background:none; padding:0; }
   .summaryGroupHeader,.summaryTable,.statCards,.moneyCard { page-break-inside:avoid; break-inside:avoid; }
   .summaryTable { font-size:13px; }
-  .statCards { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .statCards { grid-template-columns:repeat(4,minmax(0,1fr)); }
 }
 
 .moreOverlay { position:fixed; inset:0; z-index:50; background:#FBF8F6; overflow-y:auto; }
