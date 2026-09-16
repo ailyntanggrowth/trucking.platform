@@ -9,7 +9,7 @@ import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
-import { money, today } from '../lib/format';
+import { money, today, dayLabel } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { TrendingUp, TrendingDown, Printer } from 'lucide-react';
 import { LineChart } from './mini-charts';
@@ -50,6 +50,18 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const currentWeekStart = weekStartOf(today());
   const rangeStarts = weeksEndingAt(currentWeekStart, rangeWeeks);
   const prevRangeStarts = weeksEndingAt(weekRange(rangeStarts[0]).prevWeek, rangeWeeks);
+  // Pedido explícito (aclarado en conversación): las semanas de tendencia son
+  // siempre las del CALENDARIO, pero antes de que se empezara a cargar
+  // información real en el sistema no hay ninguna carga — esas semanas suman
+  // $0, no porque no se ganó nada, sino porque todavía no existían datos. Se
+  // detecta sola (nunca una fecha fija a mano) buscando la carga más vieja
+  // que hay guardada, para poder avisar cuántas semanas del rango elegido sí
+  // tienen datos reales, y para no mostrar una tendencia comparando contra
+  // semanas de antes de que existiera el sistema.
+  const earliestLoadDate = loads.state.loads.reduce((min: string, l) => !min || l.pickupDate < min ? l.pickupDate : min, '');
+  const earliestWeekStart = earliestLoadDate ? weekStartOf(earliestLoadDate) : currentWeekStart;
+  const realWeeksInRange = rangeStarts.filter(w => w >= earliestWeekStart).length;
+  const prevRangeIsReal = prevRangeStarts[0] >= earliestWeekStart;
   const rangeLabel = (starts: string[]) => {
     const first = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${starts[0]}T12:00:00Z`));
     const lastEnd = new Date(`${weekRange(starts[starts.length - 1]).end}T12:00:00Z`); lastEnd.setUTCDate(lastEnd.getUTCDate() - 1);
@@ -82,7 +94,7 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const totalCombustible = sum(rangeStats.map(w => w.combustible));
   const totalCompanyNet = sum(rangeStats.map(w => w.companyNet));
   const prevTotalCompanyNet = sum(prevRangeStats.map(w => w.companyNet));
-  const companyTrend = pctChange(totalCompanyNet, prevTotalCompanyNet);
+  const companyTrend = prevRangeIsReal ? pctChange(totalCompanyNet, prevTotalCompanyNet) : null;
 
   const weekLabels = rangeStats.map(w => {
     const d = new Date(`${w.weekStart}T12:00:00Z`);
@@ -107,7 +119,7 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const currentAgg = aggregateMario(rangeStats);
   const prevAgg = aggregateMario(prevRangeStats);
   const ranking = Array.from(currentAgg.values())
-    .map(d => ({ ...d, trend: pctChange(d.finalProfit, prevAgg.get(d.driverId)?.finalProfit ?? 0) }))
+    .map(d => ({ ...d, trend: prevRangeIsReal ? pctChange(d.finalProfit, prevAgg.get(d.driverId)?.finalProfit ?? 0) : null }))
     .sort((a, b) => b.finalProfit - a.finalProfit);
 
   return <div className={styles.reports}>
@@ -121,6 +133,9 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
       <button onClick={() => window.print()}><Printer size={15} /> {t('Exportar a PDF')}</button>
     </div>
     <p className={styles.note}>{rangeLabel(rangeStarts)}</p>
+    {ready && realWeeksInRange < rangeWeeks && <p className={styles.warnNote}>
+      ⚠️ {t('Solo')} {realWeeksInRange} {t('de')} {rangeWeeks} {t('semanas tienen datos reales — el sistema se empezó a usar la semana del')} {dayLabel(earliestWeekStart)}{t('. Las semanas de antes suman $0 porque todavía no había nada cargado, no porque no se ganó nada.')}
+    </p>}
 
     <div className={styles.heroStat}>
       <div>

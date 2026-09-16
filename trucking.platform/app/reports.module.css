@@ -38,6 +38,7 @@
 .trendDown { color:#a12b2b; font-weight:700; font-size:13px; }
 
 .note { font-size:13px; color:#59616D; margin:6px 0 14px; }
+.warnNote { font-size:13px; color:#6B4A00; background:#FDF6E3; border:1px solid #E8B930; border-radius:9px; padding:10px 14px; margin:6px 0 14px; }
 .empty { color:#59616D; padding:14px 0; }
 
 @media print {
