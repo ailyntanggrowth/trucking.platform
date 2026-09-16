@@ -239,10 +239,14 @@ function lockedAtFor(weekEnd: string, weekLocks: WeekLock[]): string | null {
 // la HORA exacta en que se cerró la semana (pedido explícito): lo pagado
 // antes del cierre cae en el invoice que se cerró (weekEnd de ESTE período);
 // lo pagado después ya es del invoice de la semana siguiente, todavía
-// abierta. Mientras la semana no se cierre, el día límite es AMBIGUO entre
-// las dos semanas que lo comparten — por defecto se lo queda la semana que
-// se está cerrando (la más vieja), nunca las dos a la vez, hasta que se
-// cierre esa semana con una hora exacta.
+// abierta. Mientras la semana no se cierre a mano (Más opciones → Cerrar
+// semana), el día límite es AMBIGUO entre las dos semanas que lo comparten —
+// por defecto (pedido explícito, corregido: ella no sabía que había que
+// cerrar la semana a mano) se lo queda la semana NUEVA, para que una carga
+// pagada cuente de inmediato en "Cargas realizadas" sin depender de un cierre
+// manual que en la práctica nunca se hace. Nunca las dos semanas a la vez —
+// solo se lo queda la vieja si esa semana SÍ se cerró y el pago llegó antes
+// de esa hora exacta de cierre.
 export function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
   if (!paidAt) return false;
   const paidDate = paidAt.slice(0, 10);
@@ -250,15 +254,18 @@ export function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekE
   if (paidDate > weekEnd) return false;
   if (paidDate === weekStart) {
     // weekStart de ESTE período = weekEnd del período anterior (que
-    // comparte ese mismo día límite). Solo cuenta aquí si esa semana
-    // anterior ya se cerró y el pago llegó DESPUÉS de esa hora de cierre.
+    // comparte ese mismo día límite). Cuenta aquí salvo que esa semana
+    // anterior ya se haya cerrado y el pago haya llegado ANTES de esa hora.
     const lockedAt = lockedAtFor(weekStart, weekLocks);
-    if (!lockedAt) return false;
+    if (!lockedAt) return true;
     return new Date(paidAt) > new Date(lockedAt);
   }
   if (paidDate < weekEnd) return true;
+  // paidDate === weekEnd: por defecto ya no cuenta aquí (se la queda la
+  // semana nueva) — solo cuenta en esta semana vieja si SÍ se cerró y el
+  // pago llegó antes/justo en esa hora de cierre.
   const lockedAt = lockedAtFor(weekEnd, weekLocks);
-  if (!lockedAt) return true;
+  if (!lockedAt) return false;
   return new Date(paidAt) <= new Date(lockedAt);
 }
 
