@@ -48,13 +48,8 @@ function Avatar({ name, index }: { name: string; index: number }) {
   return <span className={styles.avatar} style={{ background: AVATAR_TONES[index % AVATAR_TONES.length] }}>{initials(name)}</span>;
 }
 
-export default function SettlementsModule({ settlements, loads, fuel, fleet, lang, t, restricted = false }: {
+export default function SettlementsModule({ settlements, loads, fuel, fleet, lang, t }: {
   settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string;
-  // Vista de la dispatcher (pedido explícito): acceso SOLO a la tabla de
-  // cargas por chofer — nada de los 4 números de dinero, ni Editar
-  // salarios/roturas, ni Más opciones (comisión, seguro, configuración,
-  // cerrar semana), todo eso sigue siendo exclusivo de Dueño/Administrador.
-  restricted?: boolean;
 }) {
   const { state, ready } = settlements;
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
@@ -218,7 +213,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       <span>📅 {t('Semana')} {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
-      {!restricted && <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>}
+      <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>
       <button onClick={downloadSummaryPdf}><Printer size={15} /> {t('Descargar PDF')}</button>
     </div>
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar.')}</p>}
@@ -248,28 +243,25 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       </div>)}
       {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
 
-      {!restricted && <>
-        <h2>{t('Esta semana')}</h2>
-        <div className={styles.statCards}>
-          <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
-          <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
-          <div className={styles.statCard} data-tone="red">
-            <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
-          </div>
-          <div className={styles.statCard} data-tone="red">
-            <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
-          </div>
+      <h2>{t('Esta semana')}</h2>
+      <div className={styles.statCards}>
+        <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
+        <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
+        <div className={styles.statCard} data-tone="red">
+          <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
         </div>
+        <div className={styles.statCard} data-tone="red">
+          <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
+        </div>
+      </div>
 
-        <div className={styles.moneyCard}>
-          <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
-          <span className={styles.statLabel}>{t('Dinero que queda')}</span>
-          <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
-        </div>
-      </>}
+      <div className={styles.moneyCard}>
+        <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
+        <span className={styles.statLabel}>{t('Dinero que queda')}</span>
+        <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
+      </div>
     </div>
 
-    {!restricted && <>
     <button type="button" className={styles.textButton} onClick={() => setSalariosOpen(o => !o)}><MoreVertical size={15} /> {t('Editar salarios pagados a mano')}</button>
     {salariosOpen && <div className={styles.rowDetail}>
       <h3>{t('Salarios pagados a mano')}</h3>
@@ -307,9 +299,9 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar rotura')}</button></div>
       </form>
     </div>}
-    </>}
 
-    {!restricted && moreOpen && <div className={styles.moreOverlay} role="dialog" aria-label={t('Más opciones')}>
+
+    {moreOpen && <div className={styles.moreOverlay} role="dialog" aria-label={t('Más opciones')}>
       <div className={styles.morePanel}>
         <div className={styles.morePanelHeader}>
           <strong>{t('Más opciones')}</strong>

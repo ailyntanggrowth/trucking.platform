@@ -69,7 +69,7 @@ export default function Home() {
   const moduleAccessByRole: Record<string,string[]> = {
     owner: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     admin: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
-    dispatcher: ['cargas','finanzas','miinvoice'],
+    dispatcher: ['cargas','miinvoice'],
     driver: ['miscargas'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
@@ -181,12 +181,12 @@ export default function Home() {
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
             <h1>{t(moduleNames[activeModule])}</h1>
-            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas: role==='dispatcher' ? 'La tabla de cargas de la semana.' : 'La tabla de cargas de la semana y el resumen de dinero, para mandarle a Mario cada lunes.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'La tabla de cargas de la semana y el resumen de dinero, para mandarle a Mario cada lunes.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
           </div>
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t} restricted={role==='dispatcher'}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 
