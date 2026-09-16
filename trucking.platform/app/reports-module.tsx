@@ -50,16 +50,18 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const currentWeekStart = weekStartOf(today());
   const rangeStarts = weeksEndingAt(currentWeekStart, rangeWeeks);
   const prevRangeStarts = weeksEndingAt(weekRange(rangeStarts[0]).prevWeek, rangeWeeks);
-  // Pedido explícito (aclarado en conversación): las semanas de tendencia son
-  // siempre las del CALENDARIO, pero antes de que se empezara a cargar
-  // información real en el sistema no hay ninguna carga — esas semanas suman
-  // $0, no porque no se ganó nada, sino porque todavía no existían datos. Se
-  // detecta sola (nunca una fecha fija a mano) buscando la carga más vieja
-  // que hay guardada, para poder avisar cuántas semanas del rango elegido sí
-  // tienen datos reales, y para no mostrar una tendencia comparando contra
-  // semanas de antes de que existiera el sistema.
-  const earliestLoadDate = loads.state.loads.reduce((min: string, l) => !min || l.pickupDate < min ? l.pickupDate : min, '');
-  const earliestWeekStart = earliestLoadDate ? weekStartOf(earliestLoadDate) : currentWeekStart;
+  // Pedido explícito (corregido en conversación): las semanas de tendencia son
+  // siempre las del CALENDARIO, pero antes de que empezaran a PAGARSE cargas
+  // no hay ninguna ganancia real — se cuenta desde que se paga, no desde que
+  // se recoge una carga. Se detecta sola (nunca una fecha fija a mano)
+  // buscando la fecha de pago más vieja entre las cargas ya pagadas, para
+  // poder avisar cuántas semanas del rango elegido sí tienen datos reales, y
+  // para no mostrar una tendencia comparando contra semanas de antes de que
+  // el sistema empezara a dar ganancia.
+  const earliestPaidDate = loads.state.loads
+    .filter(l => l.paymentStatus === 'Pagada' && l.paidAt)
+    .reduce((min: string, l) => !min || l.paidAt.slice(0, 10) < min ? l.paidAt.slice(0, 10) : min, '');
+  const earliestWeekStart = earliestPaidDate ? weekStartOf(earliestPaidDate) : currentWeekStart;
   const realWeeksInRange = rangeStarts.filter(w => w >= earliestWeekStart).length;
   const prevRangeIsReal = prevRangeStarts[0] >= earliestWeekStart;
   const rangeLabel = (starts: string[]) => {
