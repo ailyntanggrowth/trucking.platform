@@ -24,7 +24,7 @@ import styles from './reports.module.css';
 // ranking de los choferes de Mario más rentables en ese rango. Se quitan las
 // pestañas "Por chofer"/"Por grupo"/"Compañía", el gráfico diario y "Exportar
 // a Excel" (pedido explícito, por repetidos/de más).
-type RangeWeeks = 4 | 8 | 12;
+type RangeWeeks = 2 | 4 | 8 | 12;
 
 function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return current === 0 ? 0 : null;
@@ -129,7 +129,7 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
 
     <div className={styles.toolbar}>
       <div className={styles.rangeChips} role="group" aria-label={t('Rango de semanas')}>
-        {([4, 8, 12] as RangeWeeks[]).map(n => <button key={n} aria-pressed={rangeWeeks === n} onClick={() => setRangeWeeks(n)}>{n} {t('semanas')}</button>)}
+        {([2, 4, 8, 12] as RangeWeeks[]).map(n => <button key={n} aria-pressed={rangeWeeks === n} onClick={() => setRangeWeeks(n)}>{n} {t('semanas')}</button>)}
       </div>
       <div className={styles.spacer} />
       <button onClick={() => window.print()}><Printer size={15} /> {t('Exportar a PDF')}</button>
