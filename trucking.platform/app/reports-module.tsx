@@ -48,7 +48,12 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   const ready = loads.ready && fuel.ready && fleet.ready && settlements.ready;
 
   const currentWeekStart = weekStartOf(today());
-  const rangeStarts = weeksEndingAt(currentWeekStart, rangeWeeks);
+  // Pedido explícito: la tendencia nunca cuenta la semana actual (todavía en
+  // curso, sin terminar) — eso la hacía ver más baja de lo que en verdad es
+  // y confundía el punto de arranque de cada rango. Los rangos van de la
+  // última semana YA COMPLETA hacia atrás.
+  const lastCompletedWeekStart = weekRange(currentWeekStart).prevWeek;
+  const rangeStarts = weeksEndingAt(lastCompletedWeekStart, rangeWeeks);
   const prevRangeStarts = weeksEndingAt(weekRange(rangeStarts[0]).prevWeek, rangeWeeks);
   // Pedido explícito (corregido en conversación): las semanas de tendencia son
   // siempre las del CALENDARIO, pero antes de que empezaran a PAGARSE cargas
