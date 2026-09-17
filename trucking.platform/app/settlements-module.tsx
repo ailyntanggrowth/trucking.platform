@@ -252,7 +252,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
 
       <h2>{t('Esta semana')}</h2>
       <div className={styles.statCards}>
-        <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
+        <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas (choferes de Mario)')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
         <div className={styles.statCard} data-tone="amber"><span className={styles.statIcon} aria-hidden="true"><FuelIcon size={16} /></span><span className={styles.statLabel}>{t('Combustible Mario (Mudflap)')}</span><strong>{ready2 ? money(combustibleMario) : '—'}</strong></div>
         <div className={styles.statCard} data-tone="red">
           <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
