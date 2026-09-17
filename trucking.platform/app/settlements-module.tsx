@@ -2,7 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, paidWithinInvoicePeriod, fuelWeekStartOf, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, fuelWeekStartOf, type SettlementConfig,
 } from '../lib/settlements';
 import { isOfficial, type Load } from '../lib/loads';
 import { computeWeeklyFuelSummary } from '../lib/fuel';
@@ -103,14 +103,15 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // ya existe en Cargas/Combustible/Recorrido de cada chofer, nunca captura
   // manual (pedido explícito): así una corrección posterior (ej. Summar) se
   // refleja sola sin tener que "actualizar" nada aquí.
-  // "Cargas realizadas" (pedido explícito, aclarado en conversación): por
-  // FECHA DE PAGO, no de recogida ni de entrega — una carga entra a la
-  // semana en que Summar la marcó pagada, usando la misma regla de reparto
-  // de cierre de semana que ya usa el invoice del despachador y de Mario
-  // (paidWithinInvoicePeriod), para que los tres números coincidan entre sí.
-  const cargasRealizadas = loads.state.loads
-    .filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.paymentStatus === 'Pagada' && paidWithinInvoicePeriod(l.paidAt, weekStart, weekEnd, state.weekLocks))
-    .reduce((s, l) => s + l.amount, 0);
+  // "Cargas realizadas" (CORREGIDO, pedido explícito): antes sumaba por fecha
+  // de PAGO, lo que mezclaba en una sola semana cargas de semanas pasadas que
+  // Summar terminó pagando de golpe el mismo día (caso real: $117,555 en la
+  // tarjeta vs. $64,657 sumando a mano las 17 cargas que de verdad se veían
+  // en la tabla de abajo, semana del 8 al 14 de septiembre). Ahora se saca
+  // directo de `summaryGroups` — las MISMAS cargas que se ven en la tabla,
+  // por fecha de ENTREGA dentro de la semana elegida — para que la tarjeta y
+  // la tabla nunca puedan des-cuadrarse entre sí ni sumar una carga dos veces.
+  const cargasRealizadas = summaryGroups.reduce((s, g) => s + g.rows.reduce((s2, l) => s2 + l.amount, 0), 0);
   // "Combustible" (pedido explícito): solo el total del grupo Mario que
   // salió en el statement de Mudflap — ya no todos los grupos ni gastos
   // reales (peajes, etc.). Usa la semana del STATEMENT (lunes a domingo),
