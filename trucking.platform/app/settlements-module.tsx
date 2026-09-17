@@ -111,7 +111,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // directo de `summaryGroups` — las MISMAS cargas que se ven en la tabla,
   // por fecha de ENTREGA dentro de la semana elegida — para que la tarjeta y
   // la tabla nunca puedan des-cuadrarse entre sí ni sumar una carga dos veces.
-  const cargasRealizadas = summaryGroups.reduce((s, g) => s + g.rows.reduce((s2, l) => s2 + l.amount, 0), 0);
+  // Corregido otra vez (pedido explícito): "ganancias" acá es SOLO el grupo
+  // Mario — igual que Combustible Mario y Salarios (ambos ya son solo de
+  // Mario), nunca Owner Operators ni Lázaro, que tienen su propio arreglo de
+  // pago aparte. La tabla de abajo sigue mostrando los 3 grupos (es la misma
+  // que se le manda a Mario cada lunes), solo esta tarjeta —y por lo tanto
+  // "Dinero que queda"— se limita a Mario.
+  const cargasRealizadas = summaryGroups.find(g => g.group === 'Mario')?.rows.reduce((s, l) => s + l.amount, 0) ?? 0;
   // "Combustible" (pedido explícito): solo el total del grupo Mario que
   // salió en el statement de Mudflap — ya no todos los grupos ni gastos
   // reales (peajes, etc.). Usa la semana del STATEMENT (lunes a domingo),
