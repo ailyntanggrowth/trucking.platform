@@ -50,13 +50,23 @@ const GROUP_HEADERS: { match: RegExp; group: SheetRow['group'] }[] = [
   { match: /l[aá]zaro/i, group: 'Lázaro' },
   { match: /dionisio/i, group: 'Dionisio' },
 ];
+// Una fila con número de carga distinto del nombre Y un precio numérico es
+// una carga real — nunca un encabezado de grupo. Importa porque hay un
+// chofer que se llama "Lázaro" igual que el grupo: sin esto, su fila se
+// tomaba por el encabezado "Lázaro" y se saltaba en silencio (caso real). Un
+// encabezado combinado repite su mismo texto en todas las columnas, así que
+// nunca cumple esto.
+const isRealLoadRow = (driverName: string, loadNumber: string, amountStr: string) => {
+  const amount = Number((amountStr || '').replace(/[^0-9.]/g, ''));
+  return Boolean(loadNumber) && loadNumber !== driverName && amount > 0;
+};
 const isHeaderOrGroupRow = (driverName: string) => /^choferes$/i.test(driverName) || GROUP_HEADERS.some(g => g.match.test(driverName));
 // Una fila "parece" una carga real (chofer + número + precio) — se usa solo
 // para decidir si una pestaña es de cargas en absoluto, antes de intentar
 // leerle el mes.
 const looksLikeDataRow = (row: string[]) => {
   const [driverName, loadNumber, amountStr] = row.map(c => (c || '').trim());
-  if (isHeaderOrGroupRow(driverName)) return false;
+  if (!isRealLoadRow(driverName, loadNumber, amountStr) && isHeaderOrGroupRow(driverName)) return false;
   const amount = Number((amountStr || '').replace(/[^0-9.]/g, ''));
   return Boolean(loadNumber) && amount > 0;
 };
@@ -101,7 +111,7 @@ export function parseSheetRows(csvRows: string[][], opts: { year?: number; title
     // texto en TODAS las columnas que abarcaba la combinación, así que no se
     // puede usar "sin número de carga" como pista; se detecta solo por el
     // texto del nombre.
-    const groupHeader = GROUP_HEADERS.find(g => g.match.test(driverName));
+    const groupHeader = isRealLoadRow(driverName, loadNumber, amountStr) ? undefined : GROUP_HEADERS.find(g => g.match.test(driverName));
     if (groupHeader) { currentGroup = groupHeader.group; continue; }
 
     if (!loadNumber || !amountStr) { unparsed.push({ raw: row, reason: 'Falta el número de carga o el precio.' }); continue; }
