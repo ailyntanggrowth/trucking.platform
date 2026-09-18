@@ -59,6 +59,10 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     if (trip.group !== 'Mario') return true;
     // El pago se archiva por la semana en que se pagó, no por trip.tripStart
     // (ver el mismo ajuste más abajo) — misma clave en los dos lugares.
+    // Un viaje que ya volvió a FL no depende de la semana en curso: se
+    // considera pagado si hay un pago marcado desde que salió — así no
+    // reaparece al cambiar de semana.
+    if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt.slice(0, 10) >= trip.tripStart);
     const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today()));
     return mark?.paymentStatus !== 'Pagada';
   }) : [];
@@ -154,7 +158,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
             const isPayingThis = payTrip?.driverId === trip.driverId && payTrip?.tripStart === trip.tripStart;
             return <div className={styles.tripCard} key={trip.driverId} data-tone={trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
-            <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — <b>{trip.daysOut} {t('días fuera')}</b></span>
+            <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — {trip.returnedToFl ? <b>{t('Volvió a FL el')} {dayLabel(trip.returnDate || '')} · {t('pendiente de pago')}</b> : <b>{trip.daysOut} {t('días fuera')}</b>}</span>
             <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id} className={styles.tripLoadRow}>
               {canEdit && <details className={styles.loadMenu}>
                 <summary aria-label={t('Opciones de la carga')}>☰</summary>

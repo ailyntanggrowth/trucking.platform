@@ -219,7 +219,7 @@ export function summarizeLoads(state: LoadState, start: string, end: string) {
   return { official, review, active, gross, receivable };
 }
 
-export type DriverTrip = { driverId: string; driverName: string; group: string; tripStart: string; daysOut: number; loads: Load[] };
+export type DriverTrip = { driverId: string; driverName: string; group: string; tripStart: string; daysOut: number; loads: Load[]; returnedToFl?: boolean; returnDate?: string };
 
 // Recordatorio de "triángulo" (pedido explícito): un chofer sale de FL, va
 // haciendo cargas y normalmente regresa a FL en una semana — pero a veces se
@@ -248,7 +248,21 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
     let lastFlReturnIdx = -1;
     driverLoads.forEach((l, i) => { if (l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate && l.deliveryDate < todayStr) lastFlReturnIdx = i; });
     const tripLoads = lastFlReturnIdx === -1 ? driverLoads : driverLoads.slice(lastFlReturnIdx + 1);
-    if (!tripLoads.length) continue; // ya volvió a FL, sin viaje activo todavía
+    if (!tripLoads.length) {
+      // Ya volvió a FL, sin viaje activo. Pedido explícito: para un chofer
+      // de Mario, su viaje MÁS RECIENTE ya terminado se sigue mostrando
+      // hasta que se marque pagado (antes desaparecía justo al volver a FL,
+      // antes de poder pagarle). Solo el más reciente — los anteriores se
+      // pagaron por fuera del sistema y no deben reaparecer.
+      if (driver.group !== 'Mario') continue;
+      let prevIdx = -1;
+      driverLoads.forEach((l, i) => { if (i < lastFlReturnIdx && l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate && l.deliveryDate < todayStr) prevIdx = i; });
+      const doneLoads = driverLoads.slice(prevIdx + 1, lastFlReturnIdx + 1);
+      const doneStart = doneLoads[0].pickupDate;
+      const returnDate = doneLoads[doneLoads.length - 1].deliveryDate;
+      trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart: doneStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(doneStart)) / 86400000)), loads: doneLoads, returnedToFl: true, returnDate });
+      continue;
+    }
     const tripStart = tripLoads[0].pickupDate;
     const daysOut = Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(tripStart)) / 86400000));
     trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut, loads: tripLoads });
