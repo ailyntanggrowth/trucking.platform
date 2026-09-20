@@ -12,7 +12,9 @@ import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
-const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
+// Recorrido de cada chofer (pedido explícito): solo Mario y Owner Operators —
+// Lázaro nunca sale aquí.
+const FLEET_GROUPS = ['Mario', 'Owner Operators'] as const;
 
 export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; settlements: SettlementsController; canEdit: boolean; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
@@ -52,7 +54,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   // Recordatorio de pago semanal (pedido explícito): cuándo salió cada
   // chofer de FL y qué cargas ha hecho desde entonces, para saber cuándo y
   // cuánto pagarle aunque se pase semanas sin volver.
-  const tripDrivers = groupFilter ? fleet.state.drivers.filter(d => d.group === groupFilter) : fleet.state.drivers;
+  const tripDrivers = fleet.state.drivers.filter(d => (FLEET_GROUPS as readonly string[]).includes(d.group) && (!groupFilter || d.group === groupFilter));
   // Un viaje ya pagado (grupo Mario) sale de la lista solo — ya no hace
   // falta seguir recordándolo (pedido explícito).
   const driverTrips = ready ? computeDriverTrips(tripDrivers, state.loads, today()).filter(trip => {
