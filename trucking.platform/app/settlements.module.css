@@ -54,6 +54,8 @@
 .negative { color:#a12b2b; }
 .rowDetail { background:white; border:1px solid #e3dadd; border-top:4px solid #8B102A; border-radius:12px; padding:16px; margin:12px 0; }
 .rowDetail h3 { margin-top:0; }
+.salaryDetail { background:#fff; border:1px solid #e3dadd; border-radius:10px; padding:12px 14px; margin:14px 0; }
+.salaryDetail h3 { margin:0 0 4px; font-size:14px; }
 
 .chartSection { background:white; border:1px solid #e3dadd; border-radius:12px; padding:16px; margin:18px 0; }
 .chartSection h3 { margin:0 0 14px; font-size:15px; }

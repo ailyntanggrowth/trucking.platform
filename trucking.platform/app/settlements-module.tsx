@@ -267,6 +267,20 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
         </div>
       </div>
 
+      {/* Pedido explícito: que el detalle de Salarios salga también al
+          descargar/imprimir el resumen — antes solo vivía en el panel "Ver
+          detalle de Salarios", que queda FUERA de esta captura y nunca se
+          imprimía. Va siempre visible aquí (no detrás de un botón) para que
+          la tabla y el PDF ya traigan de quiénes son los $ de Salarios. */}
+      {ready2 && (marioPaidLines.length > 0 || priorDispatcherPaid || weekManualSalaries.length > 0) && <div className={styles.salaryDetail}>
+        <h3>{t('De quiénes son los Salarios de esta semana')}</h3>
+        <ul className={styles.plainList}>
+          {marioPaidLines.map(m => <li key={m.driverId}><span>{m.driverName}</span><b>{money(m.amount)}</b></li>)}
+          {priorDispatcherPaid && <li><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(prevWeek)} ({t('semana anterior')})</span><b>{money(priorDispatcher.commission)}</b></li>}
+          {weekManualSalaries.map(m => <li key={m.id}><span>{m.driverId ? driverNameFor(m.driverId) : m.payeeName}{m.notes ? ` · ${m.notes}` : ''}</span><b>{money(m.amount)}</b></li>)}
+        </ul>
+      </div>}
+
       <div className={styles.moneyCard}>
         <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
         <span className={styles.statLabel}>{t('Dinero que queda')}</span>
@@ -274,17 +288,8 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       </div>
     </div>
 
-    <button type="button" className={styles.textButton} onClick={() => setSalariosOpen(o => !o)}><MoreVertical size={15} /> {t('Ver detalle de Salarios')}</button>
+    <button type="button" className={styles.textButton} onClick={() => setSalariosOpen(o => !o)}><MoreVertical size={15} /> {t('Editar salarios pagados a mano')}</button>
     {salariosOpen && <div className={styles.rowDetail}>
-      <h3>{t('De quiénes son los Salarios de esta semana')}</h3>
-      {marioPaidLines.length > 0 && <ul className={styles.plainList}>
-        {marioPaidLines.map(m => <li key={m.driverId}><span>{m.driverName}</span><b>{money(m.amount)}</b></li>)}
-      </ul>}
-      {priorDispatcherPaid && <ul className={styles.plainList}>
-        <li><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(prevWeek)} ({t('semana anterior')})</span><b>{money(priorDispatcher.commission)}</b></li>
-      </ul>}
-      {marioPaidLines.length === 0 && !priorDispatcherPaid && weekManualSalaries.length === 0 && <p className={styles.empty}>{t('Todavía no hay ningún salario marcado como pagado esta semana.')}</p>}
-
       <h3>{t('Salarios pagados a mano')}</h3>
       <p className={styles.note}>{t('Para pagos que el sistema todavía no puede calcular solo — por ejemplo, un viaje que sigue abierto desde hace semanas. Se suman al número de "Salarios" de arriba.')}</p>
       {weekManualSalaries.length > 0 && <ul className={styles.plainList}>
