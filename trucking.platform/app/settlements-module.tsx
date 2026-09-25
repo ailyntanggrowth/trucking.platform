@@ -89,15 +89,17 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const dispatcherPaid = dispatcherMark?.paymentStatus === 'Pagada';
   // Regla fija (pedido explícito, aclarado en conversación): el invoice del
   // despachador de la semana N se arma con las cargas de esa semana y cierra
-  // el lunes de esa semana — pero a Gleiby se le PAGA en los días siguientes,
-  // ya dentro de la semana N+1. Por eso, para "Salarios", lo que importa no
-  // es si el invoice de ESTA semana ya está pagado (todavía ni cierra), sino
-  // si el invoice de la semana ANTERIOR (la que sí cerró) ya se pagó — ese
-  // pago es el que realmente sale de la caja durante la semana que se está
-  // mirando.
-  const priorDispatcher = dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, prevWeek, weekStart, state.config, state.weekLocks);
-  const priorDispatcherMark = state.dispatcherMarks.find(m => m.weekStart === prevWeek);
-  const priorDispatcherPaid = priorDispatcherMark?.paymentStatus === 'Pagada';
+  // el lunes de esa semana — pero a Gleiby se le PAGA en los días siguientes.
+  // Para "Salarios" lo que importa no es de qué semana es el invoice, sino
+  // CUÁNDO se pagó de verdad — normalmente el de la semana anterior, pero si
+  // se atrasa (pedido explícito: caso real, se pagaron DOS invoices juntos
+  // la misma semana) hay que contar los que hagan falta, no solo uno fijo.
+  // Se suman todos los invoices marcados pagados cuya fecha de pago cae
+  // dentro de la semana que se está mirando.
+  const dispatcherPaymentsThisWeek = state.dispatcherMarks
+    .filter(m => m.paymentStatus === 'Pagada' && m.paidAt && m.paidAt.slice(0, 10) >= weekStart && m.paidAt.slice(0, 10) < weekEnd)
+    .map(m => ({ weekStart: m.weekStart, commission: dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, m.weekStart, weekRange(m.weekStart).end, state.config, state.weekLocks).commission }))
+    .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
   // Los 4 números de "Esta semana" — siempre calculados en vivo desde lo que
   // ya existe en Cargas/Combustible/Recorrido de cada chofer, nunca captura
@@ -130,10 +132,9 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // que coincida con lo que de verdad salió de la caja. Se le suma lo
   // registrado a mano en "Salarios pagados a mano" (viajes que el sistema
   // todavía no puede calcular solo, p.ej. uno que sigue abierto desde hace
-  // semanas sin cerrar en Cargas) y, si ya se pagó, el invoice del
-  // despachador (Gleiby) DE LA SEMANA ANTERIOR — también es un salario de
-  // ella, y es el que realmente se paga durante esta semana (ver nota
-  // arriba sobre priorDispatcher).
+  // semanas sin cerrar en Cargas) y los invoices del despachador (Gleiby)
+  // pagados esta semana (ver dispatcherPaymentsThisWeek arriba) — también
+  // es un salario de ella.
   const weekManualSalaries = state.manualSalaries.filter(m => m.weekStart === weekStart);
   const manualSalariesTotal = weekManualSalaries.reduce((s, m) => s + m.amount, 0);
   // Pedido explícito: "Salarios" era un solo número sin decir de quién —
@@ -141,7 +142,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // semana (con su monto real) para poder mostrarla en "Ver detalle de
   // Salarios", junto con la comisión del despachador cuando aplica.
   const marioPaidLines = mario.filter(m => m.paymentStatus === 'Pagada').map(m => ({ driverId: m.driverId, driverName: m.driverName, amount: m.amountPaid }));
-  const pagoAChoferes = marioPaidLines.reduce((s, m) => s + m.amount, 0) + manualSalariesTotal + (priorDispatcherPaid ? priorDispatcher.commission : 0);
+  const pagoAChoferes = marioPaidLines.reduce((s, m) => s + m.amount, 0) + manualSalariesTotal + dispatcherPaymentsThisWeek.reduce((s, d) => s + d.commission, 0);
   // "Roturas" (pedido explícito): costo real de reparaciones anotado a mano
   // — el reporte de rotura de una carga (Cargas → incidentCost) es solo una
   // nota informativa que se pierde al resolverse, nunca se restaba de nada.
@@ -272,11 +273,11 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           detalle de Salarios", que queda FUERA de esta captura y nunca se
           imprimía. Va siempre visible aquí (no detrás de un botón) para que
           la tabla y el PDF ya traigan de quiénes son los $ de Salarios. */}
-      {ready2 && (marioPaidLines.length > 0 || priorDispatcherPaid || weekManualSalaries.length > 0) && <div className={styles.salaryDetail}>
+      {ready2 && (marioPaidLines.length > 0 || dispatcherPaymentsThisWeek.length > 0 || weekManualSalaries.length > 0) && <div className={styles.salaryDetail}>
         <h3>{t('De quiénes son los Salarios de esta semana')}</h3>
         <ul className={styles.plainList}>
           {marioPaidLines.map(m => <li key={m.driverId}><span>{m.driverName}</span><b>{money(m.amount)}</b></li>)}
-          {priorDispatcherPaid && <li><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(prevWeek)} ({t('semana anterior')})</span><b>{money(priorDispatcher.commission)}</b></li>}
+          {dispatcherPaymentsThisWeek.map(d => <li key={d.weekStart}><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(d.weekStart)}</span><b>{money(d.commission)}</b></li>)}
           {weekManualSalaries.map(m => <li key={m.id}><span>{m.driverId ? driverNameFor(m.driverId) : m.payeeName}{m.notes ? ` · ${m.notes}` : ''}</span><b>{money(m.amount)}</b></li>)}
         </ul>
       </div>}
