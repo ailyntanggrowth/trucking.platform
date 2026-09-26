@@ -44,7 +44,7 @@ function weeksEndingAt(fromWeekStart: string, n: number): string[] {
 export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t }: {
   settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string;
 }) {
-  const [rangeWeeks, setRangeWeeks] = useState<RangeWeeks>(8);
+  const [rangeWeeks, setRangeWeeks] = useState<RangeWeeks>(2);
   const ready = loads.ready && fuel.ready && fleet.ready && settlements.ready;
 
   const currentWeekStart = weekStartOf(today());
