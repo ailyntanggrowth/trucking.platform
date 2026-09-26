@@ -235,37 +235,45 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
       .filter(l => l.driverId === driver.id && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada')
       .sort((a, b) => a.pickupDate.localeCompare(b.pickupDate));
     if (!driverLoads.length) continue;
-    // Bug corregido (pedido explícito — el chofer desaparecía por completo del
-    // recorrido): una entrega a FL programada para el FUTURO no cuenta como
-    // "ya volvió a FL". Solo cierra el viaje una entrega a FL que YA pasó —
-    // si no, un chofer con una carga futura que entrega en FL se trataba como
-    // si el viaje ya hubiera terminado, y se escondía toda su tarjeta.
-    //
-    // Segundo caso encontrado (mismo bug, un día después): la entrega
-    // programada para HOY MISMO también se escondía, justo el día que más
-    // importa verla — "hoy" todavía no cuenta como "ya volvió", solo un día
-    // estrictamente anterior a hoy sí.
-    let lastFlReturnIdx = -1;
-    driverLoads.forEach((l, i) => { if (l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate && l.deliveryDate < todayStr) lastFlReturnIdx = i; });
-    const tripLoads = lastFlReturnIdx === -1 ? driverLoads : driverLoads.slice(lastFlReturnIdx + 1);
-    if (!tripLoads.length) {
-      // Ya volvió a FL, sin viaje activo. Pedido explícito: para un chofer
-      // de Mario, su viaje MÁS RECIENTE ya terminado se sigue mostrando
-      // hasta que se marque pagado (antes desaparecía justo al volver a FL,
-      // antes de poder pagarle). Solo el más reciente — los anteriores se
-      // pagaron por fuera del sistema y no deben reaparecer.
-      if (driver.group !== 'Mario') continue;
-      let prevIdx = -1;
-      driverLoads.forEach((l, i) => { if (i < lastFlReturnIdx && l.deliveryState.trim().toUpperCase() === 'FL' && l.deliveryDate && l.deliveryDate < todayStr) prevIdx = i; });
-      const doneLoads = driverLoads.slice(prevIdx + 1, lastFlReturnIdx + 1);
-      const doneStart = doneLoads[0].pickupDate;
-      const returnDate = doneLoads[doneLoads.length - 1].deliveryDate;
-      trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart: doneStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(doneStart)) / 86400000)), loads: doneLoads, returnedToFl: true, returnDate });
-      continue;
-    }
-    const tripStart = tripLoads[0].pickupDate;
-    const daysOut = Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(tripStart)) / 86400000));
-    trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut, loads: tripLoads });
+
+    // Separa el historial en TRAMOS, cada uno un viaje/pago distinto (pedido
+    // explícito: un chofer que vuelve a FL y sale de nuevo el mismo día o al
+    // día siguiente no debe juntar los dos viajes en un solo pago). Un tramo
+    // termina en una entrega a FL que YA pasó Y que no es la última carga
+    // que tiene el chofer — si ya existe una carga después, esa entrega a FL
+    // de verdad ya ocurrió, sin importar si fue exactamente hoy.
+    const segments: Load[][] = [];
+    let current: Load[] = [];
+    driverLoads.forEach((l, i) => {
+      current.push(l);
+      const isFlReturn = l.deliveryState.trim().toUpperCase() === 'FL' && Boolean(l.deliveryDate) && l.deliveryDate <= todayStr;
+      const hasNext = i < driverLoads.length - 1;
+      if (isFlReturn && hasNext) { segments.push(current); current = []; }
+    });
+    if (current.length) segments.push(current);
+
+    segments.forEach((seg, i) => {
+      const isLastSegment = i === segments.length - 1;
+      const lastLoad = seg[seg.length - 1];
+      // Bug corregido (pedido explícito — el chofer desaparecía por completo
+      // del recorrido): en el tramo ACTUAL (el último), una entrega a FL de
+      // HOY o del futuro no cuenta todavía como "ya volvió" — solo un día
+      // estrictamente anterior a hoy sí. Si no, se trataba como si el viaje
+      // ya hubiera terminado justo el día que más importa verlo.
+      const closedForReal = lastLoad.deliveryState.trim().toUpperCase() === 'FL' && Boolean(lastLoad.deliveryDate) && lastLoad.deliveryDate < todayStr;
+      const tripStart = seg[0].pickupDate;
+      if (isLastSegment && !closedForReal) {
+        const daysOut = Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(tripStart)) / 86400000));
+        trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut, loads: seg });
+      } else if (driver.group === 'Mario') {
+        // Tramo ya cerrado (volvió a FL). Pedido explícito: para un chofer
+        // de Mario, cada viaje ya terminado se sigue mostrando por separado
+        // hasta que se marque pagado (antes desaparecía justo al volver a
+        // FL, antes de poder pagarle, o se juntaba con el viaje siguiente).
+        const returnDate = lastLoad.deliveryDate;
+        trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
+      }
+    });
   }
   return trips.sort((a, b) => b.daysOut - a.daysOut);
 }
