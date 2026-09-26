@@ -1,10 +1,12 @@
 "use client";
 import { useState } from 'react';
 import {
-  computeMarioSettlements, computeOwnerOperatorSettlements, dispatcherCommission,
-  weekStartOf, weekRange, paidWithinInvoicePeriod,
+  computeOwnerOperatorSettlements, dispatcherCommission, driverPayForGross,
+  weekStartOf, weekRange, paidWithinInvoicePeriod, type SettlementConfig,
 } from '../lib/settlements';
-import { isOfficial } from '../lib/loads';
+import { isOfficial, type Load } from '../lib/loads';
+import type { Driver } from '../lib/fleet';
+import type { FuelTransaction, Expense } from '../lib/fuel';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -39,6 +41,33 @@ function weeksEndingAt(fromWeekStart: string, n: number): string[] {
   let w = fromWeekStart;
   for (let i = 0; i < n; i++) { result.unshift(w); w = weekRange(w).prevWeek; }
   return result;
+}
+
+// Ganancia por chofer de Mario, SOLO para Reportes (pedido explícito): la
+// tarjeta "Recorrido de cada chofer" y la tabla de Resumen Semanal agrupan
+// las cargas por fecha de ENTREGA, pero computeMarioSettlements (que usan
+// Combustible y Salarios) las agrupa por fecha de RECOGIDA — una misma carga
+// podía "pertenecer" a una semana distinta en cada pantalla, confundiendo al
+// compararlas (caso real: Reportes contaba 2 cargas de una semana que en la
+// tabla solo mostraba 1). Esta copia usa fecha de entrega para que Reportes
+// siempre coincida con lo que se ve en la tabla — Combustible y Salarios
+// quedan exactamente igual que antes, sin tocar computeMarioSettlements.
+type ReportMarioLine = { driverId: string; driverName: string; loadsCount: number; fuel: number; finalProfit: number };
+function marioProfitByDeliveryDate(
+  drivers: Driver[], loads: Load[], transactions: FuelTransaction[], expenses: Expense[],
+  weekStart: string, weekEnd: string, config: SettlementConfig, driverInsurance: Record<string, number>,
+): ReportMarioLine[] {
+  return drivers.filter(d => d.group === 'Mario').map(d => {
+    const driverLoads = loads.filter(l => l.driverId === d.id && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.deliveryDate >= weekStart && l.deliveryDate < weekEnd);
+    const gross = driverLoads.reduce((s, l) => s + l.amount, 0);
+    const fuel = transactions.filter(t => t.driverId === d.id && t.status === 'Final' && t.date >= weekStart && t.date < weekEnd).reduce((s, t) => s + t.fuelAmount + t.nonFuelAmount, 0)
+      + expenses.filter(e => e.driverId === d.id && e.status === 'Final' && e.date >= weekStart && e.date < weekEnd).reduce((s, e) => s + e.amount, 0);
+    const companyDeduction = gross * config.companyDeductionPct;
+    const driverPay = driverPayForGross(gross, config);
+    const insurance = driverInsurance[d.id] || 0;
+    const finalProfit = gross - companyDeduction - fuel - driverPay - insurance;
+    return { driverId: d.id, driverName: d.name, loadsCount: driverLoads.length, fuel, finalProfit };
+  });
 }
 
 export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t }: {
@@ -81,7 +110,7 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   // Cargas/Combustible/Contabilidad ya calculan, igual que antes).
   function weekStats(weekStart: string) {
     const { end: weekEnd } = weekRange(weekStart);
-    const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, settlements.state.config, settlements.state.driverInsurance, settlements.state.marks);
+    const mario = marioProfitByDeliveryDate(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, settlements.state.config, settlements.state.driverInsurance);
     const ownerOperators = computeOwnerOperatorSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, settlements.state.config);
     const dispatcher = dispatcherCommission(fleet.state.drivers, loads.state.loads, weekStart, weekEnd, settlements.state.config, settlements.state.weekLocks);
     const ingresos = loads.state.loads
@@ -109,10 +138,9 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   });
 
   // Ranking de choferes de Mario (pedido explícito: solo Mario, ni Owner
-  // Operators ni Lázaro) — la MISMA ganancia final que ya calcula
-  // computeMarioSettlements (bruto − 6% − combustible del Mudflap importado −
-  // salario − seguro), solo que sumada a través del rango en vez de mostrarse
-  // semana por semana.
+  // Operators ni Lázaro) — la ganancia final (bruto − 6% − combustible del
+  // Mudflap importado − salario − seguro) de marioProfitByDeliveryDate,
+  // sumada a través del rango en vez de mostrarse semana por semana.
   type DriverAgg = { driverId: string; driverName: string; loadsCount: number; finalProfit: number };
   function aggregateMario(stats: ReturnType<typeof weekStats>[]): Map<string, DriverAgg> {
     const map = new Map<string, DriverAgg>();
