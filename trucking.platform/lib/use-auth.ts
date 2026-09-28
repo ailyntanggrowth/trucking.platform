@@ -76,12 +76,40 @@ export function useAuth() {
     }
     void exchangeCodeIfPresent();
 
+    // Pantalla en blanco al abrir (reporte de la dueña: a veces solo sale el
+    // logo y hay que cerrar y abrir la app): el estado sale de 'loading' solo
+    // cuando Supabase avisa la sesión con este evento. Si ese aviso nunca
+    // llega (la app se despertó a medias en el celular, o el candado del
+    // almacenamiento quedó trabado), se quedaba en el logo para siempre. Si en
+    // 4 segundos no llegó nada, se pide la sesión directamente; y si ni eso
+    // responde, se recarga una sola vez sola (marca en sessionStorage para
+    // no entrar en ciclo) — sin que ella tenga que cerrar la app.
+    let settled = false;
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      settled = true;
       if (needsPasswordRef.current) { setEmail(session?.user.email || ''); setStatus('needsPassword'); return; }
       if (session) void loadProfile(session.access_token, session.user.email || '');
       else { setProfile(null); setEmail(''); setStatus('signedOut'); }
     });
-    return () => sub.subscription.unsubscribe();
+    const watchdog = setTimeout(async () => {
+      if (settled) return;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
+        ]);
+        if (settled) return;
+        if (result === null) {
+          if (!sessionStorage.getItem('auth-watchdog-reloaded')) { sessionStorage.setItem('auth-watchdog-reloaded', '1'); window.location.reload(); }
+          return;
+        }
+        settled = true;
+        if (needsPasswordRef.current) return;
+        if (result.data.session) void loadProfile(result.data.session.access_token, result.data.session.user.email || '');
+        else { setProfile(null); setEmail(''); setStatus('signedOut'); }
+      } catch { /* la pantalla de "está tardando" ofrece recargar a mano */ }
+    }, 4000);
+    return () => { clearTimeout(watchdog); sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
   // useCallback con deps [] es crítico aquí: use-chat.ts y use-my-loads.ts

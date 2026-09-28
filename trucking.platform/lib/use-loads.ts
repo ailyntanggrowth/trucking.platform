@@ -5,7 +5,8 @@ import { commitLoadAction, getLoadsState } from './loads-actions';
 
 export function useLoads() {
   const [state, setState] = useState<LoadState>(emptyLoads), [ready, setReady] = useState(false), [error, setError] = useState('');
-  const refresh = useCallback(async () => { try { const next = await getLoadsState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
+  const [retries, setRetries] = useState(0);
+  const refresh = useCallback(async () => { try { const next = await getLoadsState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
   useEffect(() => {
     // Pedido explícito: en el celular, al reabrir la app (sin cerrarla del
     // todo) a veces queda "congelada" desde antes de que el teléfono la
@@ -21,6 +22,14 @@ export function useLoads() {
     window.addEventListener('pageshow', wake);
     return () => { channel?.close(); window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake); window.removeEventListener('pageshow', wake); };
   }, [refresh]);
+  // Si la carga falla (señal floja, servidor dormido), reintenta sola unas
+  // cuantas veces en vez de dejar la pantalla vacía hasta que se cierre y se
+  // abra la app.
+  useEffect(() => {
+    if (ready || !error || retries >= 5) return;
+    const id = setTimeout(() => { setRetries(n => n + 1); void refresh(); }, 2500 * (retries + 1));
+    return () => clearTimeout(id);
+  }, [ready, error, retries, refresh]);
   const commit = async (action: LoadAction, revision = state.revision) => {
     if (!ready) throw new Error('Supabase no está disponible.');
     const next = await commitLoadAction(action, revision);

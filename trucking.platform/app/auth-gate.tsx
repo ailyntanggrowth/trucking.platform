@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { AuthController } from '../lib/use-auth';
 import type { Lang } from '../lib/i18n';
 import { Truck } from 'lucide-react';
@@ -9,6 +9,14 @@ type View = 'login' | 'forgot';
 
 export default function AuthGate({ auth, lang, t, children }: { auth: AuthController; lang: Lang; t: (es: string) => string; children: ReactNode }) {
   const [view, setView] = useState<View>('login');
+  // Si la carga inicial pasa de 6 segundos, se ofrece recargar en vez de
+  // dejar solo el logo (pantalla "en blanco").
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (auth.status !== 'loading') { setSlow(false); return; }
+    const id = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(id);
+  }, [auth.status]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -46,7 +54,9 @@ export default function AuthGate({ auth, lang, t, children }: { auth: AuthContro
   }
 
   if (auth.status === 'ready') return <>{children}</>;
-  if (auth.status === 'loading') return <div className={styles.screen}><div className={styles.logo} aria-hidden="true"><Truck size={26} strokeWidth={1.75} /></div></div>;
+  if (auth.status === 'loading') return <div className={styles.screen}><div className={styles.logo} aria-hidden="true"><Truck size={26} strokeWidth={1.75} /></div>
+    {slow && <div role="status" style={{ marginTop: 18, textAlign: 'center' }}><p>{t('Está tardando más de lo normal…')}</p><button type="button" onClick={() => window.location.reload()}>{t('Recargar')}</button></div>}
+  </div>;
 
   if (auth.status === 'needsPassword') {
     return <div className={styles.screen}>

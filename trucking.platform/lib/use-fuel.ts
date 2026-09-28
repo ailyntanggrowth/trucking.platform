@@ -5,7 +5,8 @@ import { commitFuelAction, commitExpenseAction, getFuelState } from './fuel-acti
 
 export function useFuel() {
   const [state, setState] = useState<FuelState>(emptyFuel), [ready, setReady] = useState(false), [error, setError] = useState('');
-  const refresh = useCallback(async () => { try { const next = await getFuelState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
+  const [retries, setRetries] = useState(0);
+  const refresh = useCallback(async () => { try { const next = await getFuelState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
   useEffect(() => {
     void refresh();
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ma-king-fuel') : null;
@@ -16,6 +17,14 @@ export function useFuel() {
     window.addEventListener('pageshow', wake);
     return () => { channel?.close(); window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake); window.removeEventListener('pageshow', wake); };
   }, [refresh]);
+  // Si la carga falla (señal floja, servidor dormido), reintenta sola unas
+  // cuantas veces en vez de dejar la pantalla vacía hasta que se cierre y se
+  // abra la app.
+  useEffect(() => {
+    if (ready || !error || retries >= 5) return;
+    const id = setTimeout(() => { setRetries(n => n + 1); void refresh(); }, 2500 * (retries + 1));
+    return () => clearTimeout(id);
+  }, [ready, error, retries, refresh]);
   const commit = async (action: FuelAction, revision = state.revision) => {
     if (!ready) throw new Error('Supabase no está disponible.');
     let next: FuelState;
