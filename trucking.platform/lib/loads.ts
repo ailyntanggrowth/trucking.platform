@@ -265,15 +265,11 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
       if (isLastSegment && !closedForReal) {
         const daysOut = Math.max(0, Math.round((Date.parse(todayStr) - Date.parse(tripStart)) / 86400000));
         trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut, loads: seg });
-      } else if (driver.group === 'Mario' || driver.group === 'Owner Operators') {
+      } else if (driver.group === 'Mario') {
         // Tramo ya cerrado (volvió a FL). Pedido explícito: para un chofer
         // de Mario, cada viaje ya terminado se sigue mostrando por separado
         // hasta que se marque pagado (antes desaparecía justo al volver a
         // FL, antes de poder pagarle, o se juntaba con el viaje siguiente).
-        // Para Owner Operators (pedido explícito) también se muestra cada
-        // viaje ya cerrado por separado, para poder ver debajo cuánto le
-        // debe ese viaje a Mario (12% del bruto) — sin marca de pago, es
-        // solo informativo.
         const returnDate = lastLoad.deliveryDate;
         trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
       }
