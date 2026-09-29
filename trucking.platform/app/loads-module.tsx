@@ -150,7 +150,14 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
         ? <div className={styles.tripList}>{driverTrips.map(trip => {
             const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
             const isMario = trip.group === 'Mario';
+            const isOwnerOperator = trip.group === 'Owner Operators';
             const estimatedPay = isMario ? driverPayForGross(gross, settlements.state.config) : 0;
+            // Pedido explícito: debajo del recorrido de un Owner Operator,
+            // cuánto le debe ESE viaje a Mario — el mismo 12% que ya se usa
+            // en computeOwnerOperatorSettlements/Resumen Semanal, solo que
+            // aquí por viaje (desde que salió de FL hasta que volvió), no
+            // por semana calendario.
+            const marioCut = isOwnerOperator ? gross * settlements.state.config.ownerOperatorCutPct : 0;
             // El pago se archiva por la semana en que REALMENTE se pagó (pedido
             // explícito, igual que "Bruto Mario" en Contabilidad), no por la
             // fecha en que el chofer salió de FL — un viaje puede empezar en
@@ -191,6 +198,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
                 : !isPaid && <button type="button" onClick={() => { setPayTrip({ driverId: trip.driverId, driverName: trip.driverName, tripStart: trip.tripStart }); setPayAmount(estimatedPay.toFixed(2)); setPayError(''); }}>{t('Marcar como pagado')}</button>)}
               {isPayingThis && payError && <p className={styles.error} role="alert">{payError}</p>}
             </>}
+            {isOwnerOperator && <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{t('Debe a Mario (12%):')}</b> {money(marioCut)}</p>}
           </div>;
           })}</div>
         : <p className={styles.empty}>{ready ? t('Todos los choferes están en FL ahora mismo.') : t('Cargando…')}</p>}
