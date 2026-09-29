@@ -278,7 +278,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           <span className={styles.statIcon} aria-hidden="true"><Users size={16} /></span><span className={styles.statLabel}>{t('Salarios')}</span><strong>{ready2 ? money(pagoAChoferes) : '—'}</strong>
         </div>
         <div className={styles.statCard} data-tone="red">
-          <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
+          <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas o Mantenimiento')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
         </div>
         <div className={styles.statCard} data-tone="green">
           <span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Corte de Mario (Owner Operators, 12%)')}</span><strong>{ready2 ? money(marioCutOo) : '—'}</strong>
@@ -325,10 +325,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       </form>
     </div>}
 
-    <button type="button" className={styles.textButton} onClick={() => setRoturasOpen(o => !o)}><Wrench size={15} /> {t('Editar roturas')}</button>
+    <button type="button" className={styles.textButton} onClick={() => setRoturasOpen(o => !o)}><Wrench size={15} /> {t('Editar roturas o mantenimiento')}</button>
     {roturasOpen && <div className={styles.rowDetail}>
-      <h3>{t('Roturas')}</h3>
-      <p className={styles.note}>{t('El costo de una reparación (ej. cuando se reporta y luego se quita una rotura en Cargas) — anótalo aquí para que sí se reste del "Dinero que queda" de arriba.')}</p>
+      <h3>{t('Roturas o Mantenimiento')}</h3>
+      <p className={styles.note}>{t('El costo de una reparación o de mantenimiento (ej. cuando se reporta y luego se quita una rotura en Cargas) — anótalo aquí para que sí se reste del "Dinero que queda" de arriba.')}</p>
       {weekManualRepairs.length > 0 && <ul className={styles.plainList}>
         {weekManualRepairs.map(m => <li key={m.id}>
           <span>{m.description}{m.driverId ? ` · ${driverNameFor(m.driverId)}` : ''}{m.notes ? ` · ${m.notes}` : ''}</span>
@@ -342,13 +342,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       {(() => {
         const editing = editRepairId ? weekManualRepairs.find(m => m.id === editRepairId) : undefined;
         return <form className={styles.fields} onSubmit={addManualRepair} key={editRepairId || 'new-repair'}>
-          {editRepairId && <p className={styles.wide}>{t('Editando la rotura de arriba.')}</p>}
-          <label className={styles.wide}>{t('¿Qué se reparó? *')}<input name="description" maxLength={200} required defaultValue={editing?.description} placeholder={t('Ej. se ponchó una llanta, se rompió el motor…')} /></label>
+          {editRepairId && <p className={styles.wide}>{t('Editando el gasto de arriba.')}</p>}
+          <label className={styles.wide}>{t('¿Qué se reparó o mantuvo? *')}<input name="description" maxLength={200} required defaultValue={editing?.description} placeholder={t('Ej. se ponchó una llanta, cambio de aceite…')} /></label>
           <label>{t('Chofer (opcional)')}<select name="driverId" defaultValue={editing?.driverId || ''}><option value="">{t('— Ninguno —')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
           <label>{t('Costo *')}<input name="amount" type="number" min="0.01" step="0.01" required defaultValue={editing?.amount} /></label>
           <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} defaultValue={editing?.notes} placeholder={t('Ej. carga de Agner #38329284')} /></label>
           <div className={styles.actions}>
-            <button type="submit" className={styles.primary} disabled={busy}>{editRepairId ? t('Guardar cambios') : t('+ Agregar rotura')}</button>
+            <button type="submit" className={styles.primary} disabled={busy}>{editRepairId ? t('Guardar cambios') : t('+ Agregar')}</button>
             {editRepairId && <button type="button" disabled={busy} onClick={() => setEditRepairId(null)}>{t('Cancelar')}</button>}
           </div>
         </form>;
