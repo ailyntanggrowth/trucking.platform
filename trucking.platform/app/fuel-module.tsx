@@ -15,6 +15,14 @@ import styles from './fuel.module.css';
 
 const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
 
+// "Resumen del chofer" (pedido explícito, 29 sep): ella no confía todavía en
+// los viajes ya cerrados que el sistema calculó para los demás choferes de
+// Mario (dice que traen datos que no son reales) — solo confirmó que el de
+// Agnel está bien. Mientras revisa uno por uno, solo se muestra el resumen
+// de los choferes en esta lista; cuando confirme que otro está correcto, se
+// agrega su nombre aquí.
+const RESUMEN_ENABLED_DRIVER_NAMES = ['agnel morales'];
+
 // Gastos (peajes, reparaciones, etc.) se retiró de esta pantalla (pedido
 // explícito: "por ahora no lo voy a utilizar") — los datos y las acciones
 // siguen intactos en lib/fuel.ts / lib/fuel-actions.ts, solo que sin UI
@@ -94,7 +102,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const existing = closedTripByDriver.get(trip.driverId);
     if (!existing || trip.tripStart > existing.tripStart) closedTripByDriver.set(trip.driverId, trip);
   }
-  const driversWithResumen = marioDrivers.filter(d => closedTripByDriver.has(d.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const driversWithResumen = marioDrivers.filter(d => closedTripByDriver.has(d.id) && RESUMEN_ENABLED_DRIVER_NAMES.includes(d.name.trim().toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
   const resumenTrip = resumenDriverId ? closedTripByDriver.get(resumenDriverId) : undefined;
   const resumenDriver = resumenDriverId ? marioDrivers.find(d => d.id === resumenDriverId) : undefined;
 
