@@ -149,16 +149,16 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // nota informativa que se pierde al resolverse, nunca se restaba de nada.
   const weekManualRepairs = state.manualRepairs.filter(m => m.weekStart === weekStart);
   const roturas = weekManualRepairs.reduce((s, m) => s + m.amount, 0);
-  // "Corte de Mario" (pedido explícito): de TODAS las cargas de Owner
-  // Operators y Lázaro, Mario cobra el mismo % que ya se usa para Owner
-  // Operators (state.config.ownerOperatorCutPct, hoy 12%) — se suma al
-  // resumen que se le manda cada lunes, usando las MISMAS cargas que ya se
-  // ven en la tabla de arriba (por fecha de entrega), para que nunca se
-  // pueda des-cuadrar con lo que ella ve ahí.
-  const marioCutOoLazaro = summaryGroups
-    .filter(g => g.group !== 'Mario')
+  // "Corte de Mario" (pedido explícito, corregido: solo Owner Operators, sin
+  // Lázaro): de todas las cargas de Owner Operators, Mario cobra el mismo %
+  // que ya usa computeOwnerOperatorSettlements (state.config.ownerOperatorCutPct,
+  // hoy 12%) — se suma al resumen que se le manda cada lunes, usando las
+  // MISMAS cargas que ya se ven en la tabla de arriba (por fecha de
+  // entrega), para que nunca se pueda des-cuadrar con lo que ella ve ahí.
+  const marioCutOo = summaryGroups
+    .filter(g => g.group === 'Owner Operators')
     .reduce((s, g) => s + g.rows.reduce((s2, l) => s2 + l.amount * state.config.ownerOperatorCutPct, 0), 0);
-  const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes - roturas + marioCutOoLazaro;
+  const dineroQueQueda = cargasRealizadas - combustibleMario - pagoAChoferes - roturas + marioCutOo;
   const driverNameFor = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || t('Chofer eliminado');
 
   async function addManualSalary(event: FormEvent<HTMLFormElement>) {
@@ -281,7 +281,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
           <span className={styles.statIcon} aria-hidden="true"><Wrench size={16} /></span><span className={styles.statLabel}>{t('Roturas')}</span><strong>{ready2 ? money(roturas) : '—'}</strong>
         </div>
         <div className={styles.statCard} data-tone="green">
-          <span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Corte de Mario (Owner Operators + Lázaro, 12%)')}</span><strong>{ready2 ? money(marioCutOoLazaro) : '—'}</strong>
+          <span className={styles.statIcon} aria-hidden="true"><Percent size={16} /></span><span className={styles.statLabel}>{t('Corte de Mario (Owner Operators, 12%)')}</span><strong>{ready2 ? money(marioCutOo) : '—'}</strong>
         </div>
       </div>
 
