@@ -252,6 +252,16 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
     });
     if (current.length) segments.push(current);
 
+    // Para Owner Operators (pedido explícito) solo se muestra el viaje YA
+    // CERRADO más reciente, nunca todo el historial — a diferencia de Mario,
+    // aquí no hay botón de "marcar pagado" que lo saque de la lista, así que
+    // mostrar todos los tramos cerrados iba acumulando cargas viejas sin
+    // forma de quitarlas.
+    const lastIdx = segments.length - 1;
+    const lastLoadOfAll = segments[lastIdx][segments[lastIdx].length - 1];
+    const lastIsClosed = lastLoadOfAll.deliveryState.trim().toUpperCase() === 'FL' && Boolean(lastLoadOfAll.deliveryDate) && lastLoadOfAll.deliveryDate < todayStr;
+    const mostRecentClosedIdx = lastIsClosed ? lastIdx : lastIdx - 1;
+
     segments.forEach((seg, i) => {
       const isLastSegment = i === segments.length - 1;
       const lastLoad = seg[seg.length - 1];
@@ -270,6 +280,11 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
         // de Mario, cada viaje ya terminado se sigue mostrando por separado
         // hasta que se marque pagado (antes desaparecía justo al volver a
         // FL, antes de poder pagarle, o se juntaba con el viaje siguiente).
+        const returnDate = lastLoad.deliveryDate;
+        trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
+      } else if (driver.group === 'Owner Operators' && i === mostRecentClosedIdx) {
+        // Tramo ya cerrado más reciente de un Owner Operator (pedido
+        // explícito): para saber cuánto le debe ese viaje a Mario (12%).
         const returnDate = lastLoad.deliveryDate;
         trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
       }
