@@ -250,18 +250,22 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
           explícito, confirmado contra el resumen real que ella manda) — el
           descuento de Mudflap se aplica una sola vez, al final, nunca
           repartido entre choferes. */}
+      {/* Nombre y monto pegados con una guía de puntos entre los dos (pedido
+          explícito: antes el monto quedaba muy separado del nombre, a la
+          derecha del todo, y era fácil confundir a qué chofer correspondía
+          cada número al leer varias filas seguidas). */}
       {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
         <p><strong>{t(groupLabel(g.group))}</strong></p>
-        <ul style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, display: 'grid', gap: 4 }}>
-          {g.drivers.map(d => <li key={d.driverId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span>{shortName(d.driverName)}</span><span>{money(d.retailAmount)}</span></li>)}
+        <ul className={styles.mudflapList}>
+          {g.drivers.map(d => <li key={d.driverId} className={styles.mudflapRow}><span className={styles.mudflapName}>{shortName(d.driverName)}</span><span className={styles.mudflapLeader} aria-hidden="true" /><span className={styles.mudflapAmount}>{money(d.retailAmount)}</span></li>)}
         </ul>
-        {g.group && <p className={styles.tableSub} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><b>{t('Total')} {g.group}</b><b>{money(g.retailTotal)}</b></p>}
+        {g.group && <p className={`${styles.tableSub} ${styles.mudflapRow}`}><b className={styles.mudflapName}>{t('Total')} {g.group}</b><span className={styles.mudflapLeader} aria-hidden="true" /><b className={styles.mudflapAmount}>{money(g.retailTotal)}</b></p>}
       </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
-      {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
-        <b>{t('Total sin descuentos')}</b><b>{money(weeklySummary.grandRetailTotal)}</b>
+      {weeklySummary.groups.length > 0 && <p className={styles.mudflapRow} style={{ borderTop: '1px solid #e3dadd', paddingTop: 8, marginTop: 8 }}>
+        <b className={styles.mudflapName}>{t('Total sin descuentos')}</b><span className={styles.mudflapLeader} aria-hidden="true" /><b className={styles.mudflapAmount}>{money(weeklySummary.grandRetailTotal)}</b>
       </p>}
-      {weeklySummary.groups.length > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 0 }}>
-        <b>{t('Total con descuentos')}</b><b>{money(weeklySummary.grandTotal)}</b>
+      {weeklySummary.groups.length > 0 && <p className={styles.mudflapRow} style={{ marginTop: 0 }}>
+        <b className={styles.mudflapName}>{t('Total con descuentos')}</b><span className={styles.mudflapLeader} aria-hidden="true" /><b className={styles.mudflapAmount}>{money(weeklySummary.grandTotal)}</b>
       </p>}
     </div>
 

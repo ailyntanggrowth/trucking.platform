@@ -99,6 +99,15 @@
 .copyBoxHead { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
 .copyBoxHead h3 { margin:0; }
 
+/* Fila nombre—monto del Resumen de Mudflap: guía de puntos entre los dos
+   (pedido explícito) para que el ojo vaya del chofer directo a SU monto,
+   en vez de que el monto quede pegado al borde derecho, lejos del nombre. */
+.mudflapList { list-style:none; margin:0 0 6px; padding:0; display:flex; flex-direction:column; gap:2px; }
+.mudflapRow { display:flex; align-items:baseline; gap:6px; margin:0; padding:2px 0; }
+.mudflapName { white-space:nowrap; }
+.mudflapLeader { flex:1; min-width:10px; border-bottom:1px dotted #C9BFC2; margin-bottom:4px; }
+.mudflapAmount { white-space:nowrap; font-variant-numeric:tabular-nums; }
+
 /* "Descargar PDF" del Resumen de Mudflap (pedido explícito: para mandárselo
    a Mario mientras no esté en el sistema): al imprimir solo queda esta
    caja — nada de barra de semana, tarjetas de arriba, pestañas ni listas.
