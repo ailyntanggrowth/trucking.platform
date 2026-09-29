@@ -223,10 +223,15 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     {canEdit && syncResult && <div className={styles.form}>
       <h3>{t('Sincronización completada')}</h3>
       <p>
-        <b>{syncResult.created.length}</b> {t('cargas nuevas')} · <b>{syncResult.updated.length}</b> {t('cargas actualizadas')} · <b>{syncResult.unchanged}</b> {t('sin cambios')} · <b>{syncResult.errors.length}</b> {t('errores')}
+        <b>{syncResult.created.length}</b> {t('cargas nuevas')} · <b>{syncResult.updated.length}</b> {t('cargas actualizadas')} · <b>{syncResult.unchanged}</b> {t('sin cambios')} · <b>{syncResult.createdDrivers.length}</b> {t('choferes nuevos')} · <b>{syncResult.errors.length}</b> {t('errores')}
       </p>
       {syncResult.created.length > 0 && <details><summary>{t('Ver cargas nuevas')}</summary><ul className={styles.tripLoads}>{syncResult.created.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
       {syncResult.updated.length > 0 && <details><summary>{t('Ver cargas actualizadas')}</summary><ul className={styles.tripLoads}>{syncResult.updated.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
+      {/* Chofer creado solo porque su nombre no existía todavía (pedido
+          explícito, 29 sep): abierto por defecto — si hay un nombre mal
+          tipeado, se creó un chofer nuevo y separado, y necesita que ella lo
+          note enseguida para corregirlo, no que quede escondido en un <details>. */}
+      {syncResult.createdDrivers.length > 0 && <details open><summary>{t('Choferes creados automáticamente')} ({syncResult.createdDrivers.length})</summary><ul className={styles.tripLoads}>{syncResult.createdDrivers.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
       {syncResult.skippedNoDriver.length > 0 && <details><summary>{t('Filas sin chofer reconocido')} ({syncResult.skippedNoDriver.length})</summary><ul className={styles.tripLoads}>{syncResult.skippedNoDriver.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
       {syncResult.unparsed.length > 0 && <details><summary>{t('Filas que no se pudieron leer')} ({syncResult.unparsed.length})</summary><ul className={styles.tripLoads}>{syncResult.unparsed.map((s, i) => <li key={i}>{s}</li>)}</ul></details>}
       {syncResult.errors.length > 0 && <details open><summary className={styles.error}>{t('Errores')} ({syncResult.errors.length})</summary><ul className={styles.tripLoads}>{syncResult.errors.map((s, i) => <li key={i} className={styles.error}>{s}</li>)}</ul></details>}

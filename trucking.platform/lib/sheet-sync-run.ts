@@ -18,7 +18,7 @@ import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
 export type SheetSyncResult = {
   dryRun: boolean; totalRows: number;
   created: string[]; updated: string[]; unchanged: number; skippedNoDriver: string[];
-  unparsed: string[]; errors: string[];
+  createdDrivers: string[]; unparsed: string[]; errors: string[];
 };
 
 export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_ID): Promise<SheetSyncResult> {
@@ -37,8 +37,14 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
   if (driversError) throw new Error(driversError.message);
   if (loadsError) throw new Error(loadsError.message);
   const loadByNumber = new Map((loadRows ?? []).map(l => [l.load_number, l]));
+  // Copia mutable (pedido explícito, 29 sep: "el día que a mí me dé la gana
+  // poner el nombre de otro chofer... necesito que el sistema me la
+  // reconozca") — un chofer que la sincronización crea a partir de una fila
+  // se agrega aquí para que las DEMÁS filas de esa misma corrida (u otras
+  // pestañas) ya lo encuentren, sin esperar a la próxima sincronización.
+  const driversCache = [...(drivers ?? [])];
 
-  const created: string[] = [], updated: string[] = [], skippedNoDriver: string[] = [], unparsed: string[] = [], errors: string[] = [];
+  const created: string[] = [], updated: string[] = [], skippedNoDriver: string[] = [], createdDrivers: string[] = [], unparsed: string[] = [], errors: string[] = [];
   let unchanged = 0, totalRows = 0;
 
   for (const tab of tabs) {
@@ -49,8 +55,32 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
 
     for (const row of rows) {
       try {
-        const driver = matchDriver(row.driverNameRaw, drivers ?? []);
-        if (!driver) { skippedNoDriver.push(`[${tab.title}] ${row.loadNumber} (chofer "${row.driverNameRaw}" no encontrado)`); continue; }
+        let driver = matchDriver(row.driverNameRaw, driversCache);
+        if (!driver) {
+          // Nunca se salta la fila por falta de chofer (pedido explícito):
+          // se crea el chofer solo, con el nombre y el grupo tal como
+          // vienen en la hoja, y se sigue con la carga en la misma corrida.
+          // Un nombre mal tipeado crea un chofer nuevo separado — por eso
+          // queda siempre visible en "createdDrivers" para que ella lo note
+          // y lo corrija.
+          if (dryRun) { skippedNoDriver.push(`[${tab.title}] ${row.loadNumber} (chofer "${row.driverNameRaw}" no encontrado — se crearía al confirmar)`); continue; }
+          const driverId = randomUUID(); const driverNow = new Date().toISOString();
+          const driverPayload = {
+            id: driverId, name: row.driverNameRaw, phone: '', email: '', group_name: row.group,
+            active: true, availability: 'Disponible', notes: `Registrado automáticamente desde la Hoja de Google (pestaña "${tab.title}").`, card_alias: '',
+          };
+          const { data: fleetMeta, error: fleetMetaError } = await supabase.from('fleet_meta').select('revision').eq('company_id', companyId).single();
+          if (fleetMetaError) throw new Error(fleetMetaError.message);
+          const driverEvent = {
+            id: randomUUID(), at: driverNow, actor: 'Hoja de Google (sincronización)', entity_ids: [driverId],
+            detail: `Registró al chofer "${row.driverNameRaw}" (grupo ${row.group}) desde la Hoja de Google (pestaña "${tab.title}").`, before: null, after: driverPayload,
+          };
+          const { error: driverRpcError } = await supabase.rpc('fleet_commit_driver', { p_company_id: companyId, p_expected_revision: fleetMeta!.revision, p_driver: driverPayload, p_event: driverEvent });
+          if (driverRpcError) throw new Error(driverRpcError.message);
+          driver = { id: driverId, name: row.driverNameRaw };
+          driversCache.push(driver);
+          createdDrivers.push(`[${tab.title}] ${row.driverNameRaw} (grupo ${row.group})`);
+        }
         const existing = loadByNumber.get(row.loadNumber);
         const paymentStatus = row.paid ? 'Pagada' : (existing?.payment_status === 'Pagada' ? 'Pagada' : 'Pendiente');
 
@@ -117,5 +147,5 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
     }
   }
 
-  return { dryRun, totalRows, created, updated, unchanged, skippedNoDriver, unparsed, errors };
+  return { dryRun, totalRows, created, updated, unchanged, skippedNoDriver, createdDrivers, unparsed, errors };
 }
