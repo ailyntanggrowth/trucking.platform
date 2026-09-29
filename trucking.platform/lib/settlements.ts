@@ -336,9 +336,10 @@ export function computeOwnerOperatorSettlements(
   }).sort((a, b) => b.gross - a.gross);
 }
 
-// Comisión del despachador: 4% sobre el bruto de Mario + Owner Operators + Lázaro
-// de la semana, todo junto en un solo número (pedido explícito). Es un pago
-// aparte — nunca se resta del salario del chofer.
+// Comisión del despachador: 4% sobre el bruto de Mario + Owner Operators +
+// Lázaro + Dionisio (pedido explícito, 29 sep: las cargas de los choferes de
+// Dionisio también las cobra Gleybis en su invoice) de la semana, todo junto
+// en un solo número. Es un pago aparte — nunca se resta del salario del chofer.
 //
 // Una carga solo entra en el invoice de LA SEMANA EN QUE SE PAGÓ, nunca la
 // semana en que se recogió/entregó (pedido explícito): si el broker ("Summar")
@@ -351,7 +352,7 @@ export function computeOwnerOperatorSettlements(
 // sumando a mano en Cargas (pedido explícito de la dueña).
 export type DispatcherCommissionLine = { loadId: string; loadNumber: string; driverName: string; group: string; amount: number; commission: number };
 export function dispatcherCommissionDetail(drivers: Driver[], loads: Load[], weekStart: string, weekEnd: string, config: SettlementConfig, weekLocks: WeekLock[] = []) {
-  const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro');
+  const eligible = drivers.filter(d => d.group === 'Mario' || d.group === 'Owner Operators' || d.group === 'Lázaro' || d.group === 'Dionisio');
   const eligibleById = new Map(eligible.map(d => [d.id, d]));
   const rows: DispatcherCommissionLine[] = loads
     // dispatcherExempt: carga puntual que Mario ya pagó directo, sin pasar
