@@ -21,7 +21,11 @@ import styles from './settlements.module.css';
 // solo resumen, una sola captura. Una carga entra en la semana según su
 // FECHA DE ENTREGA (no la de recogida ni la de pago) — regla ya existente,
 // sin cambios, solo de lugar.
-const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
+// Dionisio (pedido explícito, 29 sep): sus cargas ahora también cuentan en
+// la comisión del despachador (ver dispatcherCommissionDetail en
+// lib/settlements.ts) — se agrega aquí también para poder verlas y
+// editarlas/cancelarlas en esta misma tabla, igual que los demás grupos.
+const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro', 'Dionisio'] as const;
 const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 function entregaLabel(l: Load) {
   const pDay = l.pickupDate ? Number(l.pickupDate.slice(8, 10)) : null;
@@ -290,7 +294,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
     <div ref={summaryRef} className={styles.summaryCapture}>
       <p className={styles.captureWeekLabel}>{weekLabel}</p>
       {summaryGroups.map(g => g.rows.length > 0 && <div key={g.group}>
-        <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</div>
+        <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : g.group === 'Lázaro' ? t('CARGAS DE LAZARO') : t('CARGAS DE DIONISIO')}</div>
         <table className={styles.summaryTable}>
           <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} />{canEditLoads && <col className={styles.rowMenuCol} />}</colgroup>
           <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th>{canEditLoads && <th className={styles.rowMenuCol} aria-hidden="true" />}</tr></thead>
