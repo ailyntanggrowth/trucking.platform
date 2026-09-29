@@ -82,12 +82,38 @@
    caja — nada de barra de semana, tarjetas de arriba, pestañas ni listas.
    Letra más grande, igual que en Mi Invoice, para que se vea bien en papel. */
 @media print {
-  .fuel > *:not(.copyBox) { display:none !important; }
+  .fuel > *:not(.copyBox):not(.resumenCard) { display:none !important; }
   .copyBox { border:none; padding:0; page-break-inside:avoid; break-inside:avoid; }
   .copyBox button { display:none !important; }
   .copyBox h3 { font-size:22px; }
   .copyBox p, .copyBox li { font-size:16px; }
+  .resumenCard { border:none; page-break-inside:avoid; break-inside:avoid; }
+  .resumenCard button { display:none !important; }
 }
+
+/* "Resumen del chofer" por viaje completo (pedido explícito): mismo patrón
+   visual que .copyBox, con tarjetas de color por dato — igual que ya se usa
+   en Resumen Semanal (Módulo 3), para que se vea igual en toda la app. */
+.plainList { list-style:none; margin:10px 0; padding:0; }
+.plainList li { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:1px solid #e3dadd; padding:10px 0; font-size:14px; }
+.resumenCard { background:white; border:1px solid #e3dadd; border-radius:14px; margin:14px 0; overflow:hidden; }
+.resumenHead { background:#8B102A; color:#fff; padding:16px 20px; }
+.resumenEyebrow { font-size:11.5px; letter-spacing:.4px; text-transform:uppercase; color:#F0DEE3; font-weight:700; }
+.resumenHead h2 { margin:2px 0 0; font-size:21px; color:#fff; }
+.resumenWeek { display:block; margin-top:4px; font-size:12.5px; color:#F0DEE3; }
+.resumenStats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:1px; background:#e3dadd; }
+.resumenStat { background:#fff; padding:12px 8px; text-align:center; }
+.resumenStat span { display:block; font-size:10.5px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.2px; min-height:2.4em; }
+.resumenStat strong { display:block; margin-top:6px; font-size:16px; }
+.resumenStat[data-tone=blue] strong { color:#1e4e8c; }
+.resumenStat[data-tone=amber] strong { color:#8a5a00; }
+.resumenStat[data-tone=purple] strong { color:#6b3fa0; }
+.resumenStat[data-tone=red] strong { color:#8B102A; }
+.resumenStat[data-tone=green] { background:#DFF5E9; }
+.resumenStat[data-tone=green] strong { color:#1f7a4d; font-size:17px; }
+.resumenFormula { text-align:center; padding:12px 16px; border-top:1px solid #e3dadd; font-size:13.5px; color:#59616D; }
+.resumenFormula b { color:#11151B; }
+@media(max-width:600px) { .resumenStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .resumenStat[data-tone=green] { grid-column:1/-1; } }
 .historyRow { cursor:pointer; }
 .historyRow:hover td { background:#FBF8F6; }
 .rowActive td { background:#F5EBED; }
