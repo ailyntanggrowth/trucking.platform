@@ -61,6 +61,28 @@
 .dataTable tr:last-child td { border-bottom:0; }
 .dataTable tr:hover td { background:#FBF8F6; }
 .tableSub { display:block; font-size:13px; color:#59616D; margin-top:2px; }
+
+/* Tabla de transacciones dentro del resumen del chofer: pedido explícito
+   de que quepa entera en una sola tabla, sin scroll lateral — por eso NO
+   hereda min-width:640px de .dataTable ni el galonaje (columna que ella
+   dijo que no le interesa). */
+.resumenTxTable { width:100%; min-width:0; table-layout:fixed; border-collapse:collapse; }
+.resumenTxTable th { text-align:left; font-size:10px; letter-spacing:.3px; text-transform:uppercase; color:#59616D; padding:8px 6px; border-bottom:1px solid #e3dadd; }
+.resumenTxTable td { padding:9px 6px; border-bottom:1px solid #f0e9e9; vertical-align:top; font-size:12.5px; overflow-wrap:anywhere; }
+.resumenTxTable tr:last-child td { border-bottom:0; }
+.resumenTxTable tr:hover td { background:#FBF8F6; }
+.resumenTxTable th:last-child, .resumenTxTable td:last-child,
+.resumenTxTable th:nth-last-child(2), .resumenTxTable td:nth-last-child(2) { text-align:right; font-variant-numeric:tabular-nums; }
+.resumenTxTable .station { white-space:normal; word-break:break-word; }
+.colFecha { width:15%; }
+.colStation { width:36%; }
+.colState { width:13%; }
+.colPrice { width:16%; }
+.colTotal { width:20%; }
+@media(max-width:520px) {
+  .resumenTxTable th, .resumenTxTable td { font-size:11.5px; padding:7px 4px; }
+  .colFecha { width:16%; } .colStation { width:32%; } .colState { width:14%; } .colPrice { width:17%; } .colTotal { width:21%; }
+}
 .pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:12px 0; font-size:13px; color:#59616D; }
 .pageButtons { display:flex; gap:6px; }
 .pageButtons button { min-height:36px; height:36px; width:36px; padding:0; }
@@ -82,38 +104,61 @@
    caja — nada de barra de semana, tarjetas de arriba, pestañas ni listas.
    Letra más grande, igual que en Mi Invoice, para que se vea bien en papel. */
 @media print {
-  .fuel > *:not(.copyBox):not(.resumenCard) { display:none !important; }
+  .fuel > *:not(.copyBox):not(.resumenSection) { display:none !important; }
   .copyBox { border:none; padding:0; page-break-inside:avoid; break-inside:avoid; }
   .copyBox button { display:none !important; }
   .copyBox h3 { font-size:22px; }
   .copyBox p, .copyBox li { font-size:16px; }
+  .resumenSection { border:none; padding:0; }
+  .plainList li:not(.resumenDriverRowOpen) { display:none !important; }
+  .resumenDriverRowTop { display:none !important; }
   .resumenCard { border:none; page-break-inside:avoid; break-inside:avoid; }
   .resumenCard button { display:none !important; }
 }
 
-/* "Resumen del chofer" por viaje completo (pedido explícito): mismo patrón
-   visual que .copyBox, con tarjetas de color por dato — igual que ya se usa
-   en Resumen Semanal (Módulo 3), para que se vea igual en toda la app. */
-.plainList { list-style:none; margin:10px 0; padding:0; }
-.plainList li { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:1px solid #e3dadd; padding:10px 0; font-size:14px; }
-.resumenCard { background:white; border:1px solid #e3dadd; border-radius:14px; margin:14px 0; overflow:hidden; }
-.resumenHead { background:#8B102A; color:#fff; padding:16px 20px; }
-.resumenEyebrow { font-size:11.5px; letter-spacing:.4px; text-transform:uppercase; color:#F0DEE3; font-weight:700; }
-.resumenHead h2 { margin:2px 0 0; font-size:21px; color:#fff; }
-.resumenWeek { display:block; margin-top:4px; font-size:12.5px; color:#F0DEE3; }
-.resumenStats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:1px; background:#e3dadd; }
-.resumenStat { background:#fff; padding:12px 8px; text-align:center; }
-.resumenStat span { display:block; font-size:10.5px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.2px; min-height:2.4em; }
-.resumenStat strong { display:block; margin-top:6px; font-size:16px; }
-.resumenStat[data-tone=blue] strong { color:#1e4e8c; }
-.resumenStat[data-tone=amber] strong { color:#8a5a00; }
-.resumenStat[data-tone=purple] strong { color:#6b3fa0; }
-.resumenStat[data-tone=red] strong { color:#8B102A; }
-.resumenStat[data-tone=green] { background:#DFF5E9; }
-.resumenStat[data-tone=green] strong { color:#1f7a4d; font-size:17px; }
-.resumenFormula { text-align:center; padding:12px 16px; border-top:1px solid #e3dadd; font-size:13.5px; color:#59616D; }
-.resumenFormula b { color:#11151B; }
-@media(max-width:600px) { .resumenStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .resumenStat[data-tone=green] { grid-column:1/-1; } }
+/* "Resumen del chofer" por viaje completo (pedido explícito): sección
+   separada del resumen semanal de arriba con un divisor + banner ("algo
+   como una presentación, algo bonito, que divida esos resúmenes de chofer
+   al resumen de arriba"). Estilo "serio" (pedido explícito, tras rechazar
+   una versión con cuadros de colores llenos): fondo blanco, borde fino,
+   el color solo en un ícono pequeño y en el número. */
+.resumenDivider { display:flex; align-items:center; gap:14px; margin:30px 0 18px; }
+.resumenDivider span { flex:1; height:1px; background:#e3dadd; }
+.resumenDivider b { font-size:11px; font-weight:800; letter-spacing:.6px; color:#59616D; text-transform:uppercase; white-space:nowrap; }
+.resumenBanner { background:linear-gradient(135deg,#3a0d17,#8B102A); border-radius:14px 14px 0 0; padding:20px 22px; color:#fff; }
+.resumenBannerEyebrow { font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#F0DEE3; }
+.resumenBanner h2 { margin:4px 0 0; font-size:19px; color:#fff; }
+.resumenBanner p { margin:5px 0 0; font-size:13px; color:#F0DEE3; max-width:520px; }
+.resumenSection { background:#fff; border:1px solid #e3dadd; border-top:0; border-radius:0 0 14px 14px; overflow:hidden; margin-bottom:14px; padding:0 20px; }
+
+.plainList { list-style:none; margin:0; padding:0; }
+.resumenDriverRow { border-top:1px solid #e3dadd; }
+.resumenDriverRow:first-child { border-top:0; }
+.resumenDriverRowTop { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; }
+.resumenDriverWho { font-weight:700; font-size:14px; }
+.resumenDriverRange { color:#59616D; font-weight:400; font-size:12.5px; margin-left:6px; }
+.resumenGhostBtn, .resumenGhostBtnOpen { font:inherit; font-size:12.5px; font-weight:700; padding:7px 12px; border:1px solid #e3dadd; border-radius:7px; background:#fff; color:#11151B; cursor:pointer; white-space:nowrap; }
+.resumenGhostBtnOpen { background:#11151B; color:#fff; border-color:#11151B; }
+.resumenInline { padding:0 0 16px; }
+
+.resumenCard { background:white; border:1px solid #e3dadd; border-radius:8px; margin:0; overflow:hidden; }
+.resumenHead { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 16px; background:#F7F8FA; border-bottom:1px solid #e3dadd; }
+.resumenHead h3 { margin:0; font-size:14.5px; color:#11151B; }
+.resumenWeek { font-size:12px; color:#59616D; font-weight:700; }
+.resumenStats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; padding:14px 16px; background:#fff; }
+.resumenStat { border:1px solid #e3dadd; border-radius:8px; padding:9px 8px; }
+.resumenSwatch { width:20px; height:20px; border-radius:5px; display:grid; place-items:center; font-size:10px; font-weight:800; color:#fff; margin-bottom:6px; }
+.resumenStat[data-tone=blue] .resumenSwatch { background:#1e4e8c; }
+.resumenStat[data-tone=amber] .resumenSwatch { background:#8a5a00; }
+.resumenStat[data-tone=purple] .resumenSwatch { background:#6b3fa0; }
+.resumenStat[data-tone=red] .resumenSwatch { background:#8B102A; }
+.resumenStat[data-tone=green] .resumenSwatch { background:#1f7a4d; }
+.resumenLbl { display:block; font-size:10px; font-weight:700; color:#59616D; text-transform:uppercase; letter-spacing:.2px; line-height:1.25; min-height:2.2em; }
+.resumenVal { display:block; margin-top:3px; font-size:15px; font-weight:800; color:#11151B; font-variant-numeric:tabular-nums; }
+.resumenStat[data-tone=green] { background:#F7F8FA; border-color:#1f7a4d; }
+.resumenFormula { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:10px 16px; border-top:1px solid #e3dadd; font-size:13px; font-variant-numeric:tabular-nums; color:#59616D; }
+.resumenFormula b { color:#11151B; font-weight:800; }
+@media(max-width:520px) { .resumenStats { grid-template-columns:repeat(2,minmax(0,1fr)); } .resumenStat[data-tone=green] { grid-column:1/-1; } }
 .historyRow { cursor:pointer; }
 .historyRow:hover td { background:#FBF8F6; }
 .rowActive td { background:#F5EBED; }

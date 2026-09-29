@@ -132,6 +132,18 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     try { await navigator.clipboard.writeText(buildResumenChoferText(resumenDriver.name, resumenTrip)); setResumenCopied(true); setTimeout(() => setResumenCopied(false), 2000); }
     catch { setError(t('No se pudo copiar — selecciona y copia el texto a mano.')); }
   }
+  // "21 – 28 sep" (o "21 sep – 4 oct" si cruza de mes) para la fila del
+  // chofer — pedido explícito: ver de un vistazo cuándo empezó y cuándo
+  // terminó el viaje, no solo la fecha en que volvió.
+  function tripRangeLabel(trip: DriverTrip) {
+    const start = new Date(`${trip.tripStart}T12:00:00Z`);
+    const end = trip.returnDate ? new Date(`${trip.returnDate}T12:00:00Z`) : null;
+    const monthShort = (d: Date) => new Intl.DateTimeFormat('es', { month: 'short' }).format(d);
+    if (!end) return `${start.getUTCDate()} ${monthShort(start)} —`;
+    return start.getUTCMonth() === end.getUTCMonth()
+      ? `${start.getUTCDate()} – ${end.getUTCDate()} ${monthShort(end)}`
+      : `${start.getUTCDate()} ${monthShort(start)} – ${end.getUTCDate()} ${monthShort(end)}`;
+  }
   function downloadResumenChoferPdf() {
     if (!resumenDriver) return;
     const prevTitle = document.title;
@@ -344,58 +356,77 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     {/* "Resumen del chofer" (pedido explícito): por viaje completo (desde
         que sale de FL hasta que regresa), no por semana — solo choferes de
         Mario con un viaje ya cerrado. Reemplaza lo que antes armaba a mano
-        con el PDF de Mudflap y ChatGPT. */}
-    <h3 style={{ marginTop: 28 }}>{t('Resumen del chofer (viaje completo)')}</h3>
-    {driversWithResumen.length ? <ul className={styles.plainList}>
-      {driversWithResumen.map(d => {
-        const trip = closedTripByDriver.get(d.id)!;
-        return <li key={d.id}>
-          <span>{d.name} — {t('Volvió a FL el')} {dayLabel(trip.returnDate || '')}</span>
-          <button type="button" onClick={() => setResumenDriverId(d.id === resumenDriverId ? null : d.id)}>{d.id === resumenDriverId ? t('Cerrar') : t('Ver resumen del chofer')}</button>
-        </li>;
-      })}
-    </ul> : <p className={styles.empty}>{t('Ningún chofer de Mario tiene un viaje recién cerrado todavía.')}</p>}
-
-    {resumenDriver && resumenTrip && (() => {
-      const r = buildDriverResumen(resumenTrip);
-      return <div className={styles.resumenCard}>
-        <div className={styles.resumenHead}>
-          <span className={styles.resumenEyebrow}>{t('Resumen del chofer · viaje completo')}</span>
-          <h2>{resumenDriver.name}</h2>
-          <span className={styles.resumenWeek}>{t('Salió de FL:')} {dayLabel(resumenTrip.tripStart)} — {t('Volvió a FL:')} {dayLabel(resumenTrip.returnDate || '')}</span>
-        </div>
-        <div className={styles.resumenStats}>
-          <div className={styles.resumenStat} data-tone="blue"><span>{t('Cargas realizadas')}</span><strong>{money(r.gross)}</strong></div>
-          <div className={styles.resumenStat} data-tone="red"><span>{t('Salario pagado')}</span><strong>{money(r.salario)}</strong></div>
-          <div className={styles.resumenStat} data-tone="amber"><span>{t('Combustible')}</span><strong>{money(r.combustible)}</strong></div>
-          <div className={styles.resumenStat} data-tone="purple"><span>{t('6% de la compañía')}</span><strong>{money(r.seisPorciento)}</strong></div>
-          <div className={styles.resumenStat} data-tone="green"><span>{t('Dinero que resta')}</span><strong>{money(r.dineroQueResta)}</strong></div>
-        </div>
-        <p className={styles.resumenFormula}>{money(r.gross)} − {money(r.salario)} − {money(r.combustible)} − {money(r.seisPorciento)} = <b>{money(r.dineroQueResta)}</b></p>
-        <p className={styles.tableSub} style={{ padding: '0 16px' }}>{t('Combustible')} — {r.finalTxs.length} {t('transacciones')}</p>
-        <div className={styles.tableWrap}>
-          <table className={styles.dataTable}>
-            <thead><tr><th>{t('Fecha')}</th><th>{t('Gasolinera')}</th><th>{t('Estado')}</th><th>{t('Galones')}</th><th>{t('$/Galón')}</th><th>{t('Total')}</th></tr></thead>
-            <tbody>{r.finalTxs.map(tx => <tr key={tx.id}>
-              <td>{dayLabel(tx.date)}</td><td>{tx.station || '—'}</td><td>{tx.state}</td>
-              <td>{tx.gallons ? tx.gallons.toFixed(3) : '—'}</td><td>{tx.pricePerGallon ? money(tx.pricePerGallon) : '—'}</td>
-              <td>{money(tx.fuelAmount + tx.nonFuelAmount)}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>
-        {r.pendingTxs.length > 0 && <>
-          <p className={styles.tableSub} style={{ padding: '10px 16px 0' }}>{t('Pendientes — no incluidas en el total')}</p>
-          <div className={styles.tableWrap}>
-            <table className={styles.dataTable}>
-              <tbody>{r.pendingTxs.map(tx => <tr key={tx.id}><td>{dayLabel(tx.date)}</td><td>{tx.station || '—'}</td><td>{tx.state}</td><td colSpan={3}>{t('Pendiente')}</td></tr>)}</tbody>
-            </table>
-          </div>
-        </>}
-        <div className={styles.actions} style={{ padding: 16 }}>
-          <button type="button" onClick={() => void copyResumenChofer()}>{resumenCopied ? <Check size={15} /> : <Copy size={15} />} {resumenCopied ? t('¡Copiado!') : t('Copiar resumen')}</button>
-          <button type="button" onClick={downloadResumenChoferPdf}><Printer size={15} /> {t('Descargar PDF')}</button>
-        </div>
-      </div>;
-    })()}
+        con el PDF de Mudflap y ChatGPT. Separado visualmente del resumen
+        semanal de arriba con un divisor + banner (pedido explícito: "algo
+        como una presentación, algo bonito, que divida esos resúmenes de
+        chofer al resumen de arriba"). */}
+    <div className={styles.resumenDivider}><span /><b>{t('Por viaje de cada chofer')}</b><span /></div>
+    <div className={styles.resumenBanner}>
+      <span className={styles.resumenBannerEyebrow}>{t('Nuevo')}</span>
+      <h2>{t('Resumen del chofer — viaje completo')}</h2>
+      <p>{t('Cargas, salario pagado, combustible y 6%, desde que cada chofer de Mario sale de FL hasta que regresa.')}</p>
+    </div>
+    <div className={styles.resumenSection}>
+      {driversWithResumen.length ? <ul className={styles.plainList}>
+        {driversWithResumen.map(d => {
+          const trip = closedTripByDriver.get(d.id)!;
+          const isOpen = d.id === resumenDriverId;
+          return <li key={d.id} className={isOpen ? `${styles.resumenDriverRow} ${styles.resumenDriverRowOpen}` : styles.resumenDriverRow}>
+            <div className={styles.resumenDriverRowTop}>
+              <span className={styles.resumenDriverWho}>{d.name} <span className={styles.resumenDriverRange}>{tripRangeLabel(trip)}</span></span>
+              <button type="button" className={isOpen ? styles.resumenGhostBtnOpen : styles.resumenGhostBtn} onClick={() => setResumenDriverId(isOpen ? null : d.id)}>{isOpen ? t('Cerrar') : t('Ver resumen')}</button>
+            </div>
+            {isOpen && resumenDriver && resumenTrip && (() => {
+              const r = buildDriverResumen(resumenTrip);
+              return <div className={styles.resumenInline}>
+                <div className={styles.resumenCard}>
+                  <div className={styles.resumenHead}>
+                    <h3>{resumenDriver.name}</h3>
+                    <span className={styles.resumenWeek}>{t('FL')} {dayLabel(resumenTrip.tripStart)} — {t('FL')} {dayLabel(resumenTrip.returnDate || '')}</span>
+                  </div>
+                  <div className={styles.resumenStats}>
+                    <div className={styles.resumenStat} data-tone="blue"><span className={styles.resumenSwatch}>$</span><span className={styles.resumenLbl}>{t('Cargas')}</span><span className={styles.resumenVal}>{money(r.gross)}</span></div>
+                    <div className={styles.resumenStat} data-tone="red"><span className={styles.resumenSwatch}>S</span><span className={styles.resumenLbl}>{t('Salario')}</span><span className={styles.resumenVal}>{money(r.salario)}</span></div>
+                    <div className={styles.resumenStat} data-tone="amber"><span className={styles.resumenSwatch}>F</span><span className={styles.resumenLbl}>{t('Combustible')}</span><span className={styles.resumenVal}>{money(r.combustible)}</span></div>
+                    <div className={styles.resumenStat} data-tone="purple"><span className={styles.resumenSwatch}>%</span><span className={styles.resumenLbl}>{t('6%')}</span><span className={styles.resumenVal}>{money(r.seisPorciento)}</span></div>
+                    <div className={styles.resumenStat} data-tone="green"><span className={styles.resumenSwatch}>=</span><span className={styles.resumenLbl}>{t('Resta')}</span><span className={styles.resumenVal}>{money(r.dineroQueResta)}</span></div>
+                  </div>
+                  <p className={styles.resumenFormula}>{money(r.gross)} − {money(r.salario)} − {money(r.combustible)} − {money(r.seisPorciento)} = <b>{money(r.dineroQueResta)}</b></p>
+                  <p className={styles.tableSub} style={{ padding: '0 16px' }}>{t('Combustible')} — {r.finalTxs.length} {t('transacciones')}</p>
+                  <div className={styles.tableWrap}>
+                    <table className={styles.resumenTxTable}>
+                      <colgroup>
+                        <col className={styles.colFecha} /><col className={styles.colStation} /><col className={styles.colState} /><col className={styles.colPrice} /><col className={styles.colTotal} />
+                      </colgroup>
+                      <thead><tr><th>{t('Fecha')}</th><th>{t('Gasolinera')}</th><th>{t('Estado')}</th><th>{t('$/Galón')}</th><th>{t('Total')}</th></tr></thead>
+                      <tbody>{r.finalTxs.map(tx => <tr key={tx.id}>
+                        <td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td>
+                        <td>{tx.pricePerGallon ? money(tx.pricePerGallon) : '—'}</td>
+                        <td>{money(tx.fuelAmount + tx.nonFuelAmount)}</td>
+                      </tr>)}</tbody>
+                    </table>
+                  </div>
+                  {r.pendingTxs.length > 0 && <>
+                    <p className={styles.tableSub} style={{ padding: '10px 16px 0' }}>{t('Pendientes — no incluidas en el total')}</p>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.resumenTxTable}>
+                        <colgroup>
+                          <col className={styles.colFecha} /><col className={styles.colStation} /><col className={styles.colState} /><col className={styles.colPrice} /><col className={styles.colTotal} />
+                        </colgroup>
+                        <tbody>{r.pendingTxs.map(tx => <tr key={tx.id}><td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td><td colSpan={2}>{t('Pendiente')}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  </>}
+                  <div className={styles.actions} style={{ padding: 16 }}>
+                    <button type="button" onClick={() => void copyResumenChofer()}>{resumenCopied ? <Check size={15} /> : <Copy size={15} />} {resumenCopied ? t('¡Copiado!') : t('Copiar resumen')}</button>
+                    <button type="button" onClick={downloadResumenChoferPdf}><Printer size={15} /> {t('Descargar PDF')}</button>
+                  </div>
+                </div>
+              </div>;
+            })()}
+          </li>;
+        })}
+      </ul> : <p className={styles.empty} style={{ padding: 16 }}>{t('Ningún chofer de Mario tiene un viaje recién cerrado todavía.')}</p>}
+    </div>
   </div>;
 }
