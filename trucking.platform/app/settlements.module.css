@@ -103,12 +103,28 @@
 .summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
 .summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
 
+/* Menú "☰" (editar/cancelar) y "Agregar carga" directo en la tabla grande
+   de esta pantalla (pedido explícito: "la tabla que sale grande" en
+   Resumen Semanal, para tocarla como en Google Sheets) — mismo patrón
+   visual que ya usa Cargas. Nunca deben salir en el PDF que se manda a
+   Mario, por eso .noPrint y .rowMenuCol se ocultan abajo en @media print. */
+.rowMenuCol { width:26px; text-align:center !important; overflow:visible !important; }
+.loadMenu { position:relative; }
+.loadMenu summary { list-style:none; cursor:pointer; width:20px; height:20px; display:grid; place-items:center; border-radius:5px; font-size:13px; line-height:1; color:#59616D; user-select:none; margin:0 auto; }
+.loadMenu summary::-webkit-details-marker { display:none; }
+.loadMenu summary:hover { background:#f0e9e9; }
+.loadMenu[open] summary { background:#e3dadd; }
+.loadMenuActions { position:absolute; z-index:5; top:22px; right:0; background:white; border:1px solid #e3dadd; border-radius:8px; box-shadow:0 6px 18px rgba(17,21,27,.15); display:grid; min-width:140px; overflow:hidden; }
+.loadMenuActions button { border:0; border-radius:0; text-align:left; padding:8px 12px; background:white; }
+.loadMenuActions button:hover { background:#f5ebed; }
+
 @media print {
   .settlements > *:not(.summaryCapture) { display:none !important; }
   .summaryCapture { background:none; padding:0; }
   .summaryGroupHeader,.summaryTable,.statCards,.moneyCard { page-break-inside:avoid; break-inside:avoid; }
   .summaryTable { font-size:13px; }
   .statCards { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .rowMenuCol,.noPrint { display:none !important; }
 }
 
 .moreOverlay { position:fixed; inset:0; z-index:50; background:#FBF8F6; overflow-y:auto; }

@@ -4,7 +4,7 @@ import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
   weekStartOf, weekRange, isWeekLocked, fuelWeekStartOf, type SettlementConfig,
 } from '../lib/settlements';
-import { isOfficial, type Load } from '../lib/loads';
+import { isOfficial, LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { computeWeeklyFuelSummary } from '../lib/fuel';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -48,12 +48,20 @@ function Avatar({ name, index }: { name: string; index: number }) {
   return <span className={styles.avatar} style={{ background: AVATAR_TONES[index % AVATAR_TONES.length] }}>{initials(name)}</span>;
 }
 
-export default function SettlementsModule({ settlements, loads, fuel, fleet, lang, t }: {
-  settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; lang: Lang; t: (es: string) => string;
+export default function SettlementsModule({ settlements, loads, fuel, fleet, canEditLoads, lang, t }: {
+  settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; canEditLoads: boolean; lang: Lang; t: (es: string) => string;
 }) {
   const { state, ready } = settlements;
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
+  // Editar/agregar/cancelar cargas directo desde la tabla grande de esta
+  // pantalla (pedido explícito: "la tabla que sale grande" en Resumen
+  // Semanal — quiere poder tocarla como en Google Sheets, sin ir a Cargas).
+  // Mismo mecanismo que el menú "☰" de Cargas (loads.commit), solo que
+  // vive aquí también. Estado propio (loadEditor*) para no chocar con el
+  // busy/error/notice que ya usan los formularios de Salarios/Roturas.
+  const [loadEditor, setLoadEditor] = useState<{ type: 'load' | 'cancel'; id: string; groupHint: string } | null>(null);
+  const [loadEditorBusy, setLoadEditorBusy] = useState(false), [loadEditorError, setLoadEditorError] = useState('');
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
   const [salariosOpen, setSalariosOpen] = useState(false);
   const [roturasOpen, setRoturasOpen] = useState(false);
@@ -231,6 +239,34 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   }
   function openMore(tab: MoreTab) { setError(''); setNotice(''); setMoreTab(tab); setMoreOpen(true); }
 
+  function openLoadEditor(type: 'load' | 'cancel', id = '', groupHint = '') { setLoadEditorError(''); setLoadEditor({ type, id, groupHint }); requestAnimationFrame(() => document.getElementById('settlements-load-editor')?.scrollIntoView({ block: 'start', behavior: 'instant' })); }
+  const loadEditTarget = loadEditor ? loads.state.loads.find(l => l.id === loadEditor.id) : undefined;
+  async function submitLoadEditor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!loadEditor || loadEditorBusy) return; const fields = new FormData(event.currentTarget); const text = (key: string) => String(fields.get(key) || '').trim(); const num = (key: string) => Number(fields.get(key) || 0);
+    setLoadEditorError(''); setLoadEditorBusy(true);
+    try {
+      let action: LoadAction;
+      if (loadEditor.type === 'load') {
+        const record: Load = {
+          id: loadEditor.id || crypto.randomUUID(),
+          loadNumber: text('loadNumber'), broker: '',
+          driverId: text('driverId'), truckId: '', trailerId: '',
+          pickupCity: '', pickupState: text('pickupState'), pickupDate: text('pickupDate'),
+          deliveryCity: '', deliveryState: text('deliveryState'), deliveryDate: text('deliveryDate'),
+          amount: num('amount'), status: text('status') as LoadStatus, missingPod: false,
+          paymentStatus: text('paymentStatus') as PaymentStatus, amountReceived: num('amountReceived'), paidAt: '', notes: text('notes'),
+          approval: 'Pendiente', approvedBy: '', approvedAt: '', rejectedReason: '', cancelReason: '', cancelledAt: '', cancelledBy: '', replacesId: '', replacedBy: '',
+          incidentNote: '', incidentCost: 0, incidentReportedAt: '', dispatcherExempt: false,
+        };
+        action = { type: 'load', record, reason: text('reason') };
+      } else {
+        action = { type: 'cancel', id: loadEditor.id, reason: text('reason') };
+      }
+      await loads.commit(action, loads.state.revision);
+      setLoadEditor(null);
+    } catch (e) { setLoadEditorError((e as Error).message); } finally { setLoadEditorBusy(false); }
+  }
+
   return <div className={styles.settlements}>
     {(settlements.error || loads.error || fuel.error || fleet.error) && <div role="alert" className={styles.error}>{settlements.error || loads.error || fuel.error || fleet.error}</div>}
     {!ready2 && <p role="status">{t('Abriendo los registros de contabilidad…')}</p>}
@@ -256,8 +292,8 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       {summaryGroups.map(g => g.rows.length > 0 && <div key={g.group}>
         <div className={styles.summaryGroupHeader}>{g.group === 'Mario' ? t('MARIO') : g.group === 'Owner Operators' ? t('OWNER OPERATORS') : t('CARGAS DE LAZARO')}</div>
         <table className={styles.summaryTable}>
-          <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} /></colgroup>
-          <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th></tr></thead>
+          <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} />{canEditLoads && <col className={styles.rowMenuCol} />}</colgroup>
+          <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th>{canEditLoads && <th className={styles.rowMenuCol} aria-hidden="true" />}</tr></thead>
           <tbody>{g.rows.map(l => <tr key={l.id}>
             <td>{driverNameFor(l.driverId)}</td>
             <td>{l.loadNumber || '—'}</td>
@@ -265,10 +301,47 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
             <td>{l.pickupState}-{l.deliveryState}</td>
             <td>{entregaLabel(l)}</td>
             <td>{l.paymentStatus === 'Pagada' ? 'LIST' : ''}</td>
+            {canEditLoads && <td className={styles.rowMenuCol}>
+              <details className={styles.loadMenu}>
+                <summary aria-label={t('Opciones de la carga')}>☰</summary>
+                <div className={styles.loadMenuActions}>
+                  <button type="button" onClick={() => openLoadEditor('load', l.id)}>{t('Editar')}</button>
+                  <button type="button" onClick={() => openLoadEditor('cancel', l.id)}>{t('Cancelar')}</button>
+                </div>
+              </details>
+            </td>}
           </tr>)}</tbody>
         </table>
       </div>)}
       {ready && !summaryGroups.some(g => g.rows.length) && <p className={styles.empty}>{t('No hay cargas con entrega esta semana.')}</p>}
+      {/* Agregar/editar/cancelar una carga directo aquí (pedido explícito):
+          para no tener que ir a Cargas ni a la Hoja de Google — la carga
+          entra a esta tabla sola en cuanto se guarda, según el chofer que
+          se elija (su grupo decide en qué sección aparece). Oculto al
+          imprimir/descargar el PDF, igual que el resto de los controles. */}
+      {canEditLoads && <div className={styles.noPrint}>
+        <button type="button" onClick={() => openLoadEditor('load')}>➕ {t('Agregar carga')}</button>
+      </div>}
+      {canEditLoads && loadEditor && <form id="settlements-load-editor" className={`${styles.form} ${styles.noPrint}`} onSubmit={submitLoadEditor} key={`${loadEditor.type}-${loadEditor.id}`}>
+        <h3>{loadEditor.type === 'load' ? (loadEditor.id ? t('Editar carga') : t('Agregar carga')) : t('Cancelar carga')}</h3>
+        {loadEditor.type === 'load' && <div className={styles.fields}>
+          <label>{t('Chofer')}<select name="driverId" defaultValue={loadEditTarget?.driverId || ''}><option value="">{t('Sin asignar')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name} ({t(d.group || 'Chofer sin grupo asignado')})</option>)}</select></label>
+          <label>{t('Número de carga')}<input name="loadNumber" maxLength={100} defaultValue={loadEditTarget?.loadNumber} /></label>
+          <label>{t('Tarifa (monto bruto)')}<input name="amount" type="number" step="0.01" min="0" defaultValue={loadEditTarget?.amount ?? 0} /></label>
+          <label>{t('Estado de recogida')}<input name="pickupState" maxLength={50} defaultValue={loadEditTarget?.pickupState} /></label>
+          <label>{t('Estado de entrega')}<input name="deliveryState" maxLength={50} defaultValue={loadEditTarget?.deliveryState} /></label>
+          <label>{t('Fecha de recogida *')}<input name="pickupDate" type="date" required defaultValue={loadEditTarget?.pickupDate || today()} /></label>
+          <label>{t('Fecha de entrega')}<input name="deliveryDate" type="date" defaultValue={loadEditTarget?.deliveryDate || weekEnd} /></label>
+          <label>{t('Estado operativo')}<select name="status" defaultValue={loadEditTarget?.status || 'Programado'}>{LOAD_STATUS_VALUES.filter(s => s !== 'Cancelada' && s !== 'Reemplazada').map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
+          <label>{t('Estado de pago')}<select name="paymentStatus" defaultValue={loadEditTarget?.paymentStatus || 'Pendiente'}>{PAYMENT_STATUS_VALUES.map(s => <option key={s} value={s}>{t(s)}</option>)}</select></label>
+          <label>{t('Monto recibido')}<input name="amountReceived" type="number" step="0.01" min="0" defaultValue={loadEditTarget?.amountReceived ?? 0} /></label>
+          <label className={styles.wide}>{t('Notas')}<textarea name="notes" rows={3} maxLength={3000} defaultValue={loadEditTarget?.notes} /></label>
+          {loadEditor.id && <label className={styles.wide}>{t('Motivo del cambio *')}<input name="reason" required maxLength={500} /></label>}
+        </div>}
+        {loadEditor.type === 'cancel' && <><p>{t('La carga no se borra: queda cancelada en el historial con el motivo.')}</p><label>{t('Motivo de la cancelación *')}<input name="reason" required maxLength={500} /></label></>}
+        {loadEditorError && <p className={styles.error} role="alert">{loadEditorError}</p>}
+        <div className={styles.actions}><button type="submit" className={styles.primary} disabled={loadEditorBusy}>{loadEditorBusy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={loadEditorBusy} onClick={() => { setLoadEditor(null); setLoadEditorError(''); }}>{t('Cancelar')}</button></div>
+      </form>}
 
       <h2>{t('Esta semana')}</h2>
       <div className={styles.statCards}>
