@@ -12,7 +12,21 @@ export const dayLabel = (date: string) => {
   const [y, m, d] = date.split('-').map(Number);
   return new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(y, m - 1, d));
 };
-export const today = () => new Date().toLocaleDateString('en-CA');
+// Se fija a hora de Miami/Este explícitamente (pedido explícito, corregido
+// junto con easternDate abajo) en vez de depender del huso del entorno donde
+// corra el código — hoy solo se llama desde el navegador (ya en su hora), pero
+// así queda correcto también si algún día se necesita desde el servidor.
+export const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+// Fecha (YYYY-MM-DD) de un timestamp real (ej. paid_at) en hora de Miami — un
+// timestamp se guarda siempre en UTC, así que de noche puede caer ya en el
+// día siguiente aunque en Miami todavía sea el día de antes. Caso real: una
+// sincronización de Google Sheets el lunes 9pm en Miami quedó guardada como
+// "martes 1am" en UTC, y el invoice del despachador contó esas 4 cargas como
+// de la semana siguiente. Se usa siempre que hay que decidir a qué semana
+// pertenece un PAGO real (paidWithinInvoicePeriod y quien mire paidAt para
+// agrupar por semana) — nunca para columnas de solo fecha (pickup/delivery),
+// que no llevan hora y no necesitan conversión.
+export const easternDate = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(iso));
 // Solo el primer nombre (pedido explícito, para que quepa en listas cortas o
 // en el resumen que se copia para WhatsApp) — excepto los "Jose", que se
 // desambiguan dejando también el apellido (hay más de uno en la flota).

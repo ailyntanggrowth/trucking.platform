@@ -11,7 +11,7 @@ import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
-import { money, today, dayLabel } from '../lib/format';
+import { money, today, dayLabel, easternDate } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { TrendingUp, TrendingDown, Printer } from 'lucide-react';
 import { LineChart } from './mini-charts';
@@ -94,7 +94,7 @@ export default function ReportsModule({ settlements, loads, fuel, fleet, lang, t
   // el sistema empezara a dar ganancia.
   const earliestPaidDate = loads.state.loads
     .filter(l => l.paymentStatus === 'Pagada' && l.paidAt)
-    .reduce((min: string, l) => !min || l.paidAt.slice(0, 10) < min ? l.paidAt.slice(0, 10) : min, '');
+    .reduce((min: string, l) => !min || easternDate(l.paidAt) < min ? easternDate(l.paidAt) : min, '');
   const earliestWeekStart = earliestPaidDate ? weekStartOf(earliestPaidDate) : currentWeekStart;
   const realWeeksInRange = rangeStarts.filter(w => w >= earliestWeekStart).length;
   const prevRangeIsReal = prevRangeStarts[0] >= earliestWeekStart;

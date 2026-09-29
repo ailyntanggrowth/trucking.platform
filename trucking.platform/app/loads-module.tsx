@@ -7,7 +7,7 @@ import { driverPayForGross, weekStartOf } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { SettlementsController } from '../lib/use-settlements';
-import { money, dayLabel, today } from '../lib/format';
+import { money, dayLabel, today, easternDate } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
@@ -64,7 +64,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     // Un viaje que ya volvió a FL no depende de la semana en curso: se
     // considera pagado si hay un pago marcado desde que salió — así no
     // reaparece al cambiar de semana.
-    if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt.slice(0, 10) >= trip.tripStart);
+    if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) >= trip.tripStart);
     const mark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today()));
     return mark?.paymentStatus !== 'Pagada';
   }) : [];

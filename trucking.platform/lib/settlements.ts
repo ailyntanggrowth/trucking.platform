@@ -12,6 +12,7 @@
 import { isOfficial, type Load } from './loads';
 import type { FuelTransaction, Expense } from './fuel';
 import { isCargoDriver, type Driver } from './fleet';
+import { easternDate } from './format';
 
 export type SettlementConfig = {
   companyDeductionPct: number; // fracción, p.ej. 0.06 = 6%
@@ -247,9 +248,14 @@ function lockedAtFor(weekEnd: string, weekLocks: WeekLock[]): string | null {
 // manual que en la práctica nunca se hace. Nunca las dos semanas a la vez —
 // solo se lo queda la vieja si esa semana SÍ se cerró y el pago llegó antes
 // de esa hora exacta de cierre.
+//
+// El día de un pago se calcula en hora de Miami/Este (easternDate), nunca en
+// UTC (pedido explícito, corregido): un pago guardado como timestamp puede
+// caer ya en el día siguiente en UTC aunque en Miami todavía sea el día de
+// antes — de noche esto corría cargas pagadas a la semana equivocada.
 export function paidWithinInvoicePeriod(paidAt: string, weekStart: string, weekEnd: string, weekLocks: WeekLock[]): boolean {
   if (!paidAt) return false;
-  const paidDate = paidAt.slice(0, 10);
+  const paidDate = easternDate(paidAt);
   if (paidDate < weekStart) return false;
   if (paidDate > weekEnd) return false;
   if (paidDate === weekStart) {

@@ -10,7 +10,7 @@ import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
 import type { FuelController } from '../lib/use-fuel';
-import { money, dayLabel, today } from '../lib/format';
+import { money, dayLabel, today, easternDate } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { Truck, Fuel as FuelIcon, Users, TrendingUp, ChevronLeft, ChevronRight, Settings, X, ShieldCheck, Lock, MoreVertical, Trash2, Printer, Wrench } from 'lucide-react';
 import styles from './settlements.module.css';
@@ -97,7 +97,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   // Se suman todos los invoices marcados pagados cuya fecha de pago cae
   // dentro de la semana que se está mirando.
   const dispatcherPaymentsThisWeek = state.dispatcherMarks
-    .filter(m => m.paymentStatus === 'Pagada' && m.paidAt && m.paidAt.slice(0, 10) >= weekStart && m.paidAt.slice(0, 10) < weekEnd)
+    .filter(m => m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= weekStart && easternDate(m.paidAt) < weekEnd)
     .map(m => ({ weekStart: m.weekStart, commission: dispatcherCommissionDetail(fleet.state.drivers, loads.state.loads, m.weekStart, weekRange(m.weekStart).end, state.config, state.weekLocks).commission }))
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
