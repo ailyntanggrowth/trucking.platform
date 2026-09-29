@@ -57,6 +57,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
   const [moreOpen, setMoreOpen] = useState(false), [moreTab, setMoreTab] = useState<MoreTab>('dispatcher');
   const [salariosOpen, setSalariosOpen] = useState(false);
   const [roturasOpen, setRoturasOpen] = useState(false);
+  const [editRepairId, setEditRepairId] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   // Pedido explícito: la imagen (html2canvas) salía cortada/fea en el
   // celular. Se cambió al mismo patrón que Combustible y Mi Invoice — el
@@ -180,9 +181,13 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
     const driverId = String(fields.get('driverId') || ''); const description = String(fields.get('description') || '').trim(); const amount = Number(fields.get('amount') || 0); const notes = String(fields.get('notes') || '');
     setError(''); setNotice(''); setBusy(true);
     try {
-      const next = await settlements.commit({ type: 'manualRepair', record: { id: crypto.randomUUID(), weekStart, driverId, description, amount, notes } });
+      // Pedido explícito: editar una rotura ya guardada, no solo poder
+      // quitarla y volver a escribirla — reusa el mismo id (upsert), en vez
+      // de crear siempre uno nuevo con crypto.randomUUID().
+      const next = await settlements.commit({ type: 'manualRepair', record: { id: editRepairId || crypto.randomUUID(), weekStart, driverId, description, amount, notes } });
       setNotice(next.events[0].detail);
       (event.target as HTMLFormElement).reset();
+      setEditRepairId(null);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function removeManualRepair(id: string) {
@@ -327,16 +332,27 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, lan
       {weekManualRepairs.length > 0 && <ul className={styles.plainList}>
         {weekManualRepairs.map(m => <li key={m.id}>
           <span>{m.description}{m.driverId ? ` · ${driverNameFor(m.driverId)}` : ''}{m.notes ? ` · ${m.notes}` : ''}</span>
-          <span className={styles.actions}><b>{money(m.amount)}</b><button disabled={busy} onClick={() => removeManualRepair(m.id)} aria-label={t('Quitar')}><Trash2 size={15} /></button></span>
+          <span className={styles.actions}>
+            <b>{money(m.amount)}</b>
+            <button disabled={busy} onClick={() => setEditRepairId(m.id)} aria-label={t('Editar')}>{t('Editar')}</button>
+            <button disabled={busy} onClick={() => removeManualRepair(m.id)} aria-label={t('Quitar')}><Trash2 size={15} /></button>
+          </span>
         </li>)}
       </ul>}
-      <form className={styles.fields} onSubmit={addManualRepair}>
-        <label className={styles.wide}>{t('¿Qué se reparó? *')}<input name="description" maxLength={200} required placeholder={t('Ej. se ponchó una llanta, se rompió el motor…')} /></label>
-        <label>{t('Chofer (opcional)')}<select name="driverId" defaultValue=""><option value="">{t('— Ninguno —')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-        <label>{t('Costo *')}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-        <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} placeholder={t('Ej. carga de Agner #38329284')} /></label>
-        <div className={styles.actions}><button type="submit" className={styles.primary} disabled={busy}>{t('+ Agregar rotura')}</button></div>
-      </form>
+      {(() => {
+        const editing = editRepairId ? weekManualRepairs.find(m => m.id === editRepairId) : undefined;
+        return <form className={styles.fields} onSubmit={addManualRepair} key={editRepairId || 'new-repair'}>
+          {editRepairId && <p className={styles.wide}>{t('Editando la rotura de arriba.')}</p>}
+          <label className={styles.wide}>{t('¿Qué se reparó? *')}<input name="description" maxLength={200} required defaultValue={editing?.description} placeholder={t('Ej. se ponchó una llanta, se rompió el motor…')} /></label>
+          <label>{t('Chofer (opcional)')}<select name="driverId" defaultValue={editing?.driverId || ''}><option value="">{t('— Ninguno —')}</option>{fleet.state.drivers.filter(d => d.active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+          <label>{t('Costo *')}<input name="amount" type="number" min="0.01" step="0.01" required defaultValue={editing?.amount} /></label>
+          <label className={styles.wide}>{t('Nota')}<input name="notes" maxLength={300} defaultValue={editing?.notes} placeholder={t('Ej. carga de Agner #38329284')} /></label>
+          <div className={styles.actions}>
+            <button type="submit" className={styles.primary} disabled={busy}>{editRepairId ? t('Guardar cambios') : t('+ Agregar rotura')}</button>
+            {editRepairId && <button type="button" disabled={busy} onClick={() => setEditRepairId(null)}>{t('Cancelar')}</button>}
+          </div>
+        </form>;
+      })()}
     </div>}
 
 
