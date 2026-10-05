@@ -129,6 +129,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   const resumenTrip = resumenKey ? resumenTrips.find(tr => tripKey(tr) === resumenKey) : undefined;
   const resumenDriver = resumenTrip ? marioDrivers.find(d => d.id === resumenTrip.driverId) : undefined;
 
+  const txRetail = (tx: { retailAmount: number; fuelAmount: number; nonFuelAmount: number }) => tx.retailAmount || tx.fuelAmount + tx.nonFuelAmount;
   function buildDriverResumen(trip: DriverTrip) {
     const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
     const rangeStart = trip.tripStart, rangeEnd = trip.returnDate || today();
@@ -136,7 +137,10 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const txs = state.transactions.filter(tx => tx.driverId === trip.driverId && inRange(tx.date)).sort((a, b) => a.date.localeCompare(b.date));
     const finalTxs = txs.filter(tx => tx.status === 'Final');
     const pendingTxs = txs.filter(tx => tx.status !== 'Final');
-    const combustible = finalTxs.reduce((s, tx) => s + tx.fuelAmount + tx.nonFuelAmount, 0);
+    // Combustible SIN DESCUENTO (retail = pagado + ahorro), igual que el
+    // resumen que ella arma a mano para Mario (pedido explícito, 5 oct:
+    // Roberto 27 sep–5 oct = $3,911.44, no los $3,894.78 pagados).
+    const combustible = finalTxs.reduce((s, tx) => s + txRetail(tx), 0);
     const salario = paidMarkForTrip(trip)?.amountPaid ?? 0;
     const seisPorciento = gross * settlements.state.config.companyDeductionPct;
     const dineroQueResta = gross - salario - combustible - seisPorciento;
@@ -434,28 +438,37 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
                     <div className={styles.resumenStat} data-tone="green"><span className={styles.resumenSwatch}>=</span><span className={styles.resumenLbl}>{t('Resta')}</span><span className={styles.resumenVal}>{money(r.dineroQueResta)}</span></div>
                   </div>
                   <p className={styles.resumenFormula}>{money(r.gross)} − {money(r.salario)} − {money(r.combustible)} − {money(r.seisPorciento)} = <b>{money(r.dineroQueResta)}</b></p>
-                  <p className={styles.tableSub} style={{ padding: '0 16px' }}>{t('Combustible')} — {r.finalTxs.length} {t('transacciones')}</p>
-                  <div className={styles.tableWrap}>
-                    <table className={styles.resumenTxTable}>
-                      <colgroup>
-                        <col className={styles.colFecha} /><col className={styles.colStation} /><col className={styles.colState} /><col className={styles.colPrice} /><col className={styles.colTotal} />
-                      </colgroup>
-                      <thead><tr><th>{t('Fecha')}</th><th>{t('Gasolinera')}</th><th>{t('Estado')}</th><th>{t('$/Galón')}</th><th>{t('Total')}</th></tr></thead>
-                      <tbody>{r.finalTxs.map(tx => <tr key={tx.id}>
-                        <td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td>
-                        <td>{tx.pricePerGallon ? money(tx.pricePerGallon) : '—'}</td>
-                        <td>{money(tx.fuelAmount + tx.nonFuelAmount)}</td>
-                      </tr>)}</tbody>
-                    </table>
-                  </div>
+                  <p className={styles.tableSub} style={{ padding: '0 16px' }}>{t('Gastos de combustible')} — {r.finalTxs.length} {t('transacciones')}</p>
+                  {(() => {
+                    // Galones y precio por galón solo aparecen cuando el statement
+                    // importado los trae (el PDF semanal de Mudflap no los incluye).
+                    const hasGallons = r.finalTxs.some(tx => tx.gallons > 0);
+                    const totalGallons = r.finalTxs.reduce((g, tx) => g + tx.gallons, 0);
+                    const widths = hasGallons ? [5, 15, 27, 9, 13, 14, 17] : [6, 17, 33, 12, 0, 0, 32];
+                    return <div className={styles.tableWrap}>
+                      <table className={styles.resumenTxTable}>
+                        <colgroup>{widths.map((w, i) => w > 0 && <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
+                        <thead><tr><th>#</th><th>{t('Fecha')}</th><th>{t('Gasolinera')}</th><th>{t('Estado')}</th>{hasGallons && <><th className={styles.num}>{t('Galones')}</th><th className={styles.num}>{t('Precio/Galón')}</th></>}<th className={styles.num}>{t('Total')}</th></tr></thead>
+                        <tbody>{r.finalTxs.map((tx, i) => <tr key={tx.id}>
+                          <td>{i + 1}</td><td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td>
+                          {hasGallons && <><td className={styles.num}>{tx.gallons ? tx.gallons.toFixed(3) : '—'}</td><td className={styles.num}>{tx.pricePerGallon ? money(tx.pricePerGallon) : '—'}</td></>}
+                          <td className={styles.num}><b>{money(txRetail(tx))}</b></td>
+                        </tr>)}</tbody>
+                        <tfoot><tr>
+                          <td colSpan={hasGallons ? 4 : 3}><b>{t('TOTAL COMBUSTIBLE')} ({r.finalTxs.length} {t('transacciones')})</b></td>
+                          {hasGallons ? <><td className={styles.num}><b>{totalGallons.toFixed(3)}</b></td><td /></> : <td />}
+                          <td className={styles.num}><b>{money(r.combustible)}</b></td>
+                        </tr></tfoot>
+                      </table>
+                    </div>;
+                  })()}
+                  <p className={styles.resumenFootnote}>{t('Combustible sin descuento = pagado + ahorro. Fuente: statements de Mudflap importados.')}</p>
                   {r.pendingTxs.length > 0 && <>
                     <p className={styles.tableSub} style={{ padding: '10px 16px 0' }}>{t('Pendientes — no incluidas en el total')}</p>
                     <div className={styles.tableWrap}>
                       <table className={styles.resumenTxTable}>
-                        <colgroup>
-                          <col className={styles.colFecha} /><col className={styles.colStation} /><col className={styles.colState} /><col className={styles.colPrice} /><col className={styles.colTotal} />
-                        </colgroup>
-                        <tbody>{r.pendingTxs.map(tx => <tr key={tx.id}><td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td><td colSpan={2}>{t('Pendiente')}</td></tr>)}</tbody>
+                        <colgroup><col style={{ width: '6%' }} /><col style={{ width: '17%' }} /><col style={{ width: '33%' }} /><col style={{ width: '12%' }} /><col style={{ width: '32%' }} /></colgroup>
+                        <tbody>{r.pendingTxs.map((tx, i) => <tr key={tx.id}><td>{i + 1}</td><td>{dayLabel(tx.date)}</td><td className={styles.station}>{tx.station || '—'}</td><td>{tx.state}</td><td className={styles.num}><b>{t('PENDIENTE')}</b></td></tr>)}</tbody>
                       </table>
                     </div>
                   </>}
