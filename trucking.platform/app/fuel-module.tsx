@@ -15,13 +15,12 @@ import styles from './fuel.module.css';
 
 const groupLabel = (g: string) => g === '' ? 'Chofer sin grupo asignado' : g === 'Mario' ? 'Grupo Mario' : g === 'Owner Operators' ? 'Owner Operators' : g === 'Lázaro' ? 'Grupo Lázaro' : `Grupo ${g}`;
 
-// "Resumen del chofer" (pedido explícito, 29 sep): ella no confía todavía en
-// los viajes ya cerrados que el sistema calculó para los demás choferes de
-// Mario (dice que traen datos que no son reales) — solo confirmó que el de
-// Agnel está bien. Mientras revisa uno por uno, solo se muestra el resumen
-// de los choferes en esta lista; cuando confirme que otro está correcto, se
-// agrega su nombre aquí.
-const RESUMEN_ENABLED_DRIVER_NAMES = ['agnel morales'];
+// "Resumen del chofer" (pedido explícito, 5 oct): sale solo, sin pedírmelo,
+// por cada viaje de un chofer de Mario que ya volvió a FL Y que ella ya
+// marcó como pagado. Solo desde el viaje de Agnel (salió el 21 sep, el
+// primero que ella confirmó como correcto): los viajes más viejos se
+// calcularon con datos anteriores y ella no los quiere ver.
+const RESUMEN_DESDE = '2026-09-21';
 
 // Gastos (peajes, reparaciones, etc.) se retiró de esta pantalla (pedido
 // explícito: "por ahora no lo voy a utilizar") — los datos y las acciones
@@ -97,19 +96,22 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // choferes de Mario (el 6%/salario real pagado es la fórmula de Mario,
   // Owner Operators tiene otra), y solo una vez que el viaje YA CERRÓ
   // (volvió a FL) — mientras sigue en carretera no se puede resumir todavía.
-  const [resumenDriverId, setResumenDriverId] = useState<string | null>(null);
+  const [resumenKey, setResumenKey] = useState<string | null>(null);
   const [resumenCopied, setResumenCopied] = useState(false);
   const marioDrivers = fleet.state.drivers.filter(d => d.group === 'Mario');
   const marioTrips = computeDriverTrips(marioDrivers, loads.state.loads, today());
-  const closedTripByDriver = new Map<string, DriverTrip>();
-  for (const trip of marioTrips) {
-    if (!trip.returnedToFl) continue;
-    const existing = closedTripByDriver.get(trip.driverId);
-    if (!existing || trip.tripStart > existing.tripStart) closedTripByDriver.set(trip.driverId, trip);
-  }
-  const driversWithResumen = marioDrivers.filter(d => closedTripByDriver.has(d.id) && RESUMEN_ENABLED_DRIVER_NAMES.includes(d.name.trim().toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
-  const resumenTrip = resumenDriverId ? closedTripByDriver.get(resumenDriverId) : undefined;
-  const resumenDriver = resumenDriverId ? marioDrivers.find(d => d.id === resumenDriverId) : undefined;
+  // El pago real del viaje: la primera marca "Pagada" del chofer desde que
+  // el viaje empezó (misma regla que usa Cargas para sacar el viaje de la
+  // lista de pendientes).
+  const paidMarkForTrip = (trip: DriverTrip) => settlements.state.marks
+    .filter(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= trip.tripStart)
+    .sort((x, y) => x.paidAt.localeCompare(y.paidAt))[0];
+  const tripKey = (trip: DriverTrip) => `${trip.driverId}|${trip.tripStart}`;
+  const resumenTrips = marioTrips
+    .filter(trip => trip.returnedToFl && trip.tripStart >= RESUMEN_DESDE && paidMarkForTrip(trip))
+    .sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || a.driverName.localeCompare(b.driverName));
+  const resumenTrip = resumenKey ? resumenTrips.find(tr => tripKey(tr) === resumenKey) : undefined;
+  const resumenDriver = resumenTrip ? marioDrivers.find(d => d.id === resumenTrip.driverId) : undefined;
 
   function buildDriverResumen(trip: DriverTrip) {
     const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
@@ -119,8 +121,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const finalTxs = txs.filter(tx => tx.status === 'Final');
     const pendingTxs = txs.filter(tx => tx.status !== 'Final');
     const combustible = finalTxs.reduce((s, tx) => s + tx.fuelAmount + tx.nonFuelAmount, 0);
-    const paidMark = settlements.state.marks.find(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= trip.tripStart);
-    const salario = paidMark?.amountPaid ?? 0;
+    const salario = paidMarkForTrip(trip)?.amountPaid ?? 0;
     const seisPorciento = gross * settlements.state.config.companyDeductionPct;
     const dineroQueResta = gross - salario - combustible - seisPorciento;
     return { gross, combustible, salario, seisPorciento, dineroQueResta, finalTxs, pendingTxs };
@@ -390,14 +391,14 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
       <p>{t('Cargas, salario pagado, combustible y 6%, desde que cada chofer de Mario sale de FL hasta que regresa.')}</p>
     </div>
     <div className={styles.resumenSection}>
-      {driversWithResumen.length ? <ul className={styles.plainList}>
-        {driversWithResumen.map(d => {
-          const trip = closedTripByDriver.get(d.id)!;
-          const isOpen = d.id === resumenDriverId;
-          return <li key={d.id} className={isOpen ? `${styles.resumenDriverRow} ${styles.resumenDriverRowOpen}` : styles.resumenDriverRow}>
+      {resumenTrips.length ? <ul className={styles.plainList}>
+        {resumenTrips.map(trip => {
+          const key = tripKey(trip);
+          const isOpen = key === resumenKey;
+          return <li key={key} className={isOpen ? `${styles.resumenDriverRow} ${styles.resumenDriverRowOpen}` : styles.resumenDriverRow}>
             <div className={styles.resumenDriverRowTop}>
-              <span className={styles.resumenDriverWho}>{d.name} <span className={styles.resumenDriverRange}>{tripRangeLabel(trip)}</span></span>
-              <button type="button" className={isOpen ? styles.resumenGhostBtnOpen : styles.resumenGhostBtn} onClick={() => setResumenDriverId(isOpen ? null : d.id)}>{isOpen ? t('Cerrar') : t('Ver resumen')}</button>
+              <span className={styles.resumenDriverWho}>{trip.driverName} <span className={styles.resumenDriverRange}>{tripRangeLabel(trip)}</span></span>
+              <button type="button" className={isOpen ? styles.resumenGhostBtnOpen : styles.resumenGhostBtn} onClick={() => setResumenKey(isOpen ? null : key)}>{isOpen ? t('Cerrar') : t('Ver resumen')}</button>
             </div>
             {isOpen && resumenDriver && resumenTrip && (() => {
               const r = buildDriverResumen(resumenTrip);
@@ -449,7 +450,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
             })()}
           </li>;
         })}
-      </ul> : <p className={styles.empty} style={{ padding: 16 }}>{t('Ningún chofer de Mario tiene un viaje recién cerrado todavía.')}</p>}
+      </ul> : <p className={styles.empty} style={{ padding: 16 }}>{t('Aquí salen solos los viajes de los choferes de Mario que ya volvieron a FL y que marcaste como pagados.')}</p>}
     </div>
   </div>;
 }
