@@ -35,7 +35,12 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // todo el módulo — pedido explícito: nada de un rango de fechas libre
   // arriba (mostraba "1 sept – 1 oct" y confundía), siempre semana por
   // semana como en Cargas (Módulo 2), solo que con el calendario de Mudflap.
-  const [weekStart, setWeekStart] = useState(fuelWeekStartOf(today()));
+  // Pedido explícito: ella sube el statement el lunes, y es el de la semana
+  // que ACABA de terminar — la semana en curso se queda vacía hasta el lunes
+  // siguiente. Por eso el módulo siempre abre en la semana pasada (el
+  // statement más reciente), no en la semana de hoy.
+  const lastStatementWeek = weekRange(fuelWeekStartOf(today())).prevWeek;
+  const [weekStart, setWeekStart] = useState(lastStatementWeek);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [importOpen, setImportOpen] = useState(false), [importBusy, setImportBusy] = useState(false), [importError, setImportError] = useState('');
@@ -236,7 +241,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
       <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16}/></button>
       <span>📅 {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16}/></button>
-      <button onClick={() => setWeekStart(fuelWeekStartOf(today()))}>{t('Semana actual')}</button>
+      <button onClick={() => setWeekStart(lastStatementWeek)}>{t('Última semana')}</button>
     </div>
     {/* Pedido explícito: los dos números del statement (sin/con descuento)
         y el resumen por grupo/chofer van SIEMPRE visibles arriba — nada de
