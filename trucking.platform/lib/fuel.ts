@@ -151,11 +151,22 @@ export function computeWeeklyFuelSummary(state: FuelState, drivers: Driver[], st
       };
     }).filter(d => d.amount > 0); // nunca choferes con total $0 (pedido explícito)
     if (group === '' && unassigned.length > 0) {
-      lines.push({
-        driverId: '', driverName: 'SIN CHOFER ASIGNADO',
-        amount: unassigned.reduce((s, t) => s + txTotal(t), 0),
-        retailAmount: unassigned.reduce((s, t) => s + (t.retailAmount || txTotal(t)), 0),
-      });
+      // Pedido explícito: un chofer que el sistema no reconoce igual cuenta y
+      // sale aparte en el resumen, con el nombre tal como viene en el
+      // statement (la importación lo guarda en las notas).
+      const byName = new Map<string, FuelTransaction[]>();
+      for (const t of unassigned) {
+        const raw = (t.notes.match(/Chofer en statement:\s*(.+)$/i)?.[1] || '').trim();
+        const label = raw ? `${raw} (no registrado)` : 'SIN CHOFER ASIGNADO';
+        byName.set(label, [...(byName.get(label) || []), t]);
+      }
+      for (const [label, own] of Array.from(byName.entries())) {
+        lines.push({
+          driverId: '', driverName: label,
+          amount: own.reduce((s, t) => s + txTotal(t), 0),
+          retailAmount: own.reduce((s, t) => s + (t.retailAmount || txTotal(t)), 0),
+        });
+      }
     }
     return { group, drivers: lines, total: lines.reduce((s, d) => s + d.amount, 0), retailTotal: lines.reduce((s, d) => s + d.retailAmount, 0) };
   }).filter(g => g.drivers.length > 0);

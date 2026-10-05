@@ -270,7 +270,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
       {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
         <p><strong>{t(groupLabel(g.group))}</strong></p>
         <ul className={styles.mudflapList}>
-          {g.drivers.map(d => <li key={d.driverId || 'sin-chofer'} className={styles.mudflapRow}><span className={styles.mudflapName}>{d.driverId ? shortName(d.driverName) : t(d.driverName)}</span><span className={styles.mudflapLeader} aria-hidden="true" /><span className={styles.mudflapAmount}>{money(d.retailAmount)}</span></li>)}
+          {g.drivers.map(d => <li key={`${d.driverId}-${d.driverName}`} className={styles.mudflapRow}><span className={styles.mudflapName}>{d.driverId ? shortName(d.driverName) : t(d.driverName)}</span><span className={styles.mudflapLeader} aria-hidden="true" /><span className={styles.mudflapAmount}>{money(d.retailAmount)}</span></li>)}
         </ul>
         {g.group && <p className={`${styles.tableSub} ${styles.mudflapRow}`}><b className={styles.mudflapName}>{t('Total')} {g.group}</b><span className={styles.mudflapLeader} aria-hidden="true" /><b className={styles.mudflapAmount}>{money(g.retailTotal)}</b></p>}
       </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
