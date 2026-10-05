@@ -149,6 +149,8 @@
 .resumenGhostBtn, .resumenGhostBtnOpen { font:inherit; font-size:12.5px; font-weight:700; padding:7px 12px; border:1px solid #e3dadd; border-radius:7px; background:#fff; color:#11151B; cursor:pointer; white-space:nowrap; }
 .resumenGhostBtnOpen { background:#11151B; color:#fff; border-color:#11151B; }
 .resumenInline { padding:0 0 16px; }
+.resumenApproxBadge { margin-left:8px; font-size:10px; font-weight:800; letter-spacing:.4px; padding:2px 7px; border-radius:20px; background:#FDF0DA; color:#8a5a00; border:1px solid #e8cf9c; vertical-align:middle; }
+.resumenApproxNote { margin:0; padding:10px 16px; font-size:12.5px; background:#FDF0DA; color:#6b4500; border-bottom:1px solid #e8cf9c; }
 
 .resumenCard { background:white; border:1px solid #e3dadd; border-radius:8px; margin:0; overflow:hidden; }
 .resumenHead { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 16px; background:#F7F8FA; border-bottom:1px solid #e3dadd; }
