@@ -124,8 +124,17 @@ export function computeWeeklyFuelSummary(state: FuelState, drivers: Driver[], st
   const transactions = state.transactions.filter(t => t.statementWeek === statementWeek && t.status === 'Final');
   const driverGroup = (id: string) => drivers.find(d => d.id === id)?.group || '';
   const driverName = (id: string) => drivers.find(d => d.id === id)?.name || '';
-  const driverIds = Array.from(new Set(transactions.filter(t => t.driverId).map(t => t.driverId)));
-  const groupsPresent = [...FUEL_GROUPS, ''].filter(g => driverIds.some(id => driverGroup(id) === g));
+  const knownDriverIds = new Set(drivers.map(d => d.id));
+  const driverIds = Array.from(new Set(transactions.filter(t => t.driverId && knownDriverIds.has(t.driverId)).map(t => t.driverId)));
+  // Reporte real (5 oct): 6 compras importadas sin chofer asignado
+  // ($2,558.67) se descartaban en silencio de este resumen, así que el total
+  // con descuentos no cuadraba con el del statement aunque la importación sí
+  // había leído todas las filas. Todo lo que no tenga chofer conocido sale
+  // como su propia línea — este total siempre debe ser igual al del PDF.
+  const unassigned = transactions.filter(t => !t.driverId || !knownDriverIds.has(t.driverId));
+  const presentGroups = new Set(driverIds.map(driverGroup));
+  const extraGroups = Array.from(presentGroups).filter(g => !(FUEL_GROUPS as readonly string[]).includes(g) && g !== '');
+  const groupsPresent = [...FUEL_GROUPS, ...extraGroups, ''].filter(g => presentGroups.has(g) || (g === '' && unassigned.length > 0));
 
   const groups: FuelGroupSummary[] = groupsPresent.map(group => {
     const ids = driverIds.filter(id => driverGroup(id) === group);
@@ -141,6 +150,13 @@ export function computeWeeklyFuelSummary(state: FuelState, drivers: Driver[], st
         retailAmount: own.reduce((s, t) => s + (t.retailAmount || txTotal(t)), 0),
       };
     }).filter(d => d.amount > 0); // nunca choferes con total $0 (pedido explícito)
+    if (group === '' && unassigned.length > 0) {
+      lines.push({
+        driverId: '', driverName: 'SIN CHOFER ASIGNADO',
+        amount: unassigned.reduce((s, t) => s + txTotal(t), 0),
+        retailAmount: unassigned.reduce((s, t) => s + (t.retailAmount || txTotal(t)), 0),
+      });
+    }
     return { group, drivers: lines, total: lines.reduce((s, d) => s + d.amount, 0), retailTotal: lines.reduce((s, d) => s + d.retailAmount, 0) };
   }).filter(g => g.drivers.length > 0);
 

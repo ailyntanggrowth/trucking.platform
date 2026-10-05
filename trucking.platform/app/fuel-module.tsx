@@ -60,7 +60,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const lines = ['RESUMEN DE MUDFLAP'];
     weeklySummary.groups.forEach(g => {
       lines.push(groupLabel(g.group));
-      g.drivers.forEach(d => lines.push(`${shortName(d.driverName)} — ${money(d.retailAmount)}`));
+      g.drivers.forEach(d => lines.push(`${d.driverId ? shortName(d.driverName) : d.driverName} — ${money(d.retailAmount)}`));
       if (g.group) lines.push(`Total ${g.group} — ${money(g.retailTotal)}`);
     });
     lines.push(`Total sin descuentos — ${money(weeklySummary.grandRetailTotal)}`);
@@ -177,6 +177,11 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // que su retail = su monto, igual que hace commitStatementImportAction.
   const previewRetailTotal = (preview?.rows.reduce((s, r) => s + (r.retailPrice || r.amount), 0) || 0) + manualUnparsedRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const previewSavedTotal = preview?.rows.reduce((s, r) => s + r.saved, 0) || 0;
+  // Una fila sin chofer asignado SÍ cuenta en el total del PDF, pero no sale
+  // en ningún chofer del resumen — se avisa aquí, antes de guardar, para no
+  // descubrirlo después (pasó con Michael Cancio, 5 oct).
+  const unassignedSelectedRows = preview ? preview.rows.filter((r, i) => selectedRows.has(i) && !(rowDriverOverride[i] ?? r.driverId)) : [];
+  const unassignedSelectedTotal = unassignedSelectedRows.reduce((s, r) => s + r.amount, 0);
   const reconciled = Boolean(preview) && unresolvedUnparsedCount === 0
     && (preview!.declared.fuel === null || Math.abs(preview!.declared.fuel - combinedFuel) < 0.01)
     && (preview!.declared.nonFuel === null || Math.abs(preview!.declared.nonFuel - combinedNonFuel) < 0.01)
@@ -265,7 +270,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
       {weeklySummary.groups.length ? weeklySummary.groups.map(g => <div key={g.group}>
         <p><strong>{t(groupLabel(g.group))}</strong></p>
         <ul className={styles.mudflapList}>
-          {g.drivers.map(d => <li key={d.driverId} className={styles.mudflapRow}><span className={styles.mudflapName}>{shortName(d.driverName)}</span><span className={styles.mudflapLeader} aria-hidden="true" /><span className={styles.mudflapAmount}>{money(d.retailAmount)}</span></li>)}
+          {g.drivers.map(d => <li key={d.driverId || 'sin-chofer'} className={styles.mudflapRow}><span className={styles.mudflapName}>{d.driverId ? shortName(d.driverName) : t(d.driverName)}</span><span className={styles.mudflapLeader} aria-hidden="true" /><span className={styles.mudflapAmount}>{money(d.retailAmount)}</span></li>)}
         </ul>
         {g.group && <p className={`${styles.tableSub} ${styles.mudflapRow}`}><b className={styles.mudflapName}>{t('Total')} {g.group}</b><span className={styles.mudflapLeader} aria-hidden="true" /><b className={styles.mudflapAmount}>{money(g.retailTotal)}</b></p>}
       </div>) : <p className={styles.empty}>{t('No hay transacciones de combustible en esta semana todavía.')}</p>}
@@ -339,6 +344,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
           })}
         </div>}
         {preview.rows.some(r => r.duplicate) && <p className={styles.note}>{preview.rows.filter(r => r.duplicate).length} {t('de')} {preview.rows.length} {t('filas ya existían en el sistema (marcadas como "posible duplicado"). No hay problema en dejarlas seleccionadas: al confirmar, el sistema nunca las duplica — si ya estaban en esta semana no pasa nada, y si habían quedado en otra semana (por ejemplo, cargadas antes de este arreglo) se corrigen solas.')}</p>}
+        {unassignedSelectedRows.length > 0 && <p className={styles.error} role="alert">⚠ {unassignedSelectedRows.length} {t('fila(s) sin chofer asignado')} ({money(unassignedSelectedTotal)}): {Array.from(new Set(unassignedSelectedRows.map(r => r.driverNameRaw || t('sin nombre')))).join(', ')}. {t('Asígnales su chofer en la tabla de abajo antes de importar — si no, ese dinero no sale en ningún chofer del resumen.')}</p>}
         {!reconciled && <p className={styles.error} role="alert">{t('No se puede importar todavía: los totales no coinciden exactamente con lo que declara el PDF, o hay filas sin leer. Resuelve eso primero.')}</p>}
         <div className={styles.importTableWrap}>
           <table className={styles.importTable}>
