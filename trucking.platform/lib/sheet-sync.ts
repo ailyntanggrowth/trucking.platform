@@ -142,7 +142,12 @@ export function parseSheetRows(csvRows: string[][], opts: { year?: number; title
 // registrado (ej. "Gilberto Jimenez") — coincide si el nombre de la hoja es
 // el principio del nombre completo, sin acentos ni mayúsculas.
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase().trim();
-export function matchDriver(sheetName: string, drivers: { id: string; name: string }[]): { id: string; name: string } | null {
+export function matchDriver(sheetName: string, drivers: { id: string; name: string; card_alias?: string | null }[]): { id: string; name: string } | null {
   const n = normalize(sheetName);
-  return drivers.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name))) || null;
+  const byName = drivers.find(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)));
+  if (byName) return byName;
+  // Si el nombre no coincide, se prueba con el alias de la ficha (ej. la Hoja
+  // dice "MICHEL" y el chofer ya se llama "Michael Cancio") — sin esto la
+  // sincronización creaba un chofer duplicado nuevo cada vez.
+  return drivers.find(d => d.card_alias && normalize(d.card_alias) === n) || null;
 }

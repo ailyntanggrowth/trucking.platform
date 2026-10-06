@@ -31,7 +31,7 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
 
   const supabase = supabaseServer();
   const [{ data: drivers, error: driversError }, { data: loadRows, error: loadsError }] = await Promise.all([
-    supabase.from('drivers').select('id,name').eq('company_id', companyId).eq('active', true),
+    supabase.from('drivers').select('id,name,card_alias').eq('company_id', companyId).eq('active', true),
     supabase.from('loads').select('*').eq('company_id', companyId).neq('status', 'Cancelada').neq('status', 'Reemplazada'),
   ]);
   if (driversError) throw new Error(driversError.message);
@@ -78,7 +78,7 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
           const { error: driverRpcError } = await supabase.rpc('fleet_commit_driver', { p_company_id: companyId, p_expected_revision: fleetMeta!.revision, p_driver: driverPayload, p_event: driverEvent });
           if (driverRpcError) throw new Error(driverRpcError.message);
           driver = { id: driverId, name: row.driverNameRaw };
-          driversCache.push(driver);
+          driversCache.push({ ...driver, card_alias: null });
           createdDrivers.push(`[${tab.title}] ${row.driverNameRaw} (grupo ${row.group})`);
         }
         const existing = loadByNumber.get(row.loadNumber);
