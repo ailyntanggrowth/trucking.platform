@@ -271,9 +271,21 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
     } catch (e) { setLoadEditorError((e as Error).message); } finally { setLoadEditorBusy(false); }
   }
 
+  // Solo para la dispatcher (tableOnly, pedido explícito 7 oct): su único
+  // módulo junta "Cargas que se entregan hoy" (igual que en Cargas) con la
+  // tabla completa de la semana. Mismo criterio que Cargas: no pagadas y con
+  // entrega hoy.
+  const dueToday = loads.state.loads.filter(l => isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.paymentStatus !== 'Pagada' && l.deliveryDate === today());
   return <div className={styles.settlements}>
     {(settlements.error || loads.error || fuel.error || fleet.error) && <div role="alert" className={styles.error}>{settlements.error || loads.error || fuel.error || fleet.error}</div>}
     {!ready2 && <p role="status">{t('Abriendo los registros de contabilidad…')}</p>}
+
+    {tableOnly && <section className={styles.dueTodayBox}>
+      <h3 className={styles.dueTodayTitle}>📦 {t('Cargas que se entregan hoy')} <span className={styles.dueTodayCount}>{dueToday.length}</span></h3>
+      {dueToday.length
+        ? <ul className={styles.dueTodayList}>{dueToday.map(l => <li key={l.id}><strong>{l.driverId ? driverNameFor(l.driverId) : t('Sin chofer')}</strong> — {t('Carga')} {l.loadNumber || t('sin número')} — {money(l.amount)}</li>)}</ul>
+        : <p className={styles.empty}>{t('No hay cargas para entregar hoy.')}</p>}
+    </section>}
 
     <div className={styles.weekBar}>
       <button onClick={() => setWeekStart(prevWeek)} aria-label={t('Semana anterior')}><ChevronLeft size={16} /></button>

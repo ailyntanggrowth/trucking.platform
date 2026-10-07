@@ -60,7 +60,7 @@ export default function Home() {
   // No hay Dashboard: la dueña lo eliminó por sentirse repetido con lo que ya
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
   // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
-  const homeModule = isDriver ? 'miscargas' : 'cargas';
+  const homeModule = isDriver ? 'miscargas' : role === 'dispatcher' ? 'finanzas' : 'cargas';
   const fleet = useFleet();
   const fuel = useFuel();
   const loadsCtl = useLoads();
@@ -77,7 +77,7 @@ export default function Home() {
     owner: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     admin: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     // Gleiby también ve la tabla de cargas de Resumen Semanal (pedido explícito, 7 oct), en modo "solo tabla": sin dinero, salarios ni edición.
-    dispatcher: ['cargas','finanzas','miinvoice'],
+    dispatcher: ['finanzas','miinvoice'],
     driver: ['miscargas'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
@@ -191,7 +191,7 @@ export default function Home() {
           <div className="moduleHeroText">
             <p className="eyebrow">{t('MÓDULO')} {nav.find(item=>item.id===activeModule)?.icon} · M&A KING</p>
             <h1>{t(moduleNames[activeModule])}</h1>
-            <p className="moduleHeroSubtitle">{t(({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'La tabla de cargas de la semana y el resumen de dinero, para mandarle a Mario cada lunes.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
+            <p className="moduleHeroSubtitle">{t(role==='dispatcher' && activeModule==='finanzas' ? 'Las cargas que se entregan hoy y la tabla de cargas de la semana.' : ({cargas:'Gestiona todas las cargas de la compañía y tu flota en un solo lugar.',combustible:'Combustible y gastos de la operación.',finanzas:'La tabla de cargas de la semana y el resumen de dinero, para mandarle a Mario cada lunes.',reportes:'Reportes procesados de la compañía.',usuarios:'Usuarios, roles y permisos.'} as Record<string,string>)[activeModule] || '')}</p>
           </div>
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
