@@ -122,7 +122,13 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // reciente de statement que existe en el sistema.
   const newestImportedWeek = state.transactions.reduce((m, tx) => tx.statementWeek > m ? tx.statementWeek : m, '');
   const statementCoversUntil = newestImportedWeek ? new Date(new Date(`${newestImportedWeek}T12:00:00Z`).getTime() + 6 * 86400000).toISOString().slice(0, 10) : '';
-  const isApproximate = (trip: DriverTrip) => !statementCoversUntil || (trip.returnDate || '') > statementCoversUntil;
+  // Mudflap tarda 1–2 días en pasar al statement las compras recientes (las
+  // "pendientes"): caso real, José Cruz volvió el 4 oct, el statement llegaba
+  // hasta el 4 oct y aun así le faltaba su compra de $650 del 4 oct. Por eso
+  // un resumen solo es definitivo cuando el statement cubre al menos 2 días
+  // DESPUÉS del regreso.
+  const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
+  const isApproximate = (trip: DriverTrip) => !statementCoversUntil || addDays(trip.returnDate || '', 2) > statementCoversUntil;
   const resumenTrips = tripsForResumen
     .filter(trip => trip.tripStart >= RESUMEN_DESDE && paidMarkForTrip(trip))
     .sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || a.driverName.localeCompare(b.driverName));
@@ -151,7 +157,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const r = buildDriverResumen(trip);
     const lines = [
       `RESUMEN DEL CHOFER — ${driverName.toUpperCase()}${isApproximate(trip) ? ' (APROXIMADO)' : ''}`,
-      ...(isApproximate(trip) ? [`Aproximado: falta el combustible del ${dayLabel(trip.returnDate || '')} — se confirma con el statement que lo cubra.`] : []),
+      ...(isApproximate(trip) ? [`Aproximado: pueden faltar compras de los últimos días (hasta el ${dayLabel(trip.returnDate || '')}) — se confirma con el statement siguiente.`] : []),
       `Salió de FL: ${dayLabel(trip.tripStart)} — Volvió a FL: ${dayLabel(trip.returnDate || '')}`,
       '',
       `Cargas realizadas — ${money(r.gross)}`,
@@ -429,7 +435,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
                     <h3>{resumenDriver.name}</h3>
                     <span className={styles.resumenWeek}>{t('FL')} {dayLabel(resumenTrip.tripStart)} — {t('FL')} {dayLabel(resumenTrip.returnDate || '')}</span>
                   </div>
-                  {isApproximate(resumenTrip) && <p className={styles.resumenApproxNote}>{t('Resumen aproximado: todavía no está importado el combustible del')} {dayLabel(resumenTrip.returnDate || '')}. {t('Se confirma al 100% cuando subas el statement que cubra ese día.')}</p>}
+                  {isApproximate(resumenTrip) && <p className={styles.resumenApproxNote}>{t('Resumen aproximado: las compras de combustible de los últimos días del viaje (hasta el')} {dayLabel(resumenTrip.returnDate || '')}{t(') pueden llegar en el statement siguiente, y el combustible pendiente de Mudflap todavía no cuenta. Se confirma al 100% cuando subas ese statement.')}</p>}
                   <div className={styles.resumenStats}>
                     <div className={styles.resumenStat} data-tone="blue"><span className={styles.resumenSwatch}>$</span><span className={styles.resumenLbl}>{t('Cargas')}</span><span className={styles.resumenVal}>{money(r.gross)}</span></div>
                     <div className={styles.resumenStat} data-tone="red"><span className={styles.resumenSwatch}>S</span><span className={styles.resumenLbl}>{t('Salario')}</span><span className={styles.resumenVal}>{money(r.salario)}</span></div>
