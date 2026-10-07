@@ -165,11 +165,12 @@ export default function Home() {
           <div><strong>M&amp;A King</strong><span>{t('TRUCKING SERVICE')}</span></div>
         </div>
         <p className="footerTagline">{t('DISCIPLINA EN CADA MILLA')}</p>
+        {(realRole==='owner' || realRole==='admin') && !previewAsDispatcher && <button className="signOutBtn" style={{marginBottom:8}} onClick={()=>{window.location.href=window.location.pathname+'?verComo=dispatcher';}}>👁 {t('Ver como Gleiby')}</button>}
         <button className="signOutBtn" onClick={()=>void auth.signOut()}><LogOut size={16}/> {t('Cerrar sesión')}</button>
       </div>
     </aside>
 
-    {previewAsDispatcher && <div style={{position:'fixed',top:8,right:8,zIndex:100,background:'#8a5a00',color:'#fff',padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:700}}>👁 {t('Vista de prueba: así ve Gleiby (dispatcher)')}</div>}
+    {previewAsDispatcher && <button onClick={()=>{window.location.href=window.location.pathname;}} style={{position:'fixed',top:8,right:8,zIndex:100,background:'#8a5a00',color:'#fff',padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:700,border:0,cursor:'pointer'}}>👁 {t('Vista de prueba: así ve Gleiby — toca aquí para salir')}</button>}
     {activeModule===null ? <section className="landingHero" id="main-content" tabIndex={-1}>
       <div className="landingHeroInner">
         <p className="eyebrow">{t('TRUCK SERVICE · PANEL PRINCIPAL')}</p>
