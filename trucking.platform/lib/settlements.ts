@@ -224,6 +224,17 @@ export function weekRange(weekStart: string) {
   return { start: weekStart, end: fmt(end), prevWeek: fmt(prev), nextWeek: fmt(next) };
 }
 
+// "29 sept – 5 oct": el período que cubre un invoice (el último día es el
+// lunes de cierre, un día antes del `end` de weekRange, que es exclusivo).
+// Pedido explícito: que cada invoice diga de qué fecha a qué fecha es, para
+// no perderse entre números.
+export function invoicePeriodLabel(weekStart: string) {
+  const { end } = weekRange(weekStart);
+  const fmt = (iso: string) => new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${iso}T12:00:00Z`)).replace('.', '');
+  const lastDay = new Date(new Date(`${end}T12:00:00Z`).getTime() - 86400000).toISOString().slice(0, 10);
+  return `${fmt(weekStart)} – ${fmt(lastDay)}`;
+}
+
 // El cierre de una semana ya no es automático a una hora fija (pedido
 // explícito: un feriado corre el cierre, y una hora fija no aguanta
 // excepciones) — un Administrador la cierra a mano, cuando quiera, desde

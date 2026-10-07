@@ -2,7 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import {
   computeMarioSettlements, dispatcherCommissionDetail, invoiceNumberFor,
-  weekStartOf, weekRange, isWeekLocked, fuelWeekStartOf, type SettlementConfig,
+  weekStartOf, weekRange, isWeekLocked, fuelWeekStartOf, invoicePeriodLabel, type SettlementConfig,
 } from '../lib/settlements';
 import { isOfficial, LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { computeWeeklyFuelSummary } from '../lib/fuel';
@@ -384,7 +384,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         <h3>{t('De quiénes son los Salarios de esta semana')}</h3>
         <ul className={styles.plainList}>
           {marioPaidLines.map(m => <li key={m.driverId}><span>{m.driverName}</span><b>{money(m.amount)}</b></li>)}
-          {dispatcherPaymentsThisWeek.map(d => <li key={d.weekStart}><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(d.weekStart)}</span><b>{money(d.commission)}</b></li>)}
+          {dispatcherPaymentsThisWeek.map(d => <li key={d.weekStart}><span>{t('Gleiby')} — {t('comisión del')} {t('Invoice')} #{invoiceNumberFor(d.weekStart)} ({invoicePeriodLabel(d.weekStart)})</span><b>{money(d.commission)}</b></li>)}
           {weekManualSalaries.map(m => <li key={m.id}><span>{m.driverId ? driverNameFor(m.driverId) : m.payeeName}{m.notes ? ` · ${m.notes}` : ''}</span><b>{money(m.amount)}</b></li>)}
         </ul>
       </div>}
@@ -464,7 +464,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
 
         {moreTab === 'dispatcher' && <>
           <div className={styles.rowDetail}>
-            <h3>{t('Invoice')} #{invoiceNumber} — {t('comisión de Gleybis')}</h3>
+            <h3>{t('Invoice')} #{invoiceNumber} ({invoicePeriodLabel(weekStart)}) — {t('comisión de Gleybis')}</h3>
             <p><b>{t('Bruto:')}</b> {money(dispatcher.gross)} · <b>{t('Comisión (4%):')}</b> {money(dispatcher.commission)}</p>
             <div className={styles.actions}>
               <span className={`${styles.badge} ${dispatcherPaid ? styles.badgePaid : styles.badgePending}`}>{dispatcherPaid ? t('Pagada') : t('Pendiente')}</span>

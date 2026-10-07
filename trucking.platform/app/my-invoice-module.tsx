@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { dispatcherCommissionDetail, invoiceNumberFor, weekStartOf, weekRange } from '../lib/settlements';
+import { dispatcherCommissionDetail, invoiceNumberFor, invoicePeriodLabel, weekStartOf, weekRange } from '../lib/settlements';
 import type { SettlementsController } from '../lib/use-settlements';
 import type { LoadsController } from '../lib/use-loads';
 import type { FleetController } from '../lib/use-fleet';
@@ -41,7 +41,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     const m = settlements.state.dispatcherMarks.find(x => x.weekStart === ws);
     history.push({
       weekStart: ws, invoiceNumber: invoiceNumberFor(ws), commission: c, paid: m?.paymentStatus === 'Pagada',
-      label: new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${ws}T12:00:00Z`)),
+      label: invoicePeriodLabel(ws),
     });
   }
 
@@ -68,7 +68,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
 
     <div className={styles.invoiceCard}>
       <span className={styles.invoiceIcon}><DollarSign size={22} /></span>
-      <span className={styles.invoiceLabel}>{t('Invoice')} #{invoiceNumber} · {t('4% del bruto de Mario + Owner Operators + Lázaro')}</span>
+      <span className={styles.invoiceLabel}>{t('Invoice')} #{invoiceNumber} · {invoicePeriodLabel(weekStart)} · {t('4% del bruto de Mario + Owner Operators + Lázaro')}</span>
       <strong className={styles.invoiceAmount}>{ready ? money(result.commission) : '—'}</strong>
       <span className={styles.invoiceSub}>{t('Bruto de la semana:')} {ready ? money(result.gross) : '—'}</span>
       <span className={`${styles.statusBadge} ${invoicePaid ? styles.statusPaid : styles.statusPending}`}>{invoicePaid ? t('Pagado') : t('Pendiente de pago')}</span>
@@ -79,7 +79,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
     </div>
 
     <div className={styles.printSection}>
-    <p className={styles.printInvoiceNumber}>{t('Invoice')} #{invoiceNumber}</p>
+    <p className={styles.printInvoiceNumber}>{t('Invoice')} #{invoiceNumber} · {invoicePeriodLabel(weekStart)}</p>
     <h3>{t('Cargas que forman este total')}</h3>
     <div className={styles.tableWrap}>
       <table className={styles.dataTable}>
@@ -106,7 +106,7 @@ export default function MyInvoiceModule({ settlements, loads, fleet, lang, t }: 
       <h3>{t('Tus invoices anteriores')}</h3>
       <div className={styles.tableWrap}>
         <table className={styles.dataTable}>
-          <thead><tr><th>{t('Invoice')}</th><th>{t('Semana de')}</th><th>{t('Comisión')}</th><th>{t('Estado')}</th></tr></thead>
+          <thead><tr><th>{t('Invoice')}</th><th>{t('Período')}</th><th>{t('Comisión')}</th><th>{t('Estado')}</th></tr></thead>
           <tbody>{history.map(h => <tr key={h.weekStart} className={`${styles.historyRow} ${h.weekStart === weekStart ? styles.rowActive : ''}`} onClick={() => setWeekStart(h.weekStart)}>
             <td>#{h.invoiceNumber}</td>
             <td className={styles.tableSub}>{h.label}</td>
