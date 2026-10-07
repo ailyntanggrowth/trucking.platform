@@ -43,7 +43,14 @@ export default function Home() {
   const lang: Lang = 'es';
   const t = (es:string) => translate(lang,es);
   const auth = useAuth();
-  const role = auth.profile?.role;
+  // Vista de prueba (pedido explícito, 7 oct): la dueña/administradora puede
+  // abrir la app con ?verComo=dispatcher para ver exactamente lo que ve
+  // Gleiby, sin entrar con su cuenta. Solo cambia lo que se muestra en
+  // pantalla, solo si quien entró es dueña/administradora, y solo para el rol
+  // dispatcher (el de chofer pide datos propios que esta cuenta no tiene).
+  const realRole = auth.profile?.role;
+  const previewAsDispatcher = (realRole === 'owner' || realRole === 'admin') && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('verComo') === 'dispatcher';
+  const role = previewAsDispatcher ? 'dispatcher' : realRole;
   const isDriver = role === 'driver';
   const canSeeFleet = role !== 'dispatcher' && !isDriver;
   // La dispatcher ve Cargas completo pero de solo lectura (pedido explícito):
@@ -162,6 +169,7 @@ export default function Home() {
       </div>
     </aside>
 
+    {previewAsDispatcher && <div style={{position:'fixed',top:8,right:8,zIndex:100,background:'#8a5a00',color:'#fff',padding:'6px 12px',borderRadius:20,fontSize:12,fontWeight:700}}>👁 {t('Vista de prueba: así ve Gleiby (dispatcher)')}</div>}
     {activeModule===null ? <section className="landingHero" id="main-content" tabIndex={-1}>
       <div className="landingHeroInner">
         <p className="eyebrow">{t('TRUCK SERVICE · PANEL PRINCIPAL')}</p>
