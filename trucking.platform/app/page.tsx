@@ -69,7 +69,8 @@ export default function Home() {
   const moduleAccessByRole: Record<string,string[]> = {
     owner: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
     admin: ['cargas','finanzas','combustible','reportes','miinvoice','usuarios'],
-    dispatcher: ['cargas','miinvoice'],
+    // Gleiby también ve la tabla de cargas de Resumen Semanal (pedido explícito, 7 oct), en modo "solo tabla": sin dinero, salarios ni edición.
+    dispatcher: ['cargas','finanzas','miinvoice'],
     driver: ['miscargas'],
   };
   const allowedModules = role ? (moduleAccessByRole[role] || ['cargas']) : ['cargas'];
@@ -186,7 +187,7 @@ export default function Home() {
           <div className="moduleHeroImage" aria-hidden="true" />
           <span className="moduleHeroTag" aria-hidden="true">More<br/>Than Trucks<br/>A Family</span>
         </div>
-        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} loads={loadsCtl} settlements={settlementsCtl} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
+        {activeModule==='cargas' ? <CargasFlotaModule loads={loadsCtl} fleet={fleet} settlements={settlementsCtl} dashboardLoads={dashboardLoads} canSeeFleet={canSeeFleet} canEditLoads={canEditLoads} lang={lang} t={t}/> : activeModule==='combustible' ? <FuelModule fuel={fuel} fleet={fleet} loads={loadsCtl} settlements={settlementsCtl} lang={lang} t={t}/> : activeModule==='finanzas' ? <SettlementsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} canEditLoads={canEditLoads} tableOnly={role==='dispatcher'} lang={lang} t={t}/> : activeModule==='reportes' ? <ReportsModule settlements={settlementsCtl} loads={loadsCtl} fuel={fuel} fleet={fleet} lang={lang} t={t}/> : activeModule==='usuarios' ? <UsersModule auth={auth} lang={lang} t={t}/> : activeModule==='miscargas' ? <MyLoadsModule myLoads={myLoads} lang={lang} t={t}/> : activeModule==='miinvoice' ? <MyInvoiceModule settlements={settlementsCtl} loads={loadsCtl} fleet={fleet} lang={lang} t={t}/> : <section className="panel sectionSpace"><div className="panelHeader"><div><h2>{t('Espacio del módulo')}</h2><p>{t('La navegación está lista. Las funciones de este módulo están pendientes de desarrollo.')}</p></div></div></section>}
       </div>
     </section>}
 

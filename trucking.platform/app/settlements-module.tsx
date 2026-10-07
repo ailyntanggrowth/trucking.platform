@@ -52,8 +52,8 @@ function Avatar({ name, index }: { name: string; index: number }) {
   return <span className={styles.avatar} style={{ background: AVATAR_TONES[index % AVATAR_TONES.length] }}>{initials(name)}</span>;
 }
 
-export default function SettlementsModule({ settlements, loads, fuel, fleet, canEditLoads, lang, t }: {
-  settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; canEditLoads: boolean; lang: Lang; t: (es: string) => string;
+export default function SettlementsModule({ settlements, loads, fuel, fleet, canEditLoads, tableOnly = false, lang, t }: {
+  settlements: SettlementsController; loads: LoadsController; fuel: FuelController; fleet: FleetController; canEditLoads: boolean; tableOnly?: boolean; lang: Lang; t: (es: string) => string;
 }) {
   const { state, ready } = settlements;
   const [weekStart, setWeekStart] = useState(weekStartOf(today()));
@@ -280,7 +280,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
       <span>📅 {t('Semana')} {weekLabel}</span>
       <button onClick={() => setWeekStart(nextWeek)} aria-label={t('Semana siguiente')}><ChevronRight size={16} /></button>
       <button onClick={() => setWeekStart(weekStartOf(today()))}>{t('Semana actual')}</button>
-      <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>
+      {!tableOnly && <button onClick={() => openMore('dispatcher')}><Settings size={15} /> {t('Más opciones')}</button>}
       <button onClick={downloadSummaryPdf}><Printer size={15} /> {t('Descargar PDF')}</button>
     </div>
     {locked && weekLock && <p className={styles.note}>{t('Semana cerrada el')} {new Date(weekLock.lockedAt).toLocaleString('es')} — {t('los montos son finales y no se pueden editar.')}</p>}
@@ -347,6 +347,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         <div className={styles.actions}><button type="submit" className={styles.primary} disabled={loadEditorBusy}>{loadEditorBusy ? t('Guardando…') : t('Guardar')}</button><button type="button" disabled={loadEditorBusy} onClick={() => { setLoadEditor(null); setLoadEditorError(''); }}>{t('Cancelar')}</button></div>
       </form>}
 
+      {!tableOnly && <>
       <h2>{t('Esta semana')}</h2>
       <div className={styles.statCards}>
         <div className={styles.statCard} data-tone="blue"><span className={styles.statIcon} aria-hidden="true"><Truck size={16} /></span><span className={styles.statLabel}>{t('Cargas realizadas (choferes de Mario)')}</span><strong>{ready2 ? money(cargasRealizadas) : '—'}</strong></div>
@@ -381,7 +382,10 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         <span className={styles.statLabel}>{t('Dinero que queda')}</span>
         <strong>{ready2 ? money(dineroQueQueda) : '—'}</strong>
       </div>
+      </>}
     </div>
+
+    {!tableOnly && <>
 
     <button type="button" className={styles.textButton} onClick={() => setSalariosOpen(o => !o)}><MoreVertical size={15} /> {t('Editar salarios pagados a mano')}</button>
     {salariosOpen && <div className={styles.rowDetail}>
@@ -515,5 +519,6 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         </div>}
       </div>
     </div>}
+    </>}
   </div>;
 }
