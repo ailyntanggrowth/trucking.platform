@@ -219,7 +219,18 @@ export function summarizeLoads(state: LoadState, start: string, end: string) {
   return { official, review, active, gross, receivable };
 }
 
-export type DriverTrip = { driverId: string; driverName: string; group: string; tripStart: string; daysOut: number; loads: Load[]; returnedToFl?: boolean; returnDate?: string };
+// manualCut: el viaje se cerró por una marca [VIAJE] en la carga siguiente (no
+// porque volviera a FL) — returnDate es la entrega de su última carga.
+export type DriverTrip = { driverId: string; driverName: string; group: string; tripStart: string; daysOut: number; loads: Load[]; returnedToFl?: boolean; returnDate?: string; manualCut?: boolean };
+
+// Corte manual de viajes (pedido explícito, 11 oct): "son casos especiales que
+// se dan" — p. ej. un chofer que se pasa dos semanas sin volver a FL y se le
+// paga por tramos. Se escribe [VIAJE] en las Notas de la carga que ARRANCA un
+// viaje nuevo. Desde la primera carga marcada de un chofer, los viajes se
+// cortan solo en las marcas (ya no por entregas a FL); antes de ella, todo
+// sigue cortándose automáticamente.
+export const TRIP_TAG = '[VIAJE]';
+const hasTripTag = (l: Load) => (l.notes || '').toUpperCase().includes(TRIP_TAG);
 
 // Recordatorio de "triángulo" (pedido explícito): un chofer sale de FL, va
 // haciendo cargas y normalmente regresa a FL en una semana — pero a veces se
@@ -244,13 +255,18 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
     // de verdad ya ocurrió, sin importar si fue exactamente hoy.
     const segments: Load[][] = [];
     let current: Load[] = [];
+    const firstTagIdx = driverLoads.findIndex((l, i) => i > 0 && hasTripTag(l));
     driverLoads.forEach((l, i) => {
+      if (i > 0 && hasTripTag(l) && current.length) { segments.push(current); current = []; }
       current.push(l);
       const isFlReturn = l.deliveryState.trim().toUpperCase() === 'FL' && Boolean(l.deliveryDate) && l.deliveryDate <= todayStr;
       const hasNext = i < driverLoads.length - 1;
-      if (isFlReturn && hasNext) { segments.push(current); current = []; }
+      const autoSplitAllowed = firstTagIdx === -1 || i < firstTagIdx;
+      if (isFlReturn && hasNext && autoSplitAllowed) { segments.push(current); current = []; }
     });
     if (current.length) segments.push(current);
+    // Un tramo seguido de una carga con [VIAJE] se cortó a mano.
+    const cutByTag = (i: number) => i < segments.length - 1 && hasTripTag(segments[i + 1][0]);
 
     // Para Owner Operators (pedido explícito) solo se muestra el viaje YA
     // CERRADO más reciente, nunca todo el historial — a diferencia de Mario,
@@ -281,7 +297,7 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
         // hasta que se marque pagado (antes desaparecía justo al volver a
         // FL, antes de poder pagarle, o se juntaba con el viaje siguiente).
         const returnDate = lastLoad.deliveryDate;
-        trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
+        trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate, ...(cutByTag(i) ? { manualCut: true } : {}) });
       } else if (driver.group === 'Owner Operators' && i === mostRecentClosedIdx) {
         // Tramo ya cerrado más reciente de un Owner Operator (pedido
         // explícito): para saber cuánto le debe ese viaje a Mario (12%).

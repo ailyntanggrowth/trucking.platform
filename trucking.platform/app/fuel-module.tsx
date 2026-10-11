@@ -158,7 +158,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     const lines = [
       `RESUMEN DEL CHOFER — ${driverName.toUpperCase()}${isApproximate(trip) ? ' (APROXIMADO)' : ''}`,
       ...(isApproximate(trip) ? [`Aproximado: pueden faltar compras de los últimos días (hasta el ${dayLabel(trip.returnDate || '')}) — se confirma con el statement siguiente.`] : []),
-      `Salió de FL: ${dayLabel(trip.tripStart)} — Volvió a FL: ${dayLabel(trip.returnDate || '')}`,
+      `Salió de FL: ${dayLabel(trip.tripStart)} — ${trip.manualCut ? 'Cierre del viaje' : 'Volvió a FL'}: ${dayLabel(trip.returnDate || '')}`,
       '',
       `Cargas realizadas — ${money(r.gross)}`,
       `Salario pagado — ${money(r.salario)}`,
@@ -433,7 +433,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
                 <div className={styles.resumenCard}>
                   <div className={styles.resumenHead}>
                     <h3>{resumenDriver.name}</h3>
-                    <span className={styles.resumenWeek}>{t('FL')} {dayLabel(resumenTrip.tripStart)} — {t('FL')} {dayLabel(resumenTrip.returnDate || '')}</span>
+                    <span className={styles.resumenWeek}>{t('FL')} {dayLabel(resumenTrip.tripStart)} — {resumenTrip.manualCut ? t('Cierre') : t('FL')} {dayLabel(resumenTrip.returnDate || '')}</span>
                   </div>
                   {isApproximate(resumenTrip) && <p className={styles.resumenApproxNote}>{t('Resumen aproximado: las compras de combustible de los últimos días del viaje (hasta el')} {dayLabel(resumenTrip.returnDate || '')}{t(') pueden llegar en el statement siguiente, y el combustible pendiente de Mudflap todavía no cuenta. Se confirma al 100% cuando subas ese statement.')}</p>}
                   <div className={styles.resumenStats}>
