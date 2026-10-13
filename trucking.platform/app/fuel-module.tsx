@@ -7,7 +7,7 @@ import type { FleetController } from '../lib/use-fleet';
 import type { LoadsController } from '../lib/use-loads';
 import type { SettlementsController } from '../lib/use-settlements';
 import { computeDriverTrips, type DriverTrip, type Load } from '../lib/loads';
-import { fuelWeekStartOf, weekRange } from '../lib/settlements';
+import { fuelWeekStartOf, weekRange, paidMarkForTrip } from '../lib/settlements';
 import { money, dayLabel, shortName, today, weekPeriodLabel, easternDate } from '../lib/format';
 import type { Lang } from '../lib/i18n';
 import { Fuel as FuelIcon, ChevronLeft, ChevronRight, Copy, Check, Printer } from 'lucide-react';
@@ -103,9 +103,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // El pago real del viaje: la primera marca "Pagada" del chofer desde que
   // el viaje empezó (misma regla que usa Cargas para sacar el viaje de la
   // lista de pendientes).
-  const paidMarkForTrip = (trip: DriverTrip) => settlements.state.marks
-    .filter(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= trip.tripStart)
-    .sort((x, y) => x.paidAt.localeCompare(y.paidAt))[0];
+  const paidMarkFor = (trip: DriverTrip) => paidMarkForTrip(settlements.state.marks, trip);
   const tripKey = (trip: DriverTrip) => `${trip.driverId}|${trip.tripStart}`;
   // Pedido explícito (5 oct): si el último viaje del chofer entrega en FL hoy
   // o antes, el resumen sale YA aunque el sistema todavía no lo cuente como
@@ -130,7 +128,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
   const isApproximate = (trip: DriverTrip) => !statementCoversUntil || addDays(trip.returnDate || '', 2) > statementCoversUntil;
   const resumenTrips = tripsForResumen
-    .filter(trip => trip.tripStart >= RESUMEN_DESDE && paidMarkForTrip(trip))
+    .filter(trip => trip.tripStart >= RESUMEN_DESDE && paidMarkFor(trip))
     .sort((a, b) => (b.returnDate || '').localeCompare(a.returnDate || '') || a.driverName.localeCompare(b.driverName));
   const resumenTrip = resumenKey ? resumenTrips.find(tr => tripKey(tr) === resumenKey) : undefined;
   const resumenDriver = resumenTrip ? marioDrivers.find(d => d.id === resumenTrip.driverId) : undefined;
@@ -147,7 +145,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     // resumen que ella arma a mano para Mario (pedido explícito, 5 oct:
     // Roberto 27 sep–5 oct = $3,911.44, no los $3,894.78 pagados).
     const combustible = finalTxs.reduce((s, tx) => s + txRetail(tx), 0);
-    const salario = paidMarkForTrip(trip)?.amountPaid ?? 0;
+    const salario = paidMarkFor(trip)?.amountPaid ?? 0;
     const seisPorciento = gross * settlements.state.config.companyDeductionPct;
     const dineroQueResta = gross - salario - combustible - seisPorciento;
     return { gross, combustible, salario, seisPorciento, dineroQueResta, finalTxs, pendingTxs };
