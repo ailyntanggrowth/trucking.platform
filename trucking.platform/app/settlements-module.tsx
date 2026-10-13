@@ -389,6 +389,16 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         </ul>
       </div>}
 
+      {/* Pedido explícito (14 oct): que el PDF también diga de qué es el dinero
+          de Roturas o Mantenimiento, igual que ya dice de quiénes son los
+          Salarios. Mismo bloque y mismo estilo, dentro de la captura. */}
+      {ready2 && weekManualRepairs.length > 0 && <div className={styles.salaryDetail}>
+        <h3>{t('De qué es el dinero de Roturas o Mantenimiento de esta semana')}</h3>
+        <ul className={styles.plainList}>
+          {weekManualRepairs.map(m => <li key={m.id}><span>{m.description}{m.driverId ? ` · ${driverNameFor(m.driverId)}` : ''}{m.notes ? ` · ${m.notes}` : ''}</span><b>{money(m.amount)}</b></li>)}
+        </ul>
+      </div>}
+
       <div className={styles.moneyCard}>
         <span className={styles.statIcon} aria-hidden="true"><TrendingUp size={18} /></span>
         <span className={styles.statLabel}>{t('Dinero que queda')}</span>
