@@ -226,8 +226,9 @@ export type DriverTrip = { driverId: string; driverName: string; group: string; 
 // Corte manual de viajes (pedido explícito, 11 oct): "son casos especiales que
 // se dan" — p. ej. un chofer que se pasa dos semanas sin volver a FL y se le
 // paga por tramos. Se escribe [VIAJE] en las Notas de la carga que ARRANCA un
-// viaje nuevo: es un corte EXTRA — los cortes automáticos por regreso a FL
-// siguen funcionando igual.
+// viaje nuevo. Desde la primera carga marcada de un chofer, los viajes se
+// cortan solo en las marcas (ya no por entregas a FL); antes de ella, todo
+// sigue cortándose automáticamente.
 export const TRIP_TAG = '[VIAJE]';
 const hasTripTag = (l: Load) => (l.notes || '').toUpperCase().includes(TRIP_TAG);
 
@@ -254,12 +255,14 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
     // de verdad ya ocurrió, sin importar si fue exactamente hoy.
     const segments: Load[][] = [];
     let current: Load[] = [];
+    const firstTagIdx = driverLoads.findIndex((l, i) => i > 0 && hasTripTag(l));
     driverLoads.forEach((l, i) => {
       if (i > 0 && hasTripTag(l) && current.length) { segments.push(current); current = []; }
       current.push(l);
       const isFlReturn = l.deliveryState.trim().toUpperCase() === 'FL' && Boolean(l.deliveryDate) && l.deliveryDate <= todayStr;
       const hasNext = i < driverLoads.length - 1;
-      if (isFlReturn && hasNext) { segments.push(current); current = []; }
+      const autoSplitAllowed = firstTagIdx === -1 || i < firstTagIdx;
+      if (isFlReturn && hasNext && autoSplitAllowed) { segments.push(current); current = []; }
     });
     if (current.length) segments.push(current);
     // Un tramo seguido de una carga con [VIAJE] se cortó a mano.

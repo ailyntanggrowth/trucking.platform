@@ -393,21 +393,3 @@ export function computeLazaroSettlements(drivers: Driver[], loads: Load[], weekS
     return { driverId: d.id, driverName: d.name, loadsCount, gross: grossFor(d.id, loads, weekStart, weekEnd) };
   }).sort((a, b) => b.gross - a.gross);
 }
-
-// A qué VIAJE corresponde un pago de salario (pedido explícito, 13 oct, caso
-// Agnel: pagó el viaje del 30 sept al 8 oct y el viaje nuevo del 9 oct
-// aparecía también como pagado). Una marca de pago es por semana y no sabía
-// de qué viaje era, así que se le guarda en las notas "[viaje:FECHA-DE-SALIDA]"
-// al marcarla. Las marcas viejas, sin etiqueta, se siguen leyendo como
-// antes: el primer pago hecho desde que el viaje empezó.
-const TRIP_TAG_RE = /\[viaje:(\d{4}-\d{2}-\d{2})\]/;
-export const tripMarkNote = (tripStart: string) => `[viaje:${tripStart}]`;
-export function paidMarkForTrip<M extends { driverId: string; paymentStatus: string; paidAt: string; notes: string }>(marks: M[], trip: { driverId: string; tripStart: string }): M | undefined {
-  const paid = marks.filter(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt);
-  const tagged = paid.find(m => TRIP_TAG_RE.exec(m.notes || '')?.[1] === trip.tripStart);
-  if (tagged) return tagged;
-  return paid
-    .filter(m => !TRIP_TAG_RE.test(m.notes || '') && easternDate(m.paidAt) >= trip.tripStart)
-    .sort((a, b) => a.paidAt.localeCompare(b.paidAt))[0];
-}
-export const markTripStart = (m: { notes: string }) => TRIP_TAG_RE.exec(m.notes || '')?.[1] ?? null;
