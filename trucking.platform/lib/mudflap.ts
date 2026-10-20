@@ -93,6 +93,10 @@ export function parseMudflapText(text: string): MudflapParseResult {
 
   const DATE_TYPE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})(Fuel|Non-Fuel)$/;
   const CARD_RETAIL = /^\*{3,4}\s*(\d{4})\$([\d,]+\.\d{2})$/;
+  // A veces (salto de página / texto partido) la tarjeta y el precio de venta
+  // llegan en líneas separadas: "**** 6576" y luego "$200.00". Caso real,
+  // 19 oct: TA Wildwood #53 de Frank Tamayo.
+  const CARD_ONLY = /^\*{3,4}\s*(\d{4})$/;
   const BARE_AMOUNT = /^\$([\d,]+\.\d{2})$/;
   const SAVED = /^\$([\d,]+\.\d{2})\s*Saved$/i;
 
@@ -127,13 +131,24 @@ export function parseMudflapText(text: string): MudflapParseResult {
   for (const block of blocks) {
     const raw = `${block.date} ${block.type}\n${block.lines.join('\n')}`;
     const sidLines = block.lines.filter(l => l.includes('SID'));
-    const cardLine = block.lines.map(l => l.match(CARD_RETAIL)).find(Boolean);
+    let cardLine = block.lines.map(l => l.match(CARD_RETAIL)).find(Boolean);
     const savedLine = block.lines.map(l => l.match(SAVED)).find(Boolean);
     // El monto real es la línea "$X.XX" suelta que NO es el precio de venta
     // (ya capturado dentro de cardLine) ni la línea de "Saved".
-    const bareAmounts = block.lines.filter(l => BARE_AMOUNT.test(l) && !SAVED.test(l));
+    let bareAmounts = block.lines.filter(l => BARE_AMOUNT.test(l) && !SAVED.test(l));
+    // Tarjeta sin precio en la misma línea: el primer "$X.XX" suelto es el
+    // precio de venta y el segundo (si viene) es el monto cobrado.
+    let retailFromSeparateLine = false;
+    if (!cardLine) {
+      const cardOnly = block.lines.map(l => l.match(CARD_ONLY)).find(Boolean);
+      if (cardOnly && bareAmounts.length) {
+        cardLine = [cardOnly[0], cardOnly[1], bareAmounts[0].replace(/^\$/, '')] as unknown as RegExpMatchArray;
+        bareAmounts = bareAmounts.slice(1);
+        retailFromSeparateLine = true;
+      }
+    }
     const descLine = sidLines[0] ?? carry.desc;
-    const driverLine = block.lines.find(l => l !== sidLines[0] && !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
+    const driverLine = block.lines.find(l => l !== sidLines[0] && !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !CARD_ONLY.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
 
     // Lo que sobre en ESTE bloque (una segunda línea SID, o un segundo monto
     // suelto) no es suyo — pertenece a la fila que sigue, cortada por la página.
@@ -141,7 +156,7 @@ export function parseMudflapText(text: string): MudflapParseResult {
     if (sidLines.length > 1) nextCarry.desc = sidLines[1];
     if (bareAmounts.length > 1) nextCarry.amount = money(bareAmounts[bareAmounts.length - 1]);
 
-    let amount: number | undefined = bareAmounts.length ? money(bareAmounts[0]) : carry.amount;
+    let amount: number | undefined = bareAmounts.length ? money(bareAmounts[0]) : (retailFromSeparateLine && savedLine ? undefined : carry.amount);
     // Si no hay monto suelto pero sí precio de venta y "Saved", el monto se
     // deduce de la propia aritmética del programa (Retail − Saved = Amount,
     // válido en todas las filas del statement) — no es una suposición nueva.
