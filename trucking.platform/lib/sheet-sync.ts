@@ -148,14 +148,17 @@ export function matchDriver(sheetName: string, drivers: { id: string; name: stri
   // "Carlos 2" empieza igual que "Carlos" y se lo llevaba el primero).
   const exact = drivers.find(d => normalize(d.name) === n);
   if (exact) return exact;
-  // 2) Coincidencia por el principio del nombre; si hay varias, la del nombre
+  // 2) Alias de la ficha idéntico (ej. la Hoja dice "Carlos 2" y el chofer ya se
+  // llama "Carlos Gonzales", o dice "MICHEL" y es "Michael Cancio"). Va antes que
+  // la coincidencia por prefijo: "Carlos 2" empieza igual que "Carlos" y se lo
+  // llevaría el chofer equivocado; sin alias la sincronización crearía un
+  // chofer duplicado nuevo cada vez.
+  const byAlias = drivers.find(d => d.card_alias && normalize(d.card_alias) === n);
+  if (byAlias) return byAlias;
+  // 3) Coincidencia por el principio del nombre; si hay varias, la del nombre
   // más largo (la más específica).
   const byName = drivers
     .filter(d => normalize(d.name).startsWith(n) || n.startsWith(normalize(d.name)))
     .sort((a, b) => normalize(b.name).length - normalize(a.name).length)[0];
-  if (byName) return byName;
-  // Si el nombre no coincide, se prueba con el alias de la ficha (ej. la Hoja
-  // dice "MICHEL" y el chofer ya se llama "Michael Cancio") — sin esto la
-  // sincronización creaba un chofer duplicado nuevo cada vez.
-  return drivers.find(d => d.card_alias && normalize(d.card_alias) === n) || null;
+  return byName || null;
 }
