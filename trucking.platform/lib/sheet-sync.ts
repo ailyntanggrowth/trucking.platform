@@ -142,6 +142,8 @@ export function parseSheetRows(csvRows: string[][], opts: { year?: number; title
 // registrado (ej. "Gilberto Jimenez") — coincide si el nombre de la hoja es
 // el principio del nombre completo, sin acentos ni mayúsculas.
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase().trim();
+// Un chofer puede tener varios alias en la misma ficha, separados por coma o punto y coma.
+export const aliasList = (alias?: string | null) => (alias ?? '').split(/[,;]/).map(normalize).filter(Boolean);
 export function matchDriver(sheetName: string, drivers: { id: string; name: string; card_alias?: string | null }[]): { id: string; name: string } | null {
   const n = normalize(sheetName);
   // 1) Nombre idéntico gana siempre (hay dos choferes "Carlos" y "Carlos 2":
@@ -153,7 +155,7 @@ export function matchDriver(sheetName: string, drivers: { id: string; name: stri
   // la coincidencia por prefijo: "Carlos 2" empieza igual que "Carlos" y se lo
   // llevaría el chofer equivocado; sin alias la sincronización crearía un
   // chofer duplicado nuevo cada vez.
-  const byAlias = drivers.find(d => d.card_alias && normalize(d.card_alias) === n);
+  const byAlias = drivers.find(d => aliasList(d.card_alias).includes(n));
   if (byAlias) return byAlias;
   // 3) Coincidencia por el principio del nombre; si hay varias, la del nombre
   // más largo (la más específica).

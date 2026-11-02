@@ -200,7 +200,7 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
   // El nombre real tiene prioridad; el alias de tarjeta (p.ej. "Raul Franc"
   // para Osley) solo se usa si ningún chofer coincide por su nombre real.
   const driverByName = new Map((drivers ?? []).map(d => [normalizeName(d.name), d.id as string]));
-  const driverByAlias = new Map((drivers ?? []).filter(d => d.card_alias).map(d => [normalizeName(d.card_alias), d.id as string]));
+  const driverByAlias = new Map((drivers ?? []).flatMap(d => String(d.card_alias ?? '').split(/[,;]/).map(a => normalizeName(a)).filter(Boolean).map(a => [a, d.id as string] as const)));
   const existingKeys = new Set((existing ?? []).map(e => `${e.date}|${e.external_ref}|${e.fuel_amount}|${e.non_fuel_amount}`));
 
   const rows: MudflapDraftRow[] = parsed.rows.map(r => ({
