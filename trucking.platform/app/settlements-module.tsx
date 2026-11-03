@@ -88,11 +88,15 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
   const weekLabel = `${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(`${weekStart}T12:00:00Z`))} – ${new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }).format(new Date(new Date(`${weekEnd}T12:00:00Z`).getTime() - 86400000))}`;
   const locked = isWeekLocked(weekEnd, state.weekLocks);
   const weekLock = state.weekLocks.find(w => w.weekEnd === weekEnd);
+  const summaryDriverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
   const summaryGroups = FLEET_GROUPS.map(g => ({
     group: g,
     rows: loads.state.loads
       .filter(l => fleet.state.drivers.find(d => d.id === l.driverId)?.group === g && isOfficial(l) && l.status !== 'Cancelada' && l.status !== 'Reemplazada' && l.deliveryDate >= weekStart && l.deliveryDate < weekEnd)
-      .sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)),
+      // Agrupadas por chofer (pedido explícito): todas las cargas de un mismo chofer
+      // una debajo de la otra, y dentro de cada chofer en orden de fecha.
+      .sort((a, b) => summaryDriverName(a.driverId).localeCompare(summaryDriverName(b.driverId), 'es', { numeric: true, sensitivity: 'base' })
+        || a.pickupDate.localeCompare(b.pickupDate) || a.deliveryDate.localeCompare(b.deliveryDate) || (a.loadNumber || '').localeCompare(b.loadNumber || '')),
   }));
 
   const mario = computeMarioSettlements(fleet.state.drivers, loads.state.loads, fuel.state.transactions, fuel.state.expenses, weekStart, weekEnd, state.config, state.driverInsurance, state.marks, weekStart, weekEnd);
@@ -310,7 +314,7 @@ export default function SettlementsModule({ settlements, loads, fuel, fleet, can
         <table className={styles.summaryTable}>
           <colgroup><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '16%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} /><col style={{ width: '13%' }} />{canEditLoads && <col className={styles.rowMenuCol} />}</colgroup>
           <thead><tr><th>{t('CHOFER')}</th><th>{t('CARGA')}</th><th>{t('PRECIO')}</th><th>{t('RUTA')}</th><th>{t('FECHAS')}</th><th>{t('SUM.')}</th>{canEditLoads && <th className={styles.rowMenuCol} aria-hidden="true" />}</tr></thead>
-          <tbody>{g.rows.map(l => <tr key={l.id}>
+          <tbody>{g.rows.map((l, i) => <tr key={l.id} data-driver-start={i > 0 && l.driverId !== g.rows[i - 1].driverId ? 'true' : undefined}>
             <td>{driverNameFor(l.driverId)}</td>
             <td>{l.loadNumber || '—'}</td>
             <td>{money(l.amount)}</td>

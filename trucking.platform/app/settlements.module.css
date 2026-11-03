@@ -102,6 +102,7 @@
 @media(max-width:480px) { .summaryTable { font-size:9.5px; } .summaryTable th,.summaryTable td { padding:4px 2px; } }
 .summaryTable th { background:#f5ebed; color:#59616D; font-weight:700; }
 .summaryTable td { border-top:1px solid #f0e9e9; color:#11151B; }
+.summaryTable tr[data-driver-start='true'] td { border-top:2px solid #cdbcc1; }
 
 /* Menú "☰" (editar/cancelar) y "Agregar carga" directo en la tabla grande
    de esta pantalla (pedido explícito: "la tabla que sale grande" en
