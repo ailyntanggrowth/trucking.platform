@@ -77,10 +77,11 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     // considera pagado si hay un pago marcado desde que salió — así no
     // reaparece al cambiar de semana.
     if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) >= trip.tripStart);
-    // Pedido explícito (12 oct, caso Leonardo): un viaje que todavía NO ha
-    // vuelto a FL se sigue viendo aunque ya se haya marcado pagado (el pago
-    // puede cubrir cargas que aún están por entregar) — se muestra con su
-    // línea "Pagado" y sale de la lista solo cuando ya volvió a FL.
+    // Pedido explícito (9 nov, antes 12 oct caso Leonardo): en cuanto se marca
+    // pagado el viaje de un chofer de Mario, la tarjeta sale de la lista
+    // aunque todavía no haya vuelto a FL. Los Owner Operators no se pueden
+    // marcar antes de volver, así que no cambia nada para ellos.
+    if (trip.group === 'Mario') return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) >= trip.tripStart);
     return true;
   }) : [];
 
