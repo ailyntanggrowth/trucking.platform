@@ -298,9 +298,11 @@ export function computeDriverTrips(drivers: Driver[], loads: Load[], todayStr: s
         // FL, antes de poder pagarle, o se juntaba con el viaje siguiente).
         const returnDate = lastLoad.deliveryDate;
         trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate, ...(cutByTag(i) ? { manualCut: true } : {}) });
-      } else if (driver.group === 'Owner Operators' && i === mostRecentClosedIdx) {
+      } else if ((driver.group === 'Owner Operators' || driver.group === 'Lázaro') && i === mostRecentClosedIdx) {
         // Tramo ya cerrado más reciente de un Owner Operator (pedido
         // explícito): para saber cuánto le debe ese viaje a Mario (12%).
+        // Lázaro (pedido explícito): mismo recorrido, desde que salió de FL
+        // hasta que volvió, sin salario — se oculta con el botón "Quitar".
         const returnDate = lastLoad.deliveryDate;
         trips.push({ driverId: driver.id, driverName: driver.name, group: driver.group, tripStart, daysOut: Math.max(0, Math.round((Date.parse(returnDate) - Date.parse(tripStart)) / 86400000)), loads: seg, returnedToFl: true, returnDate });
       }

@@ -83,3 +83,6 @@
 }
 .loads button:active { background-color:#C5A46D33; }
 @media(prefers-reduced-motion:reduce) { .loads button { transition:none; } }
+
+.tripHiddenNote { margin:0 0 8px; font-size:12px; }
+.tripHiddenNote button { background:none; border:0; padding:0; color:#59616D; text-decoration:underline; cursor:pointer; font:inherit; }

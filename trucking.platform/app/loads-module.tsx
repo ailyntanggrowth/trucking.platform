@@ -1,7 +1,8 @@
 "use client";
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { LOAD_STATUS_VALUES, PAYMENT_STATUS_VALUES, isOfficial, computeDriverTrips, type Load, type LoadAction, type LoadStatus, type PaymentStatus } from '../lib/loads';
 import { syncGoogleSheetAction } from '../lib/sheet-sync-actions';
+import { getTripDismissals, setTripDismissed } from '../lib/trip-dismissals-actions';
 import type { SheetSyncResult } from '../lib/sheet-sync-run';
 import { driverPayForGross, weekStartOf } from '../lib/settlements';
 import type { LoadsController } from '../lib/use-loads';
@@ -12,9 +13,9 @@ import type { Lang } from '../lib/i18n';
 import styles from './loads.module.css';
 
 type Editor = { type: 'load' | 'cancel' | 'replace' | 'incident'; id: string; revision: number };
-// Recorrido de cada chofer (pedido explícito): solo Mario y Owner Operators —
-// Lázaro nunca sale aquí.
-const FLEET_GROUPS = ['Mario', 'Owner Operators'] as const;
+// Recorrido de cada chofer (pedido explícito): Mario, Owner Operators y
+// Lázaro (este último sin salario, solo el recorrido).
+const FLEET_GROUPS = ['Mario', 'Owner Operators', 'Lázaro'] as const;
 
 export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, t, initialFilter }: { loads: LoadsController; fleet: FleetController; settlements: SettlementsController; canEdit: boolean; lang: Lang; t: (es: string) => string; initialFilter?: string }) {
   const { state, ready } = loads;
@@ -26,6 +27,13 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   // recorrido, en vez de en Contabilidad, porque el período es el viaje
   // (desde que sale de FL), no la semana fija del negocio.
   const [payTrip, setPayTrip] = useState<{ driverId: string; driverName: string; tripStart: string; weekStart?: string } | null>(null);
+  // Recorridos de Lázaro que ella quitó de la lista ("chofer|día que salió de FL").
+  const [dismissed, setDismissed] = useState<string[]>([]), [showDismissed, setShowDismissed] = useState(false);
+  useEffect(() => { getTripDismissals().then(setDismissed).catch(() => {}); }, []);
+  async function toggleDismiss(driverId: string, tripStart: string, hide: boolean) {
+    setError('');
+    try { setDismissed(await setTripDismissed(driverId, tripStart, hide)); } catch (e) { setError((e as Error).message); }
+  }
   const [payAmount, setPayAmount] = useState('');
   const [payBusy, setPayBusy] = useState(false), [payError, setPayError] = useState('');
   const driverName = (id: string) => fleet.state.drivers.find(d => d.id === id)?.name || '';
@@ -61,6 +69,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     // Pedido explícito: un Owner Operator también se puede marcar "pagado"
     // (lo que le paga a Mario, el 12%) y salir de la lista una vez marcado —
     // misma mecánica que ya existía solo para Mario.
+    if (trip.group === 'Lázaro') return showDismissed || !dismissed.includes(`${trip.driverId}|${trip.tripStart}`);
     if (trip.group !== 'Mario' && trip.group !== 'Owner Operators') return true;
     // El pago se archiva por la semana en que se pagó, no por trip.tripStart
     // (ver el mismo ajuste más abajo) — misma clave en los dos lugares.
@@ -161,11 +170,16 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
 
     <section className={styles.tripBox}>
       <h3 className={styles.dueTodayTitle}>🧭 {t('Recorrido de cada chofer (desde que salió de FL)')} <span className={styles.count}>{driverTrips.length}</span></h3>
+      {dismissed.length > 0 && <p className={styles.tripHiddenNote}>
+        <button type="button" onClick={() => setShowDismissed(v => !v)}>{showDismissed ? t('Ocultar los quitados') : `${t('Ver los quitados')} (${dismissed.length})`}</button>
+      </p>}
       {driverTrips.length
         ? <div className={styles.tripList}>{driverTrips.map(trip => {
             const gross = trip.loads.reduce((s, l) => s + l.amount, 0);
             const isMario = trip.group === 'Mario';
             const isOwnerOperator = trip.group === 'Owner Operators';
+            const isLazaro = trip.group === 'Lázaro';
+            const isDismissed = isLazaro && dismissed.includes(`${trip.driverId}|${trip.tripStart}`);
             const estimatedPay = isMario ? driverPayForGross(gross, settlements.state.config) : 0;
             // Pedido explícito: debajo del recorrido de un Owner Operator,
             // cuánto le debe ESE viaje a Mario — el mismo 12% que ya usa
@@ -191,9 +205,9 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
             const mark = canMarkThis ? (paidSinceStart ?? settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today()))) : undefined;
             const isPaid = mark?.paymentStatus === 'Pagada' && Boolean(mark.paidAt) && easternDate(mark.paidAt) >= trip.tripStart;
             const isPayingThis = payTrip?.driverId === trip.driverId && payTrip?.tripStart === trip.tripStart;
-            return <div className={styles.tripCard} key={`${trip.driverId}|${trip.tripStart}`} data-tone={isOwnerOperator || isPaid ? 'gray' : trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
+            return <div className={styles.tripCard} key={`${trip.driverId}|${trip.tripStart}`} data-tone={isOwnerOperator || isLazaro || isPaid ? 'gray' : trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>
-            <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — {trip.returnedToFl ? <b>{trip.manualCut ? t('Cierre del viaje el') : t('Volvió a FL el')} {dayLabel(trip.returnDate || '')} · {t('pendiente de pago')}</b> : <b>{trip.daysOut} {t('días fuera')}</b>}</span>
+            <span>{t('Salió de FL:')} {dayLabel(trip.tripStart)} — {trip.returnedToFl ? <b>{trip.manualCut ? t('Cierre del viaje el') : t('Volvió a FL el')} {dayLabel(trip.returnDate || '')}{!isLazaro && <> · {t('pendiente de pago')}</>}</b> : <b>{trip.daysOut} {t('días fuera')}</b>}</span>
             <ul className={styles.tripLoads}>{trip.loads.map(l => <li key={l.id} className={styles.tripLoadRow}>
               {canEdit && <details className={styles.loadMenu}>
                 <summary aria-label={t('Opciones de la carga')}>☰</summary>
@@ -209,6 +223,9 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
                 {l.paymentStatus === 'Pagada' && <span className={styles.tripPaidTag}>{t('Pagada')}</span>}
               </span>
             </li>)}</ul>
+            {isLazaro && canEdit && <p className={styles.tripPaidLine}>
+              <button type="button" onClick={() => void toggleDismiss(trip.driverId, trip.tripStart, !isDismissed)}>{isDismissed ? t('Volver a mostrar') : t('Quitar')}</button>
+            </p>}
             {canMarkThis && <>
               <p className={styles.tripTotals}><b>{t('Total en cargas:')}</b> {money(gross)} <span className={styles.tripDivider}>—</span> <b>{isMario ? t('Salario estimado:') : t('Debe a Mario (12%):')}</b> {money(amountForMarking)}</p>
               {isPaid && <p className={styles.tripPaidLine}>✅ {t('Pagado:')} {money(mark!.amountPaid)}
