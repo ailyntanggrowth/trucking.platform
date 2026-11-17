@@ -92,7 +92,10 @@ export function parseMudflapText(text: string): MudflapParseResult {
   const section = startIdx >= 0 ? lines.slice(startIdx + 1, endIdx >= 0 ? endIdx : undefined) : [];
 
   const DATE_TYPE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})(Fuel|Non-Fuel)$/;
-  const CARD_RETAIL = /^\*{3,4}\s*(\d{4})\$([\d,]+\.\d{2})$/;
+  // En las filas Non-Fuel (sin línea "Saved") el monto cobrado llega pegado
+  // al precio de venta en la misma línea: "**** 1220$2.15$2.15" (caso real,
+  // statement del 9–15 nov, 8 filas).
+  const CARD_RETAIL = /^\*{3,4}\s*(\d{4})\$([\d,]+\.\d{2})(?:\$([\d,]+\.\d{2}))?$/;
   // A veces (salto de página / texto partido) la tarjeta y el precio de venta
   // llegan en líneas separadas: "**** 6576" y luego "$200.00". Caso real,
   // 19 oct: TA Wildwood #53 de Frank Tamayo.
@@ -147,8 +150,16 @@ export function parseMudflapText(text: string): MudflapParseResult {
         retailFromSeparateLine = true;
       }
     }
-    const descLine = sidLines[0] ?? carry.desc;
-    const driverLine = block.lines.find(l => l !== sidLines[0] && !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !CARD_ONLY.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
+    // Líneas de texto del bloque que no son ni descripción con SID, ni
+    // tarjeta, ni montos: el chofer (y, si la descripción vino cortada sin
+    // "SID", también la estación).
+    const textLines = block.lines.filter(l => !l.includes('SID') && l !== '...' && !CARD_RETAIL.test(l) && !CARD_ONLY.test(l) && !SAVED.test(l) && !BARE_AMOUNT.test(l) && l.length > 0);
+    // Descripción cortada ("Casey's General Store #4867 - Tyler, TX (16241 US
+    // Hwy 27...") sin la parte "| SID…": caso real, statement del 9–15 nov.
+    // Con dos líneas de texto, la primera es la estación y la última el chofer.
+    const truncatedDesc = !sidLines[0] && !carry.desc && textLines.length >= 2 ? textLines[0] : undefined;
+    const descLine = sidLines[0] ?? carry.desc ?? truncatedDesc;
+    const driverLine = truncatedDesc ? textLines[textLines.length - 1] : textLines[0];
 
     // Lo que sobre en ESTE bloque (una segunda línea SID, o un segundo monto
     // suelto) no es suyo — pertenece a la fila que sigue, cortada por la página.
@@ -156,7 +167,7 @@ export function parseMudflapText(text: string): MudflapParseResult {
     if (sidLines.length > 1) nextCarry.desc = sidLines[1];
     if (bareAmounts.length > 1) nextCarry.amount = money(bareAmounts[bareAmounts.length - 1]);
 
-    let amount: number | undefined = bareAmounts.length ? money(bareAmounts[0]) : (retailFromSeparateLine && savedLine ? undefined : carry.amount);
+    let amount: number | undefined = bareAmounts.length ? money(bareAmounts[0]) : (cardLine?.[3] ? money(cardLine[3]) : (retailFromSeparateLine && savedLine ? undefined : carry.amount));
     // Si no hay monto suelto pero sí precio de venta y "Saved", el monto se
     // deduce de la propia aritmética del programa (Retail − Saved = Amount,
     // válido en todas las filas del statement) — no es una suposición nueva.
@@ -170,11 +181,14 @@ export function parseMudflapText(text: string): MudflapParseResult {
     }
     const { station, city, state } = parseDescription(descLine);
     const sid = (descLine.match(/SID\s*([A-Za-z0-9]+)/) || [])[1] || '';
+    // Sin SID en el PDF, el identificador para no duplicar al volver a subir
+    // el mismo statement se arma con lo que sí trae la fila.
+    const externalRef = sid ? `SID${sid}` : `SIN-SID-${block.date}-${cardLine[1]}-${amount.toFixed(2)}`;
     rows.push({
       date: block.date, type: block.type, station, city, state,
       driverNameRaw: driverLine || '', cardLast4: cardLine[1], retailPrice: money(cardLine[2]),
       amount, saved: savedLine ? money(savedLine[1]) : 0,
-      externalRef: sid ? `SID${sid}` : '', raw,
+      externalRef, raw,
     });
   }
 
