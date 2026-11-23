@@ -76,12 +76,15 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
     // Un viaje que ya volvió a FL no depende de la semana en curso: se
     // considera pagado si hay un pago marcado desde que salió — así no
     // reaparece al cambiar de semana.
-    if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) >= trip.tripStart);
+    // Un pago hecho el MISMO día en que el chofer sale de FL es del viaje
+    // anterior (se le paga al volver), así que no cuenta para el viaje nuevo:
+    // por eso se compara con ">" y no con ">=" (caso Agnel, 15 nov).
+    if (trip.returnedToFl) return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) > trip.tripStart);
     // Pedido explícito (9 nov, antes 12 oct caso Leonardo): en cuanto se marca
     // pagado el viaje de un chofer de Mario, la tarjeta sale de la lista
     // aunque todavía no haya vuelto a FL. Los Owner Operators no se pueden
     // marcar antes de volver, así que no cambia nada para ellos.
-    if (trip.group === 'Mario') return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) >= trip.tripStart);
+    if (trip.group === 'Mario') return !settlements.state.marks.some(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && easternDate(m.paidAt) > trip.tripStart);
     return true;
   }) : [];
 
@@ -202,9 +205,9 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
             // El pago de ESTE viaje: el primero marcado desde que salió (puede ser
             // de una semana anterior si el viaje cruza el martes); si no hay,
             // la marca de la semana en curso.
-            const paidSinceStart = settlements.state.marks.find(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= trip.tripStart);
+            const paidSinceStart = settlements.state.marks.find(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) > trip.tripStart);
             const mark = canMarkThis ? (paidSinceStart ?? settlements.state.marks.find(m => m.driverId === trip.driverId && m.weekStart === weekStartOf(today()))) : undefined;
-            const isPaid = mark?.paymentStatus === 'Pagada' && Boolean(mark.paidAt) && easternDate(mark.paidAt) >= trip.tripStart;
+            const isPaid = mark?.paymentStatus === 'Pagada' && Boolean(mark.paidAt) && easternDate(mark.paidAt) > trip.tripStart;
             const isPayingThis = payTrip?.driverId === trip.driverId && payTrip?.tripStart === trip.tripStart;
             return <div className={styles.tripCard} key={`${trip.driverId}|${trip.tripStart}`} data-tone={isOwnerOperator || isLazaro || isPaid ? 'gray' : trip.daysOut > 10 ? 'red' : trip.daysOut > 7 ? 'orange' : 'gray'}>
             <strong>{trip.driverName}</strong> <span className={styles.tableSub}>({trip.group})</span>

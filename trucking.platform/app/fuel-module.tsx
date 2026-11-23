@@ -104,7 +104,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
   // el viaje empezó (misma regla que usa Cargas para sacar el viaje de la
   // lista de pendientes).
   const paidMarkForTrip = (trip: DriverTrip) => settlements.state.marks
-    .filter(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) >= trip.tripStart)
+    .filter(m => m.driverId === trip.driverId && m.paymentStatus === 'Pagada' && m.paidAt && easternDate(m.paidAt) > trip.tripStart)
     .sort((x, y) => x.paidAt.localeCompare(y.paidAt))[0];
   const tripKey = (trip: DriverTrip) => `${trip.driverId}|${trip.tripStart}`;
   // Pedido explícito (5 oct): si el último viaje del chofer entrega en FL hoy
