@@ -31,7 +31,11 @@ export async function runSheetSync(dryRun: boolean, companyId = DEFAULT_COMPANY_
 
   const supabase = supabaseServer();
   const [{ data: drivers, error: driversError }, { data: loadRows, error: loadsError }] = await Promise.all([
-    supabase.from('drivers').select('id,name,card_alias').eq('company_id', companyId).eq('active', true),
+    // También los choferes INACTIVOS (23 nov): un chofer que se fue de la compañía
+    // sigue saliendo en las pestañas viejas de la hoja. Si aquí solo entraran los
+    // activos, la sincronización creaba un chofer nuevo con su mismo nombre y le
+    // robaba sus cargas pasadas, cambiando resúmenes ya cerrados.
+    supabase.from('drivers').select('id,name,card_alias').eq('company_id', companyId),
     supabase.from('loads').select('*').eq('company_id', companyId).neq('status', 'Cancelada').neq('status', 'Reemplazada'),
   ]);
   if (driversError) throw new Error(driversError.message);
