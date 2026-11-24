@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { applyFuelAction, type Expense, type ExpenseCategory, type FuelAction, type FuelState, type FuelTransaction, type TxStatus } from './fuel';
 import { parseMudflapText, type MudflapRow } from './mudflap';
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { fetchAllRows } from './fetch-all';
 import { money } from './format';
 import { fuelWeekStartOf } from './settlements';
 // pdf-parse es CommonJS y no tiene tipos propios confiables bajo ESM/NodeNext;
@@ -26,9 +27,9 @@ export async function getFuelState(companyId = DEFAULT_COMPANY_ID): Promise<Fuel
   const supabase = supabaseServer();
   const [meta, transactions, expenses, events] = await Promise.all([
     supabase.from('fuel_meta').select('revision').eq('company_id', companyId).single(),
-    supabase.from('fuel_transactions').select('*').eq('company_id', companyId),
+    fetchAllRows((a, b) => supabase.from('fuel_transactions').select('*').eq('company_id', companyId).order('id').range(a, b)),
     supabase.from('expenses').select('*').eq('company_id', companyId),
-    supabase.from('fuel_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }),
+    fetchAllRows((a, b) => supabase.from('fuel_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }).range(a, b)),
   ]);
   for (const result of [meta, transactions, expenses, events]) {
     if (result.error) throw new Error(result.error.message);
@@ -192,7 +193,7 @@ export async function parseMudflapStatementAction(formData: FormData, companyId 
   const supabase = supabaseServer();
   const [{ data: drivers, error: driversError }, { data: existing, error: existingError }] = await Promise.all([
     supabase.from('drivers').select('id, name, card_alias').eq('company_id', companyId),
-    supabase.from('fuel_transactions').select('date, external_ref, fuel_amount, non_fuel_amount').eq('company_id', companyId),
+    fetchAllRows((a, b) => supabase.from('fuel_transactions').select('date, external_ref, fuel_amount, non_fuel_amount').eq('company_id', companyId).order('id').range(a, b)),
   ]);
   if (driversError) throw new Error(driversError.message);
   if (existingError) throw new Error(existingError.message);

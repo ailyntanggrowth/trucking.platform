@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { applyLoadAction, mapLoadRow, type Load, type LoadAction, type LoadState } from './loads';
 import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { fetchAllRows } from './fetch-all';
 
 const CONFLICT_MESSAGE = 'Los datos cambiaron en otro dispositivo o pestaña. Actualiza y vuelve a intentarlo.';
 
@@ -33,8 +34,8 @@ export async function getLoadsState(companyId = DEFAULT_COMPANY_ID): Promise<Loa
   const supabase = supabaseServer();
   const [meta, loads, events] = await Promise.all([
     supabase.from('loads_meta').select('revision').eq('company_id', companyId).single(),
-    supabase.from('loads').select('*').eq('company_id', companyId),
-    supabase.from('load_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }),
+    fetchAllRows((a, b) => supabase.from('loads').select('*').eq('company_id', companyId).order('id').range(a, b)),
+    fetchAllRows((a, b) => supabase.from('load_events').select('*').eq('company_id', companyId).order('seq', { ascending: false }).range(a, b)),
   ]);
   for (const result of [meta, loads, events]) if (result.error) throw new Error(result.error.message);
   return {

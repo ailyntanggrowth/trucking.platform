@@ -34,6 +34,8 @@ export function shortName(name: string) {
   const parts = name.trim().split(/\s+/);
   if (parts.length <= 1) return name;
   if (parts[0].toLowerCase() === 'jose') return `${parts[0]} ${parts[1]}`;
+  // "Carlos 1" / "Carlos 2": el número es lo que los distingue, no se puede cortar.
+  if (/^\d+$/.test(parts[1])) return `${parts[0]} ${parts[1]}`;
   return parts[0];
 }
 // "Del 7 al 13 de septiembre de 2026" (pedido explícito, Módulo 4): recibe
