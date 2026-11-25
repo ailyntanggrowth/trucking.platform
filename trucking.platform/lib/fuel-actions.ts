@@ -1,9 +1,10 @@
 'use server';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { applyFuelAction, type Expense, type ExpenseCategory, type FuelAction, type FuelState, type FuelTransaction, type TxStatus } from './fuel';
+import { applyFuelAction, emptyFuel, type Expense, type ExpenseCategory, type FuelAction, type FuelState, type FuelTransaction, type TxStatus } from './fuel';
 import { parseMudflapText, type MudflapRow } from './mudflap';
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
+import { requireCaller, STAFF, STAFF_OR_DISPATCHER } from './auth-guard';
 import { fetchAllRows } from './fetch-all';
 import { money } from './format';
 import { fuelWeekStartOf } from './settlements';
@@ -23,7 +24,7 @@ function asConflictError(error: { message?: string } | null) {
   return error ? new Error(error.message) : null;
 }
 
-export async function getFuelState(companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
+async function loadFuelState(companyId: string): Promise<FuelState> {
   const supabase = supabaseServer();
   const [meta, transactions, expenses, events] = await Promise.all([
     supabase.from('fuel_meta').select('revision').eq('company_id', companyId).single(),
@@ -64,9 +65,10 @@ function eventPayload(next: FuelState) {
 
 // Acciones sin archivo: transaction, delete. El caso 'expense' (con recibo
 // opcional) va por commitExpenseAction, ver abajo.
-export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expense' }>, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
+export async function commitFuelAction(accessToken: string, action: Exclude<FuelAction, { type: 'expense' }>, expectedRevision: number): Promise<FuelState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getFuelState(companyId);
+  const state = await loadFuelState(companyId);
   const now = new Date().toISOString();
   const id = randomUUID();
   const next = applyFuelAction(state, action, now, id);
@@ -105,9 +107,10 @@ export async function commitFuelAction(action: Exclude<FuelAction, { type: 'expe
   return next;
 }
 
-export async function commitExpenseAction(formData: FormData, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FuelState> {
+export async function commitExpenseAction(accessToken: string, formData: FormData, expectedRevision: number): Promise<FuelState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getFuelState(companyId);
+  const state = await loadFuelState(companyId);
   const file = formData.get('receipt') as File | null;
   const hasFile = Boolean(file && file.size > 0);
   const record: Expense = {
@@ -158,7 +161,8 @@ export async function commitExpenseAction(formData: FormData, expectedRevision: 
   return next;
 }
 
-export async function getExpenseReceiptUrl(expenseId: string, companyId = DEFAULT_COMPANY_ID): Promise<string> {
+export async function getExpenseReceiptUrl(accessToken: string, expenseId: string): Promise<string> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('expenses').select('receipt_storage_path').eq('id', expenseId).eq('company_id', companyId).single();
   if (error || !data?.receipt_storage_path) throw new Error('No se encontró el recibo.');
@@ -180,7 +184,8 @@ export type MudflapParsePreview = {
 
 // Solo LEE el PDF y propone filas — no guarda nada todavía. El usuario revisa
 // y confirma (o corrige) antes de que exista un solo commitStatementImportAction.
-export async function parseMudflapStatementAction(formData: FormData, companyId = DEFAULT_COMPANY_ID): Promise<MudflapParsePreview> {
+export async function parseMudflapStatementAction(accessToken: string, formData: FormData): Promise<MudflapParsePreview> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const file = formData.get('statement') as File | null;
   if (!file || file.size === 0) throw new Error('Selecciona un archivo PDF.');
   if (file.type !== 'application/pdf') throw new Error('El statement debe ser un PDF.');
@@ -236,10 +241,11 @@ export type StatementImportResult = FuelState & { imported: number; skippedDupli
 // statements... me lo agregues a esta semana"). Esto es lo que corrige
 // datos viejos importados antes de que existiera esta columna, con solo
 // volver a subir el mismo PDF.
-export async function commitStatementImportAction(input: StatementImportRow[], statementWeek: string, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<StatementImportResult> {
+export async function commitStatementImportAction(accessToken: string, input: StatementImportRow[], statementWeek: string, expectedRevision: number): Promise<StatementImportResult> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   if (!input.length) throw new Error('No hay filas seleccionadas para importar.');
   const supabase = supabaseServer();
-  const state = await getFuelState(companyId);
+  const state = await loadFuelState(companyId);
   const now = new Date().toISOString();
 
   const existingByKey = new Map(state.transactions.map(t => [`${t.date}|${t.externalRef}|${t.fuelAmount}|${t.nonFuelAmount}`, t]));
@@ -328,6 +334,15 @@ export async function commitStatementImportAction(input: StatementImportRow[], s
     currentRevision = newRevision as number;
   }
 
-  const result = await getFuelState(companyId);
+  const result = await loadFuelState(companyId);
   return { ...result, revision: currentRevision, imported: created.length, skippedDuplicates, reassigned: rowsToReassign.length };
+}
+
+// La dispatcher (Gleiby) no ve Combustible — pero Resumen Semanal espera que
+// este estado "esté listo" para abrir. Para ella se responde un estado vacío:
+// ni transacciones ni gastos viajan a su navegador.
+export async function getFuelState(accessToken: string): Promise<FuelState> {
+  const caller = await requireCaller(accessToken, STAFF_OR_DISPATCHER);
+  if (caller.role === 'dispatcher') return emptyFuel;
+  return loadFuelState(caller.companyId);
 }

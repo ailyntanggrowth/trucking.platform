@@ -1,7 +1,8 @@
 'use server';
 import { randomUUID } from 'node:crypto';
 import { applyFleetAction, assignmentFor, type FleetAction, type FleetState } from './fleet';
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
+import { requireCaller, STAFF, STAFF_OR_DISPATCHER } from './auth-guard';
 
 const CONFLICT_MESSAGE = 'Los datos cambiaron en otro dispositivo o pestaña. Actualiza y vuelve a intentarlo.';
 
@@ -19,7 +20,7 @@ function forClient(state: FleetState): FleetState {
   return { ...state, documents: state.documents.map(d => ({ ...d, file: FILE_PLACEHOLDER })) };
 }
 
-export async function getFleetState(companyId = DEFAULT_COMPANY_ID): Promise<FleetState> {
+async function loadFleetState(companyId: string): Promise<FleetState> {
   const supabase = supabaseServer();
   const [meta, drivers, equipment, assignments, documents, events] = await Promise.all([
     supabase.from('fleet_meta').select('revision, warning_days').eq('company_id', companyId).single(),
@@ -73,9 +74,10 @@ function eventPayload(next: FleetState) {
 
 // Acciones sin archivo: driver, equipment, assign, end, reviewDocument, warningDays.
 // El caso 'document' (con File) va por commitDocumentAction, ver abajo.
-export async function commitFleetAction(action: Exclude<FleetAction, { type: 'document' }>, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FleetState> {
+export async function commitFleetAction(accessToken: string, action: Exclude<FleetAction, { type: 'document' }>, expectedRevision: number): Promise<FleetState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getFleetState(companyId);
+  const state = await loadFleetState(companyId);
   const now = new Date().toISOString();
   const id = randomUUID();
 
@@ -150,9 +152,10 @@ export async function commitFleetAction(action: Exclude<FleetAction, { type: 'do
   return forClient(next);
 }
 
-export async function commitDocumentAction(formData: FormData, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<FleetState> {
+export async function commitDocumentAction(accessToken: string, formData: FormData, expectedRevision: number): Promise<FleetState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getFleetState(companyId);
+  const state = await loadFleetState(companyId);
   const file = formData.get('file') as File;
   const action: FleetAction = {
     type: 'document',
@@ -190,11 +193,17 @@ export async function commitDocumentAction(formData: FormData, expectedRevision:
   return forClient(next);
 }
 
-export async function getFleetDocumentUrl(documentId: string, companyId = DEFAULT_COMPANY_ID): Promise<string> {
+export async function getFleetDocumentUrl(accessToken: string, documentId: string): Promise<string> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
   const { data, error } = await supabase.from('fleet_documents').select('storage_path').eq('id', documentId).eq('company_id', companyId).single();
   if (error || !data) throw new Error('No se encontró el documento.');
   const signed = await supabase.storage.from('fleet-documents').createSignedUrl(data.storage_path, 60);
   if (signed.error || !signed.data) throw new Error('No se pudo generar el enlace de descarga.');
   return signed.data.signedUrl;
+}
+
+export async function getFleetState(accessToken: string): Promise<FleetState> {
+  const { companyId } = await requireCaller(accessToken, STAFF_OR_DISPATCHER);
+  return loadFleetState(companyId);
 }

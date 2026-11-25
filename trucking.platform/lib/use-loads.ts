@@ -3,10 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { emptyLoads, type LoadAction, type LoadState } from './loads';
 import { commitLoadAction, getLoadsState } from './loads-actions';
 
-export function useLoads() {
+export function useLoads(getAccessToken: () => Promise<string>, enabled: boolean) {
   const [state, setState] = useState<LoadState>(emptyLoads), [ready, setReady] = useState(false), [error, setError] = useState('');
   const [retries, setRetries] = useState(0);
-  const refresh = useCallback(async () => { try { const next = await getLoadsState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
+  const refresh = useCallback(async () => { if (!enabled) return; try { const next = await getLoadsState(await getAccessToken()); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, [getAccessToken, enabled]);
   useEffect(() => {
     // Pedido explícito: en el celular, al reabrir la app (sin cerrarla del
     // todo) a veces queda "congelada" desde antes de que el teléfono la
@@ -32,11 +32,11 @@ export function useLoads() {
   }, [ready, error, retries, refresh]);
   const commit = async (action: LoadAction, revision = state.revision) => {
     if (!ready) throw new Error('Supabase no está disponible.');
-    const next = await commitLoadAction(action, revision);
+    const next = await commitLoadAction(await getAccessToken(), action, revision);
     setState(next);
     if (typeof BroadcastChannel !== 'undefined') { const channel = new BroadcastChannel('ma-king-loads'); channel.postMessage('updated'); channel.close(); }
     return next;
   };
-  return { state, ready, error, refresh, commit };
+  return { state, ready, error, refresh, commit, getAccessToken };
 }
 export type LoadsController = ReturnType<typeof useLoads>;

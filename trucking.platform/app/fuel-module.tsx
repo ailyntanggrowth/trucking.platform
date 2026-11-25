@@ -228,7 +228,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
     event.preventDefault(); if (importBusy) return; const fields = new FormData(event.currentTarget);
     setImportBusy(true); setImportError('');
     try {
-      const result = await parseMudflapStatementAction(fields);
+      const result = await parseMudflapStatementAction(await fuel.getAccessToken(), fields);
       setPreview(result);
       // Todas seleccionadas por defecto, incluidas las marcadas como
       // "posible duplicado" (pedido explícito: si ya existen pero quedaron
@@ -254,7 +254,7 @@ export default function FuelModule({ fuel, fleet, loads, settlements, lang, t }:
         notes: 'Completada a mano: el PDF no se pudo leer automáticamente en esta fila (posible salto de página).',
       }));
       const input = [...fromPreview, ...fromManual];
-      const result = await commitStatementImportAction(input, statementWeekForImport, state.revision);
+      const result = await commitStatementImportAction(await fuel.getAccessToken(), input, statementWeekForImport, state.revision);
       await fuel.refresh();
       setImportOpen(false); setPreview(null); setSelectedRows(new Set()); setManualUnparsed({}); setOpenUnparsedIdx(null);
       setNotice(`${t('¡Listo!')} ${result.imported} ${t('transacciones importadas correctamente.')}${result.reassigned ? ` ${result.reassigned} ${t('ya existían y se corrigieron a esta semana.')}` : ''}${result.skippedDuplicates ? ` ${result.skippedDuplicates} ${t('se omitieron por ya existir en la base de datos.')}` : ''}`);

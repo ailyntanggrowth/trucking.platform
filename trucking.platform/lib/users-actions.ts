@@ -4,7 +4,7 @@
 // contra Supabase Auth (auth.getUser) antes de hacer nada. Usuarios y Permisos
 // es para 'owner' y 'admin' — la única protección es que un 'admin' no puede
 // tocar la cuenta del 'owner' (cambiarle el rol, desactivarla ni borrarla).
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
 import type { Profile, Role } from './users';
 
 async function callerId(accessToken: string): Promise<string> {
@@ -18,20 +18,22 @@ function mapRow(r: Record<string, any>, lastSignInAt: string | null = null): Pro
   return { id: r.id, email: r.email, name: r.name, role: r.role as Role, active: r.active ?? true, lastSignInAt, driverId: r.driver_id ?? null };
 }
 
-async function requireManageUsers(accessToken: string): Promise<{ id: string; role: Role }> {
+async function requireManageUsers(accessToken: string): Promise<{ id: string; role: Role; companyId: string }> {
   const id = await callerId(accessToken);
   const supabase = supabaseServer();
-  const { data, error } = await supabase.from('profiles').select('role').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('profiles').select('role, company_id, active').eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data || (data.role !== 'owner' && data.role !== 'admin')) throw new Error('No tienes permiso para administrar Usuarios y Permisos.');
-  return { id, role: data.role as Role };
+  if (!data || data.active === false || (data.role !== 'owner' && data.role !== 'admin')) throw new Error('No tienes permiso para administrar Usuarios y Permisos.');
+  return { id, role: data.role as Role, companyId: data.company_id as string };
 }
 
-async function guardTargetNotOwner(supabase: ReturnType<typeof supabaseServer>, caller: { role: Role }, targetId: string) {
-  if (caller.role === 'owner') return;
-  const { data, error } = await supabase.from('profiles').select('role').eq('id', targetId).maybeSingle();
+// Además de proteger al dueño, la cuenta a modificar tiene que ser de la MISMA
+// compañía de quien lo pide — nunca se puede tocar a un usuario de otra.
+async function guardTargetNotOwner(supabase: ReturnType<typeof supabaseServer>, caller: { role: Role; companyId: string }, targetId: string) {
+  const { data, error } = await supabase.from('profiles').select('role, company_id').eq('id', targetId).maybeSingle();
   if (error) throw new Error(error.message);
-  if (data?.role === 'owner') throw new Error('No puedes modificar esta cuenta.');
+  if (!data || data.company_id !== caller.companyId) throw new Error('No se encontró esa cuenta.');
+  if (caller.role !== 'owner' && data.role === 'owner') throw new Error('No puedes modificar esta cuenta.');
 }
 
 export async function getMyProfile(accessToken: string): Promise<Profile | null> {
@@ -45,8 +47,8 @@ export async function getMyProfile(accessToken: string): Promise<Profile | null>
 // El "último acceso" y quién nunca ha entrado (invitación pendiente) salen
 // del propio Supabase Auth (last_sign_in_at) — no se inventa ningún estado
 // nuevo, solo se cruza con la lista de perfiles por id.
-export async function listProfiles(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Profile[]> {
-  await requireManageUsers(accessToken);
+export async function listProfiles(accessToken: string): Promise<Profile[]> {
+  const { companyId } = await requireManageUsers(accessToken);
   const supabase = supabaseServer();
   const [{ data, error }, { data: authList, error: authError }] = await Promise.all([
     supabase.from('profiles').select('*').eq('company_id', companyId).order('created_at', { ascending: true }),
@@ -59,8 +61,8 @@ export async function listProfiles(accessToken: string, companyId = DEFAULT_COMP
 }
 
 export type UnlinkedDriver = { id: string; name: string };
-export async function listUnlinkedDrivers(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<UnlinkedDriver[]> {
-  await requireManageUsers(accessToken);
+export async function listUnlinkedDrivers(accessToken: string): Promise<UnlinkedDriver[]> {
+  const { companyId } = await requireManageUsers(accessToken);
   const supabase = supabaseServer();
   const [{ data: drivers, error: dErr }, { data: linked, error: lErr }] = await Promise.all([
     supabase.from('drivers').select('id,name').eq('company_id', companyId).order('name', { ascending: true }),
@@ -72,8 +74,8 @@ export async function listUnlinkedDrivers(accessToken: string, companyId = DEFAU
   return (drivers ?? []).filter(d => !linkedIds.has(d.id));
 }
 
-export async function inviteProfile(accessToken: string, email: string, name: string, role: Role, driverId: string | null = null, companyId = DEFAULT_COMPANY_ID): Promise<Profile> {
-  await requireManageUsers(accessToken);
+export async function inviteProfile(accessToken: string, email: string, name: string, role: Role, driverId: string | null = null): Promise<Profile> {
+  const { companyId } = await requireManageUsers(accessToken);
   const cleanEmail = email.trim().toLocaleLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) throw new Error('Revisa el correo electrónico.');
   if (!name.trim()) throw new Error('Escribe el nombre de la persona.');
@@ -84,6 +86,8 @@ export async function inviteProfile(accessToken: string, email: string, name: st
   if (existing) throw new Error('Ese correo ya tiene una cuenta en el sistema.');
 
   if (role === 'driver' && driverId) {
+    const { data: ownDriver } = await supabase.from('drivers').select('id').eq('id', driverId).eq('company_id', companyId).maybeSingle();
+    if (!ownDriver) throw new Error('Ese chofer no existe en esta compañía.');
     const { data: alreadyLinked } = await supabase.from('profiles').select('id').eq('driver_id', driverId).maybeSingle();
     if (alreadyLinked) throw new Error('Ese chofer ya tiene una cuenta de acceso.');
   }
@@ -122,7 +126,7 @@ export async function updateProfileRole(accessToken: string, targetId: string, r
   if (caller.id === targetId) throw new Error('No puedes cambiar tu propio rol. Pídeselo a otro administrador.');
   const supabase = supabaseServer();
   await guardTargetNotOwner(supabase, caller, targetId);
-  const { data, error } = await supabase.from('profiles').update({ role }).eq('id', targetId).select('*').single();
+  const { data, error } = await supabase.from('profiles').update({ role }).eq('id', targetId).eq('company_id', caller.companyId).select('*').single();
   if (error) throw new Error(error.message);
   return mapRow(data);
 }
@@ -132,7 +136,7 @@ export async function setProfileActive(accessToken: string, targetId: string, ac
   if (caller.id === targetId) throw new Error('No puedes desactivar tu propia cuenta.');
   const supabase = supabaseServer();
   await guardTargetNotOwner(supabase, caller, targetId);
-  const { data, error } = await supabase.from('profiles').update({ active }).eq('id', targetId).select('*').single();
+  const { data, error } = await supabase.from('profiles').update({ active }).eq('id', targetId).eq('company_id', caller.companyId).select('*').single();
   if (error) throw new Error(error.message);
   return mapRow(data);
 }
@@ -142,6 +146,6 @@ export async function removeProfile(accessToken: string, targetId: string): Prom
   if (caller.id === targetId) throw new Error('No puedes quitarte el acceso a ti mismo.');
   const supabase = supabaseServer();
   await guardTargetNotOwner(supabase, caller, targetId);
-  const { error } = await supabase.from('profiles').delete().eq('id', targetId);
+  const { error } = await supabase.from('profiles').delete().eq('id', targetId).eq('company_id', caller.companyId);
   if (error) throw new Error(error.message);
 }

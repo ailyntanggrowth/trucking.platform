@@ -3,10 +3,11 @@ import {useCallback,useEffect,useState} from 'react';
 import {emptyFleet,type FleetAction,type FleetState} from './fleet';
 import {commitFleetAction,commitDocumentAction,getFleetState} from './fleet-actions';
 
-export function useFleet() {
+// getAccessToken/enabled: la sesión se valida en el servidor en cada llamada (lib/auth-guard.ts); no se pide nada hasta que haya sesión y el rol pueda ver flota.
+export function useFleet(getAccessToken: () => Promise<string>, enabled: boolean) {
   const [state,setState]=useState<FleetState>(emptyFleet),[ready,setReady]=useState(false),[error,setError]=useState('');
   const [retries,setRetries]=useState(0);
-  const refresh=useCallback(async()=>{try{const next=await getFleetState();setState(s=>next.revision>=s.revision?next:s);setReady(true);setError('');setRetries(0);}catch(e){setError((e as Error).message);setReady(false);}},[]);
+  const refresh=useCallback(async()=>{if(!enabled)return;try{const next=await getFleetState(await getAccessToken());setState(s=>next.revision>=s.revision?next:s);setReady(true);setError('');setRetries(0);}catch(e){setError((e as Error).message);setReady(false);}},[getAccessToken,enabled]);
   useEffect(()=>{
     void refresh();
     const channel=typeof BroadcastChannel!=='undefined'?new BroadcastChannel('ma-king-fleet'):null;
@@ -34,14 +35,14 @@ export function useFleet() {
       fields.set('documentType',action.record.type);fields.set('issued',action.record.issued);
       fields.set('expires',action.record.expires);fields.set('notes',action.record.notes);
       fields.set('file',action.record.file,action.record.filename);
-      next=await commitDocumentAction(fields,revision);
+      next=await commitDocumentAction(await getAccessToken(),fields,revision);
     } else {
-      next=await commitFleetAction(action,revision);
+      next=await commitFleetAction(await getAccessToken(),action,revision);
     }
     setState(next);
     if(typeof BroadcastChannel!=='undefined'){const channel=new BroadcastChannel('ma-king-fleet');channel.postMessage('updated');channel.close();}
     return next;
   };
-  return {state,ready,error,refresh,commit};
+  return {state,ready,error,refresh,commit,getAccessToken};
 }
 export type FleetController=ReturnType<typeof useFleet>;

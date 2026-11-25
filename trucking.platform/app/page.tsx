@@ -61,11 +61,15 @@ export default function Home() {
   // muestran los módulos (Cargas, Contabilidad, Reportes). "Casa" es Cargas
   // para el staff; para un chofer, Mis Cargas (nunca ve el módulo completo).
   const homeModule = isDriver ? 'miscargas' : role === 'dispatcher' ? 'finanzas' : 'cargas';
-  const fleet = useFleet();
-  const fuel = useFuel();
-  const loadsCtl = useLoads();
-  const myLoads = useMyLoads(auth.accessToken);
-  const settlementsCtl = useSettlements();
+  // El servidor valida la sesión y el rol en cada llamada (lib/auth-guard.ts):
+  // los datos de la compañía solo se piden cuando hay sesión activa y el rol es de personal
+  // (dueño, administrador, dispatcher). Un chofer solo pide sus propias cargas.
+  const staffData = auth.status === 'ready' && (realRole === 'owner' || realRole === 'admin' || realRole === 'dispatcher');
+  const fleet = useFleet(auth.accessToken, staffData);
+  const fuel = useFuel(auth.accessToken, staffData);
+  const loadsCtl = useLoads(auth.accessToken, staffData);
+  const myLoads = useMyLoads(auth.accessToken, auth.status === 'ready' && realRole === 'driver');
+  const settlementsCtl = useSettlements(auth.accessToken, staffData);
   // FleetModule todavía usa esto para "Cargas y actividad relacionada" por chofer.
   const dashboardLoads = loadsCtl.state.loads.map(toDashboardLoad);
   const moduleNames: Record<string,string> = Object.fromEntries(nav.map(item=>[item.id, item.name]));

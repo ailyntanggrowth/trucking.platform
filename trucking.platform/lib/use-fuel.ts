@@ -3,10 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { emptyFuel, type FuelAction, type FuelState } from './fuel';
 import { commitFuelAction, commitExpenseAction, getFuelState } from './fuel-actions';
 
-export function useFuel() {
+export function useFuel(getAccessToken: () => Promise<string>, enabled: boolean) {
   const [state, setState] = useState<FuelState>(emptyFuel), [ready, setReady] = useState(false), [error, setError] = useState('');
   const [retries, setRetries] = useState(0);
-  const refresh = useCallback(async () => { try { const next = await getFuelState(); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, []);
+  const refresh = useCallback(async () => { if (!enabled) return; try { const next = await getFuelState(await getAccessToken()); setState(s => next.revision >= s.revision ? next : s); setReady(true); setError(''); setRetries(0); } catch (e) { setError((e as Error).message); setReady(false); } }, [getAccessToken, enabled]);
   useEffect(() => {
     void refresh();
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ma-king-fuel') : null;
@@ -36,14 +36,14 @@ export function useFuel() {
       fields.set('status', action.record.status); fields.set('reason', action.reason);
       fields.set('existingReceiptFilename', action.record.receiptFilename || '');
       if (action.receiptFile) fields.set('receipt', action.receiptFile, action.record.receiptFilename || 'receipt');
-      next = await commitExpenseAction(fields, revision);
+      next = await commitExpenseAction(await getAccessToken(), fields, revision);
     } else {
-      next = await commitFuelAction(action, revision);
+      next = await commitFuelAction(await getAccessToken(), action, revision);
     }
     setState(next);
     if (typeof BroadcastChannel !== 'undefined') { const channel = new BroadcastChannel('ma-king-fuel'); channel.postMessage('updated'); channel.close(); }
     return next;
   };
-  return { state, ready, error, refresh, commit };
+  return { state, ready, error, refresh, commit, getAccessToken };
 }
 export type FuelController = ReturnType<typeof useFuel>;

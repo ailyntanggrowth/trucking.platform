@@ -1,7 +1,8 @@
 'use server';
 import { randomUUID } from 'node:crypto';
 import { applySettlementAction, type SettlementAction, type SettlementConfig, type SettlementState } from './settlements';
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
+import { requireCaller, STAFF, STAFF_OR_DISPATCHER } from './auth-guard';
 
 const CONFLICT_MESSAGE = 'Los datos cambiaron en otro dispositivo o pestaña. Actualiza y vuelve a intentarlo.';
 
@@ -26,7 +27,7 @@ function configPayload(c: SettlementConfig) {
   };
 }
 
-export async function getSettlementsState(companyId = DEFAULT_COMPANY_ID): Promise<SettlementState> {
+async function loadSettlementsState(companyId: string): Promise<SettlementState> {
   const supabase = supabaseServer();
   const [meta, config, insurance, marks, dispatcherMarks, weekLocks, manualSalaries, manualRepairs, events] = await Promise.all([
     supabase.from('settlements_meta').select('revision').eq('company_id', companyId).single(),
@@ -58,9 +59,10 @@ function eventPayload(next: SettlementState) {
   return { id: e.id, at: e.at, actor: e.actor, entity_ids: e.entityIds, detail: e.detail, before: e.before, after: e.after };
 }
 
-export async function commitSettlementAction(action: SettlementAction, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<SettlementState> {
+export async function commitSettlementAction(accessToken: string, action: SettlementAction, expectedRevision: number): Promise<SettlementState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getSettlementsState(companyId);
+  const state = await loadSettlementsState(companyId);
   const now = new Date().toISOString();
   const id = randomUUID();
   const next = applySettlementAction(state, action, now, id);
@@ -121,4 +123,9 @@ export async function commitSettlementAction(action: SettlementAction, expectedR
   if (conflict) throw conflict;
   next.revision = newRevision as number;
   return next;
+}
+
+export async function getSettlementsState(accessToken: string): Promise<SettlementState> {
+  const { companyId } = await requireCaller(accessToken, STAFF_OR_DISPATCHER);
+  return loadSettlementsState(companyId);
 }

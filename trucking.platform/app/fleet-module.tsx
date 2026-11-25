@@ -13,8 +13,8 @@ const titles={drivers:'Choferes',trucks:'Camiones',trailers:'Trailers',assignmen
 type Tab=keyof typeof titles;
 type Editor={type:'entity'|'assignment'|'document'|'end'|'review'|'deleteEntity'|'deleteDocument';kind:EntityKind;id:string;revision:number};
 const kindLabel=(kind:EntityKind)=>kind==='drivers'?'chofer':kind==='trucks'?'camión':'trailer';
-async function download(document:FleetDocument){const url=await getFleetDocumentUrl(document.id);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();}
-function exportBackup(state:FleetController['state']){
+async function download(document:FleetDocument,getAccessToken:()=>Promise<string>){const url=await getFleetDocumentUrl(await getAccessToken(),document.id);const a=window.document.createElement('a');a.href=url;a.download=document.filename;a.click();}
+function exportBackup(state:FleetController['state'],getAccessToken:()=>Promise<string>){
   const payload={schema:state.schema,revision:state.revision,warningDays:state.warningDays,drivers:state.drivers,trucks:state.trucks,trailers:state.trailers,assignments:state.assignments,documents:state.documents.map(({file,...meta})=>meta),events:state.events};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -22,7 +22,7 @@ function exportBackup(state:FleetController['state']){
   a.href=url;a.download=`fleet-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
   state.documents.forEach((d,i)=>setTimeout(async()=>{
-    const fileUrl=await getFleetDocumentUrl(d.id);const a2=window.document.createElement('a');
+    const fileUrl=await getFleetDocumentUrl(await getAccessToken(),d.id);const a2=window.document.createElement('a');
     a2.href=fileUrl;a2.download=`${d.id}__${d.filename}`;a2.click();
   },i*300));
 }
@@ -78,7 +78,7 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:
   const currentForForm=state.assignments.find(a=>!a.endedAt&&a.driverId===chosenDriver);
   const editorTitle=editor?.type==='entity'?`${editor.id?t('Editar'):t('Agregar')} ${t(kindLabel(editor.kind))}`:editor?.type==='assignment'?t('Asignar o cambiar equipo'):editor?.type==='document'?t('+ Agregar documento').replace('+ ',''):editor?.type==='review'?t('Revisar documento'):editor?.type==='deleteEntity'?`${t('Eliminar')} ${t(kindLabel(editor.kind))}`:editor?.type==='deleteDocument'?t('Eliminar documento'):t('Finalizar asignación');
   return <div className={styles.fleet}>
-    <div className={styles.localNotice}><strong>M&A KING</strong><p>{t('Los datos y archivos se guardan en Supabase y se sincronizan entre dispositivos. Usuarios y permisos compartidos están pendientes.')}</p><button disabled={!ready} onClick={()=>exportBackup(state)}>{t('Exportar respaldo (JSON + archivos)')}</button></div>
+    <div className={styles.localNotice}><strong>M&A KING</strong><p>{t('Los datos y archivos se guardan en Supabase y se sincronizan entre dispositivos. Usuarios y permisos compartidos están pendientes.')}</p><button disabled={!ready} onClick={()=>exportBackup(state,fleet.getAccessToken)}>{t('Exportar respaldo (JSON + archivos)')}</button></div>
     {fleet.error&&<div role="alert" className={styles.error}>{fleet.error} <button onClick={()=>void fleet.refresh()}>{t('Reintentar')}</button></div>}
     {!ready&&!fleet.error&&<p role="status">{t('Abriendo los registros de flota…')}</p>}
     <div className={styles.statCards}>
@@ -178,7 +178,7 @@ export default function FleetModule({fleet,loads,onOpenLoads,lang,t,initialTab}:
       <h3>{t('Equipo y asignación actual')}</h3>{selectedAssignment?<p>{entityName(state,'drivers',selectedAssignment.driverId)} · {entityName(state,'trucks',selectedAssignment.truckId)} · {selectedAssignment.trailerId?entityName(state,'trailers',selectedAssignment.trailerId):t('Sin trailer')}</p>:<p>{t('Sin asignación activa.')}</p>}
       <div className={styles.actions}>{selected.kind==='drivers'&&<button onClick={()=>open('assignment','drivers',selected.id)}>{t('Asignar / cambiar equipo')}</button>}{selectedAssignment&&<button onClick={()=>open('end','drivers',selectedAssignment.id)}>{t('Finalizar asignación')}</button>}</div>
       <h3>{t('Documentos')}</h3><button onClick={()=>open('document',selected.kind,selected.id)}>{t('+ Agregar documento')}</button>
-      {state.documents.filter(d=>d.ownerKind===selected.kind&&d.ownerId===selected.id).map(d=><div key={d.id} className={styles.document}><div><strong>{t(d.type)} · {t(documentStatus(d,today()))}</strong><p>{d.filename} · {Math.ceil((d.sizeBytes??0)/1024)} KB</p><small>{t('Recibido:')} {dateTime(d.uploadedAt)}{d.issued&&` · ${t('Emisión:')} ${d.issued}`}{d.expires?` · ${t('Vence')}: ${d.expires}`:` · ${t('Sin vencimiento indicado')}`}</small>{d.reviewedAt&&<small>{t('Revisado:')} {dateTime(d.reviewedAt)}</small>}<p>{d.notes}</p></div><div className={styles.actions}><button onClick={()=>void download(d)}>{t('Descargar')}</button><button onClick={()=>open('review',selected.kind,d.id)}>{t('Revisar')}</button><button onClick={()=>{if(window.confirm(t('¿Eliminar este documento por completo? No se puede deshacer.')))open('deleteDocument',selected.kind,d.id);}}>{t('Eliminar')}</button></div></div>)}
+      {state.documents.filter(d=>d.ownerKind===selected.kind&&d.ownerId===selected.id).map(d=><div key={d.id} className={styles.document}><div><strong>{t(d.type)} · {t(documentStatus(d,today()))}</strong><p>{d.filename} · {Math.ceil((d.sizeBytes??0)/1024)} KB</p><small>{t('Recibido:')} {dateTime(d.uploadedAt)}{d.issued&&` · ${t('Emisión:')} ${d.issued}`}{d.expires?` · ${t('Vence')}: ${d.expires}`:` · ${t('Sin vencimiento indicado')}`}</small>{d.reviewedAt&&<small>{t('Revisado:')} {dateTime(d.reviewedAt)}</small>}<p>{d.notes}</p></div><div className={styles.actions}><button onClick={()=>void download(d,fleet.getAccessToken)}>{t('Descargar')}</button><button onClick={()=>open('review',selected.kind,d.id)}>{t('Revisar')}</button><button onClick={()=>{if(window.confirm(t('¿Eliminar este documento por completo? No se puede deshacer.')))open('deleteDocument',selected.kind,d.id);}}>{t('Eliminar')}</button></div></div>)}
       {!state.documents.some(d=>d.ownerId===selected.id)&&<p className={styles.empty}>{t('No se han recibido documentos para este perfil.')}</p>}
       <h3>{t('Historial de asignaciones')}</h3>{relevantAssignments.length?<ul>{[...relevantAssignments].reverse().map(a=><li key={a.id}>{dateTime(a.startedAt)} — {entityName(state,'drivers',a.driverId)} / {entityName(state,'trucks',a.truckId)} / {a.trailerId?entityName(state,'trailers',a.trailerId):t('Sin trailer')} · {a.endedAt?`${t('Finalizada')} ${dateTime(a.endedAt)}`:t('Activa')} · {a.reason}{a.endReason&&` · ${a.endReason}`}</li>)}</ul>:<p>{t('Sin asignaciones anteriores.')}</p>}
       {/* NOTA DE ARQUITECTURA (documentación, no ejecutar todavía): este filtrado de cargas

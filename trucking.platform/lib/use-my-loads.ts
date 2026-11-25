@@ -6,18 +6,19 @@ import type { Load } from './loads';
 // Solo para el rol 'driver' — ver lib/loads-actions.ts:listMyLoads, el
 // filtro por driver_id se resuelve del lado del servidor a partir de la
 // sesión, nunca de algo que mande este hook.
-export function useMyLoads(getAccessToken: () => Promise<string>) {
+export function useMyLoads(getAccessToken: () => Promise<string>, enabled: boolean) {
   const [loads, setLoads] = useState<Load[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
+    if (!enabled) return; // solo el chofer pide sus cargas; el personal no genera peticiones que fallan
     try {
       const token = await getAccessToken();
       setLoads(await listMyLoads(token));
       setReady(true); setError('');
     } catch (e) { setError((e as Error).message); }
-  }, [getAccessToken]);
+  }, [getAccessToken, enabled]);
 
   useEffect(() => {
     void refresh();

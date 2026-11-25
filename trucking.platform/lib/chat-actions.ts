@@ -4,17 +4,14 @@
 // (auth.getUser) antes de leer o escribir nada. Cualquier persona con perfil en
 // la compañía puede ver la lista de compañeros y empezar una conversación, pero
 // solo puede leer/escribir en conversaciones de las que ya es miembro.
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
+import { requireCaller, ANY_ROLE } from './auth-guard';
 import type { Conversation, Message, ChatContact } from './chat';
 
-async function callerProfile(accessToken: string, companyId: string) {
-  const supabase = supabaseServer();
-  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-  if (userError || !userData.user) throw new Error('Sesión inválida o vencida. Vuelve a entrar.');
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('id,name,role').eq('id', userData.user.id).eq('company_id', companyId).maybeSingle();
-  if (profileError) throw new Error(profileError.message);
-  if (!profile) throw new Error('Tu cuenta no tiene acceso al chat.');
-  return profile as { id: string; name: string; role: string };
+async function callerProfile(accessToken: string) {
+  // Compañía y rol salen siempre del perfil de quien llama (ver lib/auth-guard.ts).
+  const caller = await requireCaller(accessToken, ANY_ROLE);
+  return { id: caller.id, name: caller.name, role: caller.role as string, companyId: caller.companyId };
 }
 
 function mapMessage(r: Record<string, any>): Message {
@@ -27,8 +24,9 @@ async function requireMember(supabase: ReturnType<typeof supabaseServer>, conver
   if (!data) throw new Error('No tienes acceso a esta conversación.');
 }
 
-export async function listContacts(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<ChatContact[]> {
-  const me = await callerProfile(accessToken, companyId);
+export async function listContacts(accessToken: string): Promise<ChatContact[]> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   // Los choferes no arman conversaciones nuevas — solo participan en su
   // grupo privado ya creado (spec: aislamiento total entre choferes).
   if (me.role === 'driver') return [];
@@ -38,8 +36,9 @@ export async function listContacts(accessToken: string, companyId = DEFAULT_COMP
   return data ?? [];
 }
 
-export async function listConversations(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Conversation[]> {
-  const me = await callerProfile(accessToken, companyId);
+export async function listConversations(accessToken: string): Promise<Conversation[]> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   const supabase = supabaseServer();
   const { data: myMemberships, error: mErr } = await supabase.from('conversation_members').select('conversation_id,last_read_at').eq('profile_id', me.id);
   if (mErr) throw new Error(mErr.message);
@@ -84,8 +83,9 @@ export async function listConversations(accessToken: string, companyId = DEFAULT
   }).sort((a, b) => (b.lastMessage?.createdAt || '').localeCompare(a.lastMessage?.createdAt || ''));
 }
 
-export async function listMessages(accessToken: string, conversationId: string, companyId = DEFAULT_COMPANY_ID): Promise<Message[]> {
-  const me = await callerProfile(accessToken, companyId);
+export async function listMessages(accessToken: string, conversationId: string): Promise<Message[]> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   const supabase = supabaseServer();
   await requireMember(supabase, conversationId, me.id);
   const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true }).limit(500);
@@ -93,8 +93,9 @@ export async function listMessages(accessToken: string, conversationId: string, 
   return (data ?? []).map(mapMessage);
 }
 
-export async function sendMessage(accessToken: string, conversationId: string, body: string, companyId = DEFAULT_COMPANY_ID): Promise<Message> {
-  const me = await callerProfile(accessToken, companyId);
+export async function sendMessage(accessToken: string, conversationId: string, body: string): Promise<Message> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   const text = body.trim();
   if (!text) throw new Error('Escribe algo antes de enviar.');
   if (text.length > 4000) throw new Error('El mensaje es demasiado largo.');
@@ -106,21 +107,27 @@ export async function sendMessage(accessToken: string, conversationId: string, b
   return mapMessage(data);
 }
 
-export async function markConversationRead(accessToken: string, conversationId: string, companyId = DEFAULT_COMPANY_ID): Promise<void> {
-  const me = await callerProfile(accessToken, companyId);
+export async function markConversationRead(accessToken: string, conversationId: string): Promise<void> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   const supabase = supabaseServer();
   await requireMember(supabase, conversationId, me.id);
   const { error } = await supabase.from('conversation_members').update({ last_read_at: new Date().toISOString() }).eq('conversation_id', conversationId).eq('profile_id', me.id);
   if (error) throw new Error(error.message);
 }
 
-export async function createConversation(accessToken: string, memberIds: string[], name: string, companyId = DEFAULT_COMPANY_ID): Promise<Conversation> {
-  const me = await callerProfile(accessToken, companyId);
+export async function createConversation(accessToken: string, memberIds: string[], name: string): Promise<Conversation> {
+  const me = await callerProfile(accessToken);
+  const companyId = me.companyId;
   if (me.role === 'driver') throw new Error('Los choferes no pueden iniciar conversaciones nuevas.');
   const uniqueOthers = Array.from(new Set(memberIds.filter(id => id !== me.id)));
   if (!uniqueOthers.length) throw new Error('Elige al menos una persona.');
   const isGroup = uniqueOthers.length > 1 || Boolean(name.trim());
   const supabase = supabaseServer();
+  // Todos los invitados tienen que ser de la MISMA compañía.
+  const { data: sameCompany, error: scErr } = await supabase.from('profiles').select('id').eq('company_id', companyId).in('id', uniqueOthers);
+  if (scErr) throw new Error(scErr.message);
+  if ((sameCompany ?? []).length !== uniqueOthers.length) throw new Error('Una de las personas elegidas no pertenece a esta compañía.');
 
   if (!isGroup) {
     // Reusa la conversación 1 a 1 si ya existe entre estas dos personas —
@@ -134,7 +141,7 @@ export async function createConversation(accessToken: string, memberIds: string[
     if (sharedIds.length) {
       const { data: existingConvs } = await supabase.from('conversations').select('id').in('id', sharedIds).eq('is_group', false);
       if (existingConvs && existingConvs.length) {
-        const list = await listConversations(accessToken, companyId);
+        const list = await listConversations(accessToken);
         const found = list.find(c => c.id === existingConvs[0].id);
         if (found) return found;
       }
@@ -147,6 +154,6 @@ export async function createConversation(accessToken: string, memberIds: string[
   const { error: memErr } = await supabase.from('conversation_members').insert(memberRows);
   if (memErr) throw new Error(memErr.message);
 
-  const list = await listConversations(accessToken, companyId);
+  const list = await listConversations(accessToken);
   return list.find(c => c.id === conv.id)!;
 }

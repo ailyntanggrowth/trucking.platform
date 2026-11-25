@@ -1,7 +1,8 @@
 'use server';
 import { randomUUID } from 'node:crypto';
 import { applyLoadAction, mapLoadRow, type Load, type LoadAction, type LoadState } from './loads';
-import { supabaseServer, DEFAULT_COMPANY_ID } from './supabase-server';
+import { supabaseServer } from './supabase-server';
+import { requireCaller, STAFF, STAFF_OR_DISPATCHER } from './auth-guard';
 import { fetchAllRows } from './fetch-all';
 
 const CONFLICT_MESSAGE = 'Los datos cambiaron en otro dispositivo o pestaña. Actualiza y vuelve a intentarlo.';
@@ -18,19 +19,16 @@ const mapRow = mapLoadRow;
 // la sesión (auth.getUser) y del profiles.driver_id ya guardado, así que ni
 // modificando la URL, parámetros o llamando esta función a mano se puede
 // pedir/leer la carga de otro chofer.
-export async function listMyLoads(accessToken: string, companyId = DEFAULT_COMPANY_ID): Promise<Load[]> {
+export async function listMyLoads(accessToken: string): Promise<Load[]> {
+  const caller = await requireCaller(accessToken, ['driver']);
+  if (!caller.driverId) throw new Error('Tu cuenta no tiene un chofer vinculado.');
   const supabase = supabaseServer();
-  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-  if (userError || !userData.user) throw new Error('Sesión inválida o vencida. Vuelve a entrar.');
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('role,driver_id').eq('id', userData.user.id).eq('company_id', companyId).maybeSingle();
-  if (profileError) throw new Error(profileError.message);
-  if (!profile || profile.role !== 'driver' || !profile.driver_id) throw new Error('Tu cuenta no tiene un chofer vinculado.');
-  const { data, error } = await supabase.from('loads').select('*').eq('company_id', companyId).eq('driver_id', profile.driver_id).order('pickup_date', { ascending: false });
+  const { data, error } = await supabase.from('loads').select('*').eq('company_id', caller.companyId).eq('driver_id', caller.driverId).order('pickup_date', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRow);
 }
 
-export async function getLoadsState(companyId = DEFAULT_COMPANY_ID): Promise<LoadState> {
+async function loadLoadsState(companyId: string): Promise<LoadState> {
   const supabase = supabaseServer();
   const [meta, loads, events] = await Promise.all([
     supabase.from('loads_meta').select('revision').eq('company_id', companyId).single(),
@@ -68,9 +66,10 @@ function loadPayload(l: Load) {
   };
 }
 
-export async function commitLoadAction(action: LoadAction, expectedRevision: number, companyId = DEFAULT_COMPANY_ID): Promise<LoadState> {
+export async function commitLoadAction(accessToken: string, action: LoadAction, expectedRevision: number): Promise<LoadState> {
+  const { companyId } = await requireCaller(accessToken, STAFF);
   const supabase = supabaseServer();
-  const state = await getLoadsState(companyId);
+  const state = await loadLoadsState(companyId);
   const now = new Date().toISOString();
   const id = randomUUID();
   const next = applyLoadAction(state, action, now, id);
@@ -109,4 +108,9 @@ export async function commitLoadAction(action: LoadAction, expectedRevision: num
   if (conflict) throw conflict;
   next.revision = newRevision as number;
   return next;
+}
+
+export async function getLoadsState(accessToken: string): Promise<LoadState> {
+  const { companyId } = await requireCaller(accessToken, STAFF_OR_DISPATCHER);
+  return loadLoadsState(companyId);
 }

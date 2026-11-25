@@ -29,10 +29,10 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   const [payTrip, setPayTrip] = useState<{ driverId: string; driverName: string; tripStart: string; weekStart?: string } | null>(null);
   // Recorridos de Lázaro que ella quitó de la lista ("chofer|día que salió de FL").
   const [dismissed, setDismissed] = useState<string[]>([]), [showDismissed, setShowDismissed] = useState(false);
-  useEffect(() => { getTripDismissals().then(setDismissed).catch(() => {}); }, []);
+  useEffect(() => { loads.getAccessToken().then(getTripDismissals).then(setDismissed).catch(() => {}); }, [loads.getAccessToken]);
   async function toggleDismiss(driverId: string, tripStart: string, hide: boolean) {
     setError('');
-    try { setDismissed(await setTripDismissed(driverId, tripStart, hide)); } catch (e) { setError((e as Error).message); }
+    try { setDismissed(await setTripDismissed(await loads.getAccessToken(), driverId, tripStart, hide)); } catch (e) { setError((e as Error).message); }
   }
   const [payAmount, setPayAmount] = useState('');
   const [payBusy, setPayBusy] = useState(false), [payError, setPayError] = useState('');
@@ -47,7 +47,7 @@ export default function LoadsModule({ loads, fleet, settlements, canEdit, lang, 
   async function runSync() {
     if (syncBusy) return; setSyncBusy(true); setSyncError(''); setSyncResult(null); setNotice(''); setError('');
     try {
-      const result = await syncGoogleSheetAction(false);
+      const result = await syncGoogleSheetAction(await loads.getAccessToken(), false);
       await loads.refresh();
       setSyncResult(result);
     } catch (e) { setSyncError((e as Error).message); } finally { setSyncBusy(false); }
