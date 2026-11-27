@@ -33,6 +33,20 @@ export const defaultSettlementConfig: SettlementConfig = {
 // menos y compensa el resto en efectivo por fuera del sistema), así que la
 // ganancia real de Mario se calcula con este monto, no con el estimado.
 export type PaymentMark = { driverId: string; weekStart: string; paymentStatus: 'Pendiente' | 'Pagada'; paidAt: string; amountPaid: number; notes: string };
+
+// Un pago marcado desde la tarjeta de un viaje (Módulo 1) lleva en sus notas
+// "[VIAJE:AAAA-MM-DD]" — el día en que ese viaje salió de FL — para saber A CUÁL
+// viaje pertenece. Caso Roberto (27 nov): se pagó el viaje del 13 el miércoles 25,
+// cuando el viaje siguiente ya había salido el 21; comparando solo fechas, el pago
+// escondía los dos. Un pago SIN esa etiqueta (los anteriores) sigue la regla de
+// siempre: cuenta para todo viaje que salió antes del día del pago.
+export const tripPayTag = (tripStart: string) => `[VIAJE:${tripStart}]`;
+export function markPaysTrip(mark: PaymentMark, tripStart: string): boolean {
+  if (mark.paymentStatus !== 'Pagada' || !mark.paidAt) return false;
+  const tagged = mark.notes.match(/\[VIAJE:(\d{4}-\d{2}-\d{2})\]/);
+  if (tagged) return tagged[1] === tripStart;
+  return easternDate(mark.paidAt) > tripStart;
+}
 // El invoice del despachador se marca aparte de los de los choferes (pedido
 // explícito): quien controla si ya se le pagó a Gleybis es un Administrador
 // — Mario/Ney Mario —, nunca ella misma desde Mi Invoice.
